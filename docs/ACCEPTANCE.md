@@ -42,3 +42,23 @@ Behaviour the spec calls for that is also pinned by tests:
 | §24 | Any past recommendation can be explained | `Feature/AdminOperationsTest::test_any_recommendation_can_be_explained_after_the_fact` |
 | — | Anchor times without an offset are destination-local | `Feature/TravellerAndJourneyTest::test_an_anchor_time_without_an_offset_is_read_in_the_destinations_timezone` |
 | — | Opening hours: unknown is never rendered as open | `Unit/OpeningHoursTest` (five cases) |
+
+## Live integrations
+
+Every one of these runs offline against recorded fixtures, so a busy public
+Overpass instance can never turn CI red.
+
+| Behaviour | Test |
+|---|---|
+| The OSM opening-hours subset is parsed, and everything else is refused | `Unit/OpeningHoursParserTest` (15 cases) |
+| OSM tags map onto a place candidate; ratings stay null rather than invented | `Feature/ExternalSources/OverpassPlaceProviderTest` |
+| A server-side Overpass timeout is surfaced, not read as an empty city | `…OverpassPlaceProviderTest::test_a_server_side_timeout_is_surfaced_not_read_as_an_empty_city` |
+| One dead query batch does not cost the others | `…OverpassPlaceProviderTest::test_a_failing_batch_does_not_lose_the_others` |
+| Images carry licence and creator; an unlicensed image is discarded | `Feature/ExternalSources/WikimediaEnricherTest` |
+| A transient enrichment failure is not cached as an absence | `…WikimediaEnricherTest::test_a_transient_failure_is_not_cached_as_an_absence` |
+| Canonical resolution merges confidently and defers when ambiguous | `Feature/Places/PlaceResolverTest` (six cases) |
+| Ingestion is idempotent and never overwrites editorial content | `Feature/Places/IngestPlacesTest` |
+| One bad record does not abort the run | `…IngestPlacesTest::test_one_bad_record_does_not_abort_the_run` |
+| A driving-paced duration is not passed off as a walk | `Feature/ExternalSources/RoutingAndCurrencyTest` |
+| Google Places is inert without a key and maps ratings when configured | `Feature/ExternalSources/GooglePlacesProviderTest` |
+| A documented statue does not outrank a national museum | `Feature/Places/DerivedProminenceTest` |

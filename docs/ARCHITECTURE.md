@@ -81,24 +81,78 @@ Constrained optimisation, not text generation.
 `ItineraryReplanner` produces a *proposal* — a new version that is not made current
 until accepted — and refuses to move anything covered by a confirmed booking.
 
-## Providers
+## External sources
 
-`ExperienceProvider` is the spec's interface verbatim. Capability flags describe what
-each supplier can actually do, and the code branches on capability rather than on
-supplier name.
+Two separate concerns, deliberately not one interface. Knowing that the Tower of
+London exists is a different problem from selling a ticket to it, with different
+reliability, licensing and refresh characteristics.
 
-| Provider | Capabilities |
-|---|---|
-| `sandbox` | content, search, live availability, live pricing, native booking, cancellation |
-| `deeplink` | content, search, redirect booking |
-| `viator` | the full set, once `VIATOR_API_KEY` is present |
+**`PlaceDataProvider`** — canonical place data.
 
-`ProviderRegistry::attempt()` wraps every call with health tracking and a fallback
-value, and a circuit breaker opens after repeated failures. A supplier that cannot
-answer marks its own offer `degraded`; the rest of the page is unaffected.
+| Adapter | Gives us | Notably does not |
+|---|---|---|
+| `osm` (Overpass) | names, coordinates, addresses, websites, phones, opening hours, wheelchair tags, Wikidata links | ratings |
+| `google_places` | all of the above plus real ratings and review counts | Wikidata links |
 
-The deep-link provider returns `Availability::unknown(...)` with a reason rather than
-guessing inventory it cannot see.
+OpenStreetMap is the default because it is real, global and keyless. Google
+takes over automatically when a key is configured.
+
+**`PlaceEnricher`** — `wikimedia` pulls descriptions from Wikipedia and
+photographs from Commons, resolving the article through Wikidata sitelinks when
+OSM tagged an entity but no article.
+
+**`ExperienceProvider`** — ticketing, unchanged: `sandbox`, `deeplink`, `viator`.
+
+**Supporting adapters** — `NominatimGeocoder`, `OsrmRoutingProvider`,
+`FrankfurterCurrencyProvider`, `OpenMeteoWeatherProvider`.
+
+### Being a good citizen of free infrastructure
+
+Overpass, Nominatim and the public OSRM instance are community-run, and their
+usage policies are a condition of access rather than a suggestion. Every
+outbound call goes through `OutboundHttp`, which sets an identifying agent
+string and enforces a per-provider rate limit *before* the request — it refuses
+rather than queues, because a refused sync beats a ban.
+
+Two quirks are worth knowing, both discovered the hard way:
+
+- The public Overpass front end rejects any `User-Agent` containing parentheses
+  with a 406, so the conventional `App/1.0 (+url)` form is unusable. Contact
+  details go in the `From` header instead, which is the header actually meant
+  for them.
+- Overpass reports server-side timeouts as HTTP 200 with a `remark` and an empty
+  element list. Read naively that says "this city has no museums". The adapter
+  treats a remark as the failure it is, queries in small batches, and uses a
+  bounding box over nodes and ways rather than `around()` over `nwr` — the
+  difference between a query that answers and one that times out.
+
+### Canonical resolution
+
+`PlaceResolver` decides whether an ingested record is something we already hold.
+In order: an existing provider mapping, a shared Wikidata identity, then
+proximity plus trigram name similarity.
+
+The asymmetry drives the thresholds. A duplicate is untidy; a wrong merge sends
+someone to the wrong address. So only high-confidence matches merge
+automatically and everything ambiguous becomes a `place_merge_candidate` for a
+human. In practice that catches exactly the right cases — four near-identical
+Italian altars 16–49m apart, a seaport *district* against a seaport *museum*.
+
+### Derived values, and their ceiling
+
+`ExperienceDraftFactory` turns an ingested place into a draft: duration,
+exposure and interest affinity follow from the kind of place, prominence from
+whether the wider web considers it notable.
+
+Prominence is capped per kind, and that cap exists because of a real regression.
+After the first full ingestion a bronze statue of Captain Cook became the top
+recommendation for a first-time visitor to London, above the British Museum,
+because it was four minutes closer and had a Wikipedia article. Having an
+article means a thing is documented; it says nothing about whether it deserves
+an afternoon. `DerivedProminenceTest` keeps it that way — ingesting more data
+must not make the recommendations worse.
+
+A draft with no description is created as `needs_content` and never surfaces.
 
 ## Data freshness
 
@@ -130,23 +184,34 @@ geospatial queries go through `GeospatialRepository`; swapping the body for
 `ST_DWithin` when PostGIS is present touches nothing else. `pg_trgm` indexes back the
 fuzzy name matching that canonical place resolution needs.
 
-**Routing is an estimator, labelled as one.** No routing provider is integrated, so
-travel times come from great-circle distance with a street-network detour factor and a
-transit model above a threshold. Every estimate is returned with
-`confidence: "estimate"` and its source, so nothing downstream presents it as a live
-routing answer. `RoutingProvider` is an interface; binding a real one is a one-line
-change.
+**Routing has three confidence levels, not two.** OSRM returns a real
+street-network route, but the public demo server answers `/foot/` from its car
+profile — 1796m in six minutes is 18 km/h. The distance is still far better than
+a straight line with a detour factor, so where the implied pace is not walking
+we keep the measured distance, derive the time from our walking speed, and
+return `confidence: "routed"`. A self-hosted foot profile returns a plausible
+pace and is trusted as `"live"`. Unreachable falls back to the estimator and
+`"estimate"`. The distinction survives every failure path.
 
 **Maps use Leaflet in a WebView.** Rather than a native map SDK, which needs a dev
 build and an API key, the map is a Leaflet document over OpenStreetMap tiles. It runs
 in Expo Go, needs no key, and the platform-split `MapCanvas` uses an iframe on web.
 
-**No photography.** We have no licensed images for these places, so `image_url` is null
-throughout and the app renders a deterministic colour wash per experience. Showing a
-stock photo of somewhere else would be the dishonest option.
+**Photography is licensed and credited.** Images come from Wikimedia Commons,
+which is freely licensed but almost never public domain. The licence and
+photographer are fetched with the image and rendered by the `Photo` component
+itself, so a screen cannot display one without its credit. Where no licensed
+image exists the deterministic colour wash is still used, because a stock photo
+of somewhere else would be worse than no photo.
 
 ## Things worth knowing before extending it
 
+- Ingestion runs each record in its own transaction (a savepoint when nested).
+  Without it, one failed insert aborts the surrounding PostgreSQL transaction and
+  every later statement fails too — including writing down what went wrong.
+- The enricher caches plain arrays, never DTOs, and caches only definitive
+  answers. "Wikipedia has nothing on this" is worth remembering for a week; "we
+  were rate limited just then" would blank the description until it expired.
 - `pgsql.timezone` is pinned to `+00:00` in `config/database.php`. The host database
   ran in `Europe/London`, which silently shifted every `timestamptz` write by an hour.
   For a travel app that is not a cosmetic bug.

@@ -81,33 +81,66 @@ On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN address
 ### Tests
 
 ```bash
-cd api && php artisan test          # 84 tests, 274 assertions
+cd api && php artisan test          # 139 tests, 412 assertions
 cd mobile && npm run typecheck
 ```
 
 ---
 
-## About the seeded content
+## Where the data comes from
 
-The catalogue ships with 34 hand-written experiences across London, Rome, New York and
-Tokyo, plus a neighbourhood model, sourced city essentials and 77 Experience Graph
-edges. **This is demonstration content, not a live provider feed.** Every row is
-written with `data_source = "seed_demo"`, that provenance travels all the way to the
-API response, and the app displays it. Swap in a real place-data adapter (§9.2) and
-nothing else has to change, because every caller reads provenance rather than assuming
-it.
+The catalogue is populated from live sources, not fixtures.
 
-Two suppliers are wired: `sandbox`, a complete reference implementation of the provider
-contract with deterministic inventory so the native booking path can be exercised end
-to end, and `deeplink`, a generic affiliate redirect. A Viator adapter is written
-against the real API shape and activates when `VIATOR_API_KEY` is set. Weather is live
-from Open-Meteo, with a deterministic offline provider for tests.
+| Concern | Source | Key needed |
+|---|---|---|
+| Canonical places | OpenStreetMap via Overpass | no |
+| Descriptions | Wikipedia REST | no |
+| Photography | Wikimedia Commons | no |
+| Geocoding | Nominatim | no |
+| Walking routes | OSRM | no |
+| Weather | Open-Meteo | no |
+| Exchange rates | Frankfurter (ECB data) | no |
+| Places with ratings | Google Places (New) | `GOOGLE_PLACES_API_KEY` |
+| Tickets | Viator | `VIATOR_API_KEY` |
 
-Experiences carry no photography because we do not have licensed images for these
-places; the app renders a stable colour wash per experience rather than showing a stock
-photo of somewhere else.
+```bash
+php artisan experience:sync-places all --radius=6000
+```
 
----
+That ingests real places, resolves them against the canonical catalogue, and
+pulls descriptions and photographs for anything with a Wikidata or Wikipedia
+identity. Re-running is idempotent. Pass `--refresh-derived` after changing a
+derivation heuristic to recompute the values this pipeline generated — it never
+touches editorial content.
+
+Google Places takes over as the place-data source the moment a key is present,
+bringing the review volume OpenStreetMap does not carry. Nothing else changes.
+
+### What the data is allowed to claim
+
+Every fact carries its provenance to the client, and the app displays it.
+
+- **Ratings.** OpenStreetMap has none, so `rating` stays null and the quality
+  component scores neutral rather than poor. Google supplies real ones.
+- **Opening hours.** The OSM `opening_hours` grammar is large; the parser covers
+  the unambiguous subset and returns null for the rest. Null means "not
+  verified" all the way through and is never rendered as open.
+- **Photographs.** Commons images are freely licensed but almost never public
+  domain, so the licence and photographer are fetched with the image and shown
+  with it. An image that arrives without a licence is discarded.
+- **Descriptions.** Wikipedia extracts are attributed to Wikipedia with a link.
+- **Travel times.** OSRM returns a real street-network route. The public demo
+  server answers foot requests from its car profile, so where the implied pace
+  is not walking we keep the measured distance, derive the time from walking
+  speed, and label the result `routed` rather than `live`.
+
+A place with no description is created as `needs_content` and never reaches a
+traveller. Around 90% of ingested records sit there — a memorial plaque is a
+real place but not an afternoon — which is the honest outcome rather than a
+catalogue padded with filler.
+
+Thirty-four hand-written experiences across the four cities remain as editorial
+content. Ingestion fills their gaps and never overwrites them.
 
 ## Documentation
 

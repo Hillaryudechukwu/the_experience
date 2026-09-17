@@ -56,7 +56,9 @@ next anchor, engine version), `recommendation_set_id`, `candidates_considered`, 
 
 ```
 GET    /experiences/saved
-GET    /experiences/{experience}          §7 — split into descriptive / dynamic
+GET    /experiences/{experience}          §7 — split into descriptive / dynamic,
+                                         with a `sources` block naming every
+                                         licence and source on the page
 GET    /experiences/{experience}/availability
 GET    /experiences/{experience}/offers
 POST   /experiences/{experience}/save
