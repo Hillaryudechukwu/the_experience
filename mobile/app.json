@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "The Experience",
+    "slug": "the-experience",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.theexperience.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Your location is used only to work out what is worth doing near you right now. You can decline and pick a city instead."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.theexperience.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Your location is used only to work out what is worth doing near you right now."
+        }
+      ]
+    ],
+    "scheme": "theexperience",
+    "newArchEnabled": true
+  }
+}
