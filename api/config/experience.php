@@ -287,8 +287,62 @@ return [
         'highly_dynamic' => ['ttl_seconds' => 900,     'label' => 'Checked live'],
     ],
 
+    /*
+     * Shared outbound HTTP policy. Several sources this product depends on are
+     * free, community-run infrastructure whose usage policies require an
+     * identifying agent string and restrained request rates.
+     */
+    'http' => [
+        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'TheExperience/1.0'),
+        'contact_email' => env('CONTACT_EMAIL'),
+        'rate_limits' => [
+            'default' => 60,
+            'osm' => 20,          // Overpass is a shared community resource
+            'nominatim' => 55,    // policy is 1 req/sec
+            'osrm' => 60,
+            'wikimedia' => 200,
+            'google_places' => 300,
+            'frankfurter' => 60,
+        ],
+    ],
+
+    /* Canonical place data (spec s9.2, s11). */
+    'place_data' => [
+        'driver' => env('EXPERIENCE_PLACE_DATA_DRIVER', 'osm'),   // osm | google
+        'osm' => [
+            'overpass_url' => env('OVERPASS_URL', 'https://overpass-api.de/api/interpreter'),
+            'nominatim_url' => env('NOMINATIM_URL', 'https://nominatim.openstreetmap.org'),
+            'cache_seconds' => 86400,
+            'geocode_cache_seconds' => 604800,
+        ],
+        'google' => [
+            'api_key' => env('GOOGLE_PLACES_API_KEY'),
+            /* Google's terms restrict retention of most Places content, so this
+               is request coalescing rather than a content cache. */
+            'cache_seconds' => 900,
+        ],
+    ],
+
+    /* Editorial content and imagery (spec s7). */
+    'enrichment' => [
+        'driver' => env('EXPERIENCE_ENRICHMENT_DRIVER', 'wikimedia'),
+        'cache_seconds' => 604800,
+    ],
+
+    'currency' => [
+        'driver' => env('EXPERIENCE_CURRENCY_DRIVER', 'frankfurter'),
+        'base_url' => env('FRANKFURTER_URL', 'https://api.frankfurter.dev'),
+        'cache_seconds' => 21600,
+    ],
+
     'routing' => [
-        'driver' => env('EXPERIENCE_ROUTING_DRIVER', 'estimator'),
+        'driver' => env('EXPERIENCE_ROUTING_DRIVER', 'osrm'),
+        'cache_seconds' => 86400,
+        /* Past this, nobody is walking, so we stop asking a foot router. */
+        'max_route_metres' => 5000,
+        'osrm' => [
+            'base_url' => env('OSRM_URL', 'https://router.project-osrm.org'),
+        ],
         'walking_kmh' => 4.6,
         'walking_detour_factor' => 1.25,   // straight line -> street network
         'transit_threshold_km' => 2.0,
@@ -350,6 +404,15 @@ return [
         ],
         'viator' => ['api_key' => env('VIATOR_API_KEY')],
         'getyourguide' => ['api_key' => env('GETYOURGUIDE_API_KEY')],
+    ],
+
+    /* Canonical place resolution thresholds (spec s11). */
+    'resolution' => [
+        'match_radius_metres' => 250,
+        'close_radius_metres' => 120,
+        'name_similarity_match' => 0.60,
+        'name_similarity_strict' => 0.80,
+        'name_similarity_review' => 0.45,
     ],
 
     'privacy' => [
