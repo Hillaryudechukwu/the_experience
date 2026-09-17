@@ -32,6 +32,7 @@ class Experience extends Model
             'best_time_of_day' => 'array',
             'busy_periods' => 'array',
             'know_before_you_go' => 'array',
+            'image_attribution' => 'array',
             'is_free' => 'boolean',
             'requires_booking' => 'boolean',
             'has_toilets' => 'boolean',
