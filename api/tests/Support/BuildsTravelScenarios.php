@@ -49,7 +49,7 @@ trait BuildsTravelScenarios
             'destination_id' => $destination->id,
             'slug' => 'place-' . $slug,
             'name' => $attributes['title'] ?? 'Test place',
-            'normalised_name' => 'test place',
+            'normalised_name' => $this->normalise($attributes['title'] ?? 'Test place'),
             'lat' => $attributes['lat'] ?? 51.5074,
             'lng' => $attributes['lng'] ?? -0.1278,
             'timezone' => $destination->timezone,
@@ -108,6 +108,14 @@ trait BuildsTravelScenarios
             'familiarity' => 'never',
             'currency' => 'GBP',
         ], $attributes));
+    }
+
+    /** Mirrors the normalisation the ingestion pipeline applies. */
+    protected function normalise(string $name): string
+    {
+        $stripped = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', mb_strtolower($name));
+
+        return trim((string) preg_replace('/\s+/', ' ', (string) $stripped));
     }
 
     protected function openAllWeek(string $from = '00:00', string $to = '23:59'): array
