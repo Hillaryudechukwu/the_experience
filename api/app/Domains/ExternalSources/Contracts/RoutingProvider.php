@@ -11,5 +11,8 @@ interface RoutingProvider
 {
     public function key(): string;
 
+    /** Attribution the provider's licence requires us to display. */
+    public function attribution(): string;
+
     public function estimate(GeoPoint $from, GeoPoint $to, string $walkingTolerance = 'medium'): TravelEstimate;
 }

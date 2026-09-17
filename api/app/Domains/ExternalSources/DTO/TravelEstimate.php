@@ -10,7 +10,12 @@ final readonly class TravelEstimate
         public int $minutes,
         public int $metres,
         public string $mode,          // walk|transit|mixed
-        public string $confidence,    // estimate|live
+        /*
+         * estimate  straight-line distance with a detour factor; time modelled
+         * routed    real street-network distance; walking time modelled
+         * live      real route and a trustworthy walking duration
+         */
+        public string $confidence,
         public string $source,
     ) {}
 

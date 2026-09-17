@@ -23,6 +23,11 @@ class EstimatorRoutingProvider implements RoutingProvider
         return 'estimator';
     }
 
+    public function attribution(): string
+    {
+        return 'Travel times estimated, not routed';
+    }
+
     public function estimate(GeoPoint $from, GeoPoint $to, string $walkingTolerance = 'medium'): TravelEstimate
     {
         $config = config('experience.routing');
