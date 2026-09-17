@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 
 import type { ExperienceCard as Card } from '../api/types';
 import { radius, space, useTheme } from '../theme';
-import { Artwork, Card as Surface, Row, ScoreBadge, T } from './primitives';
+import { Card as Surface, Row, ScoreBadge, T } from './primitives';
+import { Photo } from './Photo';
 import { recordEvents } from '../api/hooks';
 
 function priceLabel(card: Card): string {
@@ -51,7 +52,16 @@ export function ExperienceCardView({
 
   return (
     <Surface onPress={open} style={{ marginBottom: space.md }}>
-      {!compact && <Artwork id={card.id} category={primary?.key} height={104} label={primary?.label} />}
+      {!compact && (
+        <Photo
+          id={card.id}
+          uri={card.image_url}
+          attribution={card.image_attribution}
+          category={primary?.key}
+          height={104}
+          label={primary?.label}
+        />
+      )}
 
       <View style={{ padding: space.lg, gap: space.sm }}>
         <Row style={{ alignItems: 'flex-start', gap: space.md }}>

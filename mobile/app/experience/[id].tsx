@@ -5,7 +5,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useExperience, useMarkComplete, useToggleSave } from '../../src/api/hooks';
 import type { Freshness, Offer } from '../../src/api/types';
 import {
-  Artwork,
   Button,
   Card,
   Chip,
@@ -17,6 +16,7 @@ import {
   SectionHeader,
   T,
 } from '../../src/components/primitives';
+import { Photo } from '../../src/components/Photo';
 import { clock, minutesLabel, titleCase } from '../../src/lib/format';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -52,7 +52,13 @@ export default function ExperienceScreen() {
 
   return (
     <Screen contentStyle={{ padding: 0 }}>
-      <Artwork id={data.id} category={descriptive.categories[0]?.key} height={190} />
+      <Photo
+        id={data.id}
+        uri={descriptive.image_url}
+        attribution={descriptive.image_attribution}
+        category={descriptive.categories[0]?.key}
+        height={220}
+      />
 
       <Pressable
         onPress={() => router.back()}
@@ -318,9 +324,40 @@ export default function ExperienceScreen() {
           />
         </Row>
 
-        <T variant="small" color={colors.inkFaint} style={{ marginTop: space.xl, textAlign: 'center' }}>
-          Content source: {data.data_source}
-        </T>
+        {/* Licences oblige us to credit these, and a traveller deserves to know
+            where a claim came from before acting on it. */}
+        <SectionHeader title="Where this came from" />
+        <Card>
+          <View style={{ padding: space.lg, gap: space.sm }}>
+            {data.sources.length === 0 ? (
+              <T variant="small" color={colors.inkMuted}>
+                Written in-house.
+              </T>
+            ) : (
+              data.sources.map((source) => (
+                <Pressable
+                  key={source.kind}
+                  disabled={!source.url}
+                  onPress={() => source.url && Linking.openURL(source.url)}
+                >
+                  <Row style={{ justifyContent: 'space-between' }}>
+                    <T variant="small" color={colors.inkMuted}>
+                      {titleCase(source.kind)}
+                    </T>
+                    <T
+                      variant="small"
+                      color={source.url ? colors.accent : colors.ink}
+                      style={{ flex: 1, textAlign: 'right' }}
+                      numberOfLines={2}
+                    >
+                      {source.name}
+                    </T>
+                  </Row>
+                </Pressable>
+              ))
+            )}
+          </View>
+        </Card>
       </View>
     </Screen>
   );

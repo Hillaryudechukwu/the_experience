@@ -12,6 +12,15 @@ export type Money = { minor: number; currency: string; formatted: string };
 
 export type Category = { key: string; label: string };
 
+export type ImageAttribution = {
+  creator: string | null;
+  licence: string | null;
+  licence_url: string | null;
+  source_url: string | null;
+} | null;
+
+export type ContentSource = { kind: string; name: string; url: string | null };
+
 export type Travel = { minutes: number; metres: number; mode: string; confidence: string; source: string };
 
 export type ExperienceCard = {
@@ -20,6 +29,7 @@ export type ExperienceCard = {
   title: string;
   summary: string;
   image_url: string | null;
+  image_attribution: ImageAttribution;
   categories: Category[];
   duration_minutes: number;
   is_free: boolean;
@@ -51,6 +61,7 @@ export type ExperienceDetail = {
     energy_level: string;
     best_time_of_day: string[];
     image_url: string | null;
+    image_attribution: ImageAttribution;
     categories: Category[];
     destination: string | null;
     neighbourhood: string | null;
@@ -89,6 +100,7 @@ export type ExperienceDetail = {
     contributions: Record<string, number | null>;
   } | null;
   related: Record<string, { id: string; title: string; weight: number; note: string | null }[]>;
+  sources: ContentSource[];
   data_source: string;
   is_saved: boolean;
   is_completed: boolean;

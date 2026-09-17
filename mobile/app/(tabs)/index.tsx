@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import { useDestination, useDiscovery, useSurpriseMe, useTrip } from '../../src/api/hooks';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
 import {
-  Artwork,
   Button,
   Card,
   Chip,
@@ -18,6 +17,7 @@ import {
   SectionHeader,
   T,
 } from '../../src/components/primitives';
+import { Photo } from '../../src/components/Photo';
 import { clock, conditionLabel, minutesLabel, timeOfDayGreeting } from '../../src/lib/format';
 import { MOODS, TIME_WINDOWS } from '../../src/lib/reasons';
 import { useSession } from '../../src/store/session';
@@ -201,7 +201,14 @@ export default function Today() {
             title={window ? `Best use of ${minutesLabel(window)}` : mood ? 'Closest to your mood' : "Don't miss today"}
           />
           <Card onPress={() => router.push(`/experience/${top.id}`)}>
-            <Artwork id={top.id} category={top.categories[0]?.key} height={150} label={top.categories[0]?.label} />
+            <Photo
+              id={top.id}
+              uri={top.image_url}
+              attribution={top.image_attribution}
+              category={top.categories[0]?.key}
+              height={150}
+              label={top.categories[0]?.label}
+            />
             <View style={{ padding: space.lg, gap: space.sm }}>
               <Row style={{ alignItems: 'flex-start', gap: space.md }}>
                 <View style={{ flex: 1 }}>
