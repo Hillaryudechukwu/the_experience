@@ -33,6 +33,10 @@ class ExperiencePresenter
             'title' => $experience->title,
             'summary' => $experience->summary,
             'image_url' => $experience->image_url,
+            /* Creative Commons imagery may only be shown with its licence and
+               creator, so attribution travels with the URL rather than being
+               something the client has to remember to ask for. */
+            'image_attribution' => $experience->image_attribution,
             'categories' => $experience->relationLoaded('categories')
                 ? $experience->categories->map(fn ($c) => ['key' => $c->key, 'label' => $c->label])->all()
                 : [],
@@ -84,6 +88,7 @@ class ExperiencePresenter
                 'energy_level' => $experience->energy_level,
                 'best_time_of_day' => $experience->best_time_of_day,
                 'image_url' => $experience->image_url,
+                'image_attribution' => $experience->image_attribution,
                 'categories' => $experience->categories->map(fn ($c) => ['key' => $c->key, 'label' => $c->label])->all(),
                 'destination' => $experience->destination?->name,
                 'neighbourhood' => $place?->neighbourhood?->name,
@@ -140,6 +145,25 @@ class ExperiencePresenter
             'experience_score' => $scored?->score,
             'explanation' => $scored?->explanation(),
             'related' => $this->related($experience),
+
+            /* Where everything on this page came from, in one place. */
+            'sources' => array_values(array_filter([
+                $experience->content_source_name === null ? null : [
+                    'kind' => 'description',
+                    'name' => $experience->content_source_name,
+                    'url' => $experience->content_source_url,
+                ],
+                $place?->attribution === null ? null : [
+                    'kind' => 'place_data',
+                    'name' => $place->attribution,
+                    'url' => 'https://www.openstreetmap.org/copyright',
+                ],
+                $experience->image_attribution === null ? null : [
+                    'kind' => 'image',
+                    'name' => trim(($experience->image_attribution['creator'] ?? 'Unknown') . ' · ' . ($experience->image_attribution['licence'] ?? '')),
+                    'url' => $experience->image_attribution['source_url'] ?? null,
+                ],
+            ])),
             'data_source' => $experience->data_source,
         ];
     }
