@@ -114,6 +114,51 @@ class GooglePlacesProvider implements PlaceDataProvider
             ->values();
     }
 
+    /**
+     * Text search, used to find a known place's Google counterpart.
+     *
+     * The field mask is deliberately narrower than the nearby-search one:
+     * ratings sit in Google's most expensive SKU tier, so this asks for the
+     * identity fields plus the two things OpenStreetMap cannot give us, and
+     * nothing else.
+     *
+     * @return Collection<int, PlaceCandidate>
+     */
+    public function findByText(string $query, GeoPoint $bias, int $radiusMetres = 400, int $limit = 5): Collection
+    {
+        $response = $this->http
+            ->for($this->key())
+            ->withHeaders([
+                'X-Goog-Api-Key' => (string) config('experience.place_data.google.api_key'),
+                'X-Goog-FieldMask' => 'places.id,places.displayName,places.location,places.types,'
+                    . 'places.rating,places.userRatingCount,places.accessibilityOptions,'
+                    /* Same billing tier as the rating, so this costs nothing
+                       extra and closes the larger gap: over half the ingested
+                       places have no opening hours at all, and businesses keep
+                       their Google listing far more current than their OSM one. */
+                    . 'places.regularOpeningHours',
+            ])
+            ->post(self::BASE . '/places:searchText', [
+                'textQuery' => $query,
+                'maxResultCount' => $limit,
+                'locationBias' => [
+                    'circle' => [
+                        'center' => ['latitude' => $bias->lat, 'longitude' => $bias->lng],
+                        'radius' => $radiusMetres,
+                    ],
+                ],
+            ]);
+
+        if ($response->failed()) {
+            throw new \RuntimeException("Google Places text search returned {$response->status()}: " . mb_substr($response->body(), 0, 200));
+        }
+
+        return collect($response->json('places') ?? [])
+            ->map(fn (array $place) => $this->toCandidate($place))
+            ->filter()
+            ->values();
+    }
+
     public function getPlace(string $providerId): ?PlaceCandidate
     {
         $response = $this->http

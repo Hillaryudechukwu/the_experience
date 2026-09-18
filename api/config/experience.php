@@ -382,7 +382,9 @@ return [
 
     'assistant' => [
         'driver' => env('EXPERIENCE_ASSISTANT_DRIVER', 'rules'),
+        'api_key' => env('ANTHROPIC_API_KEY'),
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5'),
+        'max_output_tokens' => 1024,
         'max_tool_rounds' => 4,
         /* Patterns the grounding guard refuses to let an LLM state unsourced. */
         'guarded_fact_patterns' => [
