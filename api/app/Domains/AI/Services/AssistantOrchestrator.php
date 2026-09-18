@@ -43,8 +43,10 @@ class AssistantOrchestrator
             'driver' => null,
         ]);
 
-        $driver = config('experience.assistant.driver');
-        $answer = $driver === 'anthropic' && config('experience.assistant.model') && env('ANTHROPIC_API_KEY')
+        /* config() rather than env(): env() returns null once the config cache
+           is warm, which would silently drop the app back to the rules driver
+           in production only. */
+        $answer = $this->canUseModel()
             ? $this->viaAnthropic($actor, $message, $context, $conversation)
             : $this->viaRules($actor, $message, $context);
 
@@ -143,26 +145,31 @@ class AssistantOrchestrator
         for ($round = 0; $round < $rounds; $round++) {
             $response = $this->http
                 ->withHeaders([
-                    'x-api-key' => (string) env('ANTHROPIC_API_KEY'),
+                    'x-api-key' => (string) config('experience.assistant.api_key'),
                     'anthropic-version' => '2023-06-01',
                 ])
                 ->timeout(30)
                 ->post('https://api.anthropic.com/v1/messages', [
                     'model' => config('experience.assistant.model'),
-                    'max_tokens' => 1024,
+                    'max_tokens' => (int) config('experience.assistant.max_output_tokens', 1024),
                     'system' => $this->systemPrompt(),
                     'tools' => $this->toolbox->definitions(),
                     'messages' => $messages,
                 ]);
 
             if ($response->failed()) {
-                Log::warning('assistant.anthropic_failed', ['status' => $response->status()]);
+                /* The status alone is useless when debugging a 400 — the body
+                   names the offending field. */
+                Log::warning('assistant.anthropic_failed', [
+                    'status' => $response->status(),
+                    'error' => $response->json('error.message') ?? mb_substr($response->body(), 0, 400),
+                ]);
 
                 return $this->viaRules($actor, $message, $context);
             }
 
             $body = $response->json();
-            $messages[] = ['role' => 'assistant', 'content' => $body['content']];
+            $messages[] = ['role' => 'assistant', 'content' => $this->normaliseContent($body['content'] ?? [])];
 
             $toolUses = array_values(array_filter($body['content'] ?? [], fn ($b) => ($b['type'] ?? '') === 'tool_use'));
 
@@ -203,6 +210,33 @@ class AssistantOrchestrator
         }
 
         return $this->viaRules($actor, $message, $context);
+    }
+
+    /**
+     * Makes the assistant's own content safe to send back.
+     *
+     * A tool called with no arguments comes back as `{}`, which json_decode
+     * turns into an empty PHP array and json_encode then re-emits as `[]` — an
+     * array where the API requires an object. The whole turn is rejected with a
+     * 400, and because the orchestrator falls back to the rules driver the only
+     * visible symptom is that the model silently stops being used.
+     */
+    private function normaliseContent(array $content): array
+    {
+        foreach ($content as $index => $block) {
+            if (($block['type'] ?? null) === 'tool_use' && ($block['input'] ?? null) === []) {
+                $content[$index]['input'] = new \stdClass;
+            }
+        }
+
+        return $content;
+    }
+
+    private function canUseModel(): bool
+    {
+        return config('experience.assistant.driver') === 'anthropic'
+            && (bool) config('experience.assistant.api_key')
+            && (bool) config('experience.assistant.model');
     }
 
     private function systemPrompt(): string
