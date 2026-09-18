@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { API_URL } from '../../src/api/client';
 import { useDestination, useDiscovery, useSurpriseMe, useTrip } from '../../src/api/hooks';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
 import {
@@ -184,7 +185,7 @@ export default function Today() {
       {discovery.isError && (
         <View style={{ marginTop: space.lg }}>
           <Note tone="warn">
-            Could not reach the recommendation engine. Pull down to retry once the API is running.
+            {`Could not reach the API at ${API_URL}. Start it with "php artisan serve --host=0.0.0.0 --port=8099", then pull down to retry.`}
           </Note>
         </View>
       )}

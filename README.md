@@ -75,8 +75,31 @@ npm install
 npx expo start                  # press i for iOS, a for Android, w for web
 ```
 
-On a physical device, set `EXPO_PUBLIC_API_URL` to your machine's LAN address
-(`http://192.168.x.x:8099/api`) — `127.0.0.1` resolves to the phone itself.
+The app works out where the API is on its own. If `EXPO_PUBLIC_API_URL` is
+loopback and you are on a device or simulator, it borrows the host your phone
+already used to download the bundle from the Expo dev server and keeps the API
+port. An explicit non-loopback URL always wins, so staging and production are
+unaffected.
+
+### "Could not reach the API"
+
+Almost always one of two things.
+
+**The API is not running.** Start it, and bind it to all interfaces so a phone
+on the same network can reach it:
+
+```bash
+cd api && php artisan serve --host=0.0.0.0 --port=8099
+```
+
+**Loopback on a physical device.** `127.0.0.1` on a phone is the phone. The
+auto-resolution above normally handles this; if you have pinned
+`EXPO_PUBLIC_API_URL` by hand, point it at your machine's LAN address
+(`http://192.168.x.x:8099/api`) and restart Expo — `EXPO_PUBLIC_*` values are
+baked in at bundle time.
+
+The error banner names the exact URL it tried, which usually settles it in one
+glance.
 
 ### Tests
 
