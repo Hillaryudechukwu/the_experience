@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Places;
 
-use App\Domains\ExternalSources\Contracts\PlaceDataProvider;
 use App\Domains\ExternalSources\Models\ExternalEntity;
 use App\Domains\ExternalSources\Models\ProviderSyncFailure;
 use App\Domains\Experiences\Models\Experience;
@@ -169,8 +168,10 @@ class IngestPlacesTest extends TestCase
 
     private function artisanIngest($destination): array
     {
+        /* Explicit: this exercises the OpenStreetMap adapter, whatever the
+           environment happens to have configured as the default. */
         $action = new \App\Domains\Places\Actions\IngestPlaces(
-            app(PlaceDataProvider::class),
+            app(\App\Domains\ExternalSources\Providers\OverpassPlaceProvider::class),
             app(\App\Domains\Places\Services\PlaceResolver::class),
             app(\App\Domains\Places\Services\ExperienceDraftFactory::class),
             app(\App\Domains\ExternalSources\Contracts\PlaceEnricher::class),

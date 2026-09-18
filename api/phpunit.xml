@@ -32,9 +32,23 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
-        <env name="EXPERIENCE_WEATHER_DRIVER" value="seeded"/>
-        <env name="EXPERIENCE_ASSISTANT_DRIVER" value="rules"/>
+        <env name="EXPERIENCE_WEATHER_DRIVER" value="seeded" force="true"/>
+        <env name="EXPERIENCE_ASSISTANT_DRIVER" value="rules" force="true"/>
+        <env name="EXPERIENCE_ROUTING_DRIVER" value="osrm" force="true"/>
+        <env name="EXPERIENCE_PLACE_DATA_DRIVER" value="osm" force="true"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+
+        <!--
+            Credentials are blanked for the test run, and forced so a populated
+            .env cannot override them. Without this the suite picks up real keys
+            from the developer's environment: adapters that are supposed to be
+            inert become active, fixtures stop matching, and a CI run can spend
+            money against a live billing account.
+        -->
+        <env name="GOOGLE_PLACES_API_KEY" value="" force="true"/>
+        <env name="VIATOR_API_KEY" value="" force="true"/>
+        <env name="GETYOURGUIDE_API_KEY" value="" force="true"/>
+        <env name="ANTHROPIC_API_KEY" value="" force="true"/>
     </php>
 </phpunit>
