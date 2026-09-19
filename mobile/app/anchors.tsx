@@ -3,21 +3,28 @@ import { Alert, Pressable, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useAddAnchor, useJourney } from '../src/api/hooks';
-import { Button, Card, Chip, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
+import { Icon } from '../src/components/Icon';
+import { Button, Card, Chip, Divider, Gutter, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { clock, dayLabel } from '../src/lib/format';
 import { ANCHOR_TYPES } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
 
-/** Spec s3.4 — Journey Anchors. The things the plan must be built around. */
+/**
+ * Journey anchors (Figma: 25).
+ *
+ * Fixed commitments get the lock language throughout, because the promise here
+ * is specific: the planner will never schedule something that risks making you
+ * late, and it will never move one of these silently.
+ */
 export default function Anchors() {
   const colors = useTheme();
   const router = useRouter();
   const journeyId = useSession((s) => s.journeyId);
 
   const { data: journey, isLoading } = useJourney(journeyId);
-  const tz = journey?.destination.timezone;
   const addAnchor = useAddAnchor(journeyId ?? '');
+  const tz = journey?.destination.timezone;
 
   const [type, setType] = useState('restaurant');
   const [title, setTitle] = useState('');
@@ -59,67 +66,106 @@ export default function Anchors() {
 
   return (
     <Screen>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <T variant="display">Fixed commitments</T>
-        <Pressable onPress={() => router.back()} hitSlop={10}>
-          <T variant="bodyStrong" color={colors.accent}>
-            Done
-          </T>
-        </Pressable>
-      </Row>
+      <Gutter style={{ paddingTop: space.sm }}>
+        <Row justify="space-between">
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
+            <Icon name="back" size={24} color={colors.text.primary} />
+          </Pressable>
+        </Row>
+        <T variant="displayL" style={{ marginTop: space.sm }}>
+          Fixed commitments
+        </T>
+      </Gutter>
 
-      <Note>
-        Times are local to {journey.destination.name}. Anything you add here is protected: we will never
-        schedule something that risks making you late for it, and the buffer you set is respected on top.
-      </Note>
+      <Gutter style={{ marginTop: space.md }}>
+        <Note icon={<Icon name="lock" size={16} color={colors.text.secondary} />}>
+          Times are local to {journey.destination.name}. Anything here is protected: we will never schedule
+          something that risks making you late, and the buffer you set is respected on top.
+        </Note>
+      </Gutter>
 
-      {journey.anchors.length > 0 && (
-        <>
+      {journey.anchors.length > 0 ? (
+        <Gutter>
           <SectionHeader title="Already fixed" />
-          {journey.anchors.map((anchor) => (
-            <Card key={anchor.id} style={{ marginBottom: space.sm }}>
-              <View style={{ padding: space.lg, gap: 2 }}>
-                <T variant="bodyStrong">{anchor.title}</T>
-                <T variant="small" color={colors.inkMuted}>
-                  {dayLabel(anchor.starts_at, tz)} · {clock(anchor.starts_at, tz)}–{clock(anchor.ends_at, tz)}
-                </T>
-                <T variant="small" color={colors.inkFaint}>
-                  Nothing scheduled after {clock(anchor.protected_from, tz)}
-                </T>
-              </View>
-            </Card>
+          <Card>
+            <View style={{ padding: space.md }}>
+              {journey.anchors.map((anchor, index) => (
+                <React.Fragment key={anchor.id}>
+                  {index > 0 ? <Divider style={{ marginVertical: space.sm }} /> : null}
+                  <Row gap={space.sm} align="flex-start">
+                    <View
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: radius.compact,
+                        backgroundColor: colors.background.sunken,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon name="lock" size={15} color={colors.text.secondary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <T variant="bodyStrong">{anchor.title}</T>
+                      <T variant="small" color={colors.text.secondary}>
+                        {dayLabel(anchor.starts_at, tz)} · {clock(anchor.starts_at, tz)}–{clock(anchor.ends_at, tz)}
+                      </T>
+                      <T variant="caption" color={colors.text.tertiary}>
+                        Nothing scheduled after {clock(anchor.protected_from, tz)}
+                      </T>
+                    </View>
+                  </Row>
+                </React.Fragment>
+              ))}
+            </View>
+          </Card>
+        </Gutter>
+      ) : null}
+
+      <Gutter>
+        <SectionHeader title="Add one" />
+        <Row gap={space.xs} wrap>
+          {ANCHOR_TYPES.map((option) => (
+            <Chip
+              key={option.key}
+              label={option.label}
+              size="small"
+              selected={type === option.key}
+              onPress={() => setType(option.key)}
+              icon={
+                <Icon
+                  name={option.icon}
+                  size={13}
+                  color={type === option.key ? colors.text.onAccent : colors.text.tertiary}
+                />
+              }
+            />
           ))}
-        </>
-      )}
+        </Row>
 
-      <SectionHeader title="Add one" />
+        <Field label="What is it?" value={title} onChange={setTitle} placeholder="Dinner with the team" />
+        <Field label="Date" value={date} onChange={setDate} placeholder="2026-09-20" />
 
-      <Row gap={space.sm} wrap>
-        {ANCHOR_TYPES.map((option) => (
-          <Chip key={option.key} label={option.label} selected={type === option.key} onPress={() => setType(option.key)} />
-        ))}
-      </Row>
+        <Row gap={space.sm} align="flex-start">
+          <View style={{ flex: 1 }}>
+            <Field label="Starts" value={start} onChange={setStart} placeholder="20:00" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label="Ends" value={end} onChange={setEnd} placeholder="22:00" />
+          </View>
+        </Row>
 
-      <Field label="What is it?" value={title} onChange={setTitle} placeholder="Dinner with the team" />
-      <Field label="Date" value={date} onChange={setDate} placeholder="2026-09-18" />
+        <Field label="Buffer before (minutes)" value={buffer} onChange={setBuffer} placeholder="20" />
 
-      <Row gap={space.md}>
-        <View style={{ flex: 1 }}>
-          <Field label="Starts" value={start} onChange={setStart} placeholder="20:00" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Field label="Ends" value={end} onChange={setEnd} placeholder="22:00" />
-        </View>
-      </Row>
-
-      <Field label="Buffer before (minutes)" value={buffer} onChange={setBuffer} placeholder="20" />
-
-      <Button
-        label={addAnchor.isPending ? 'Adding…' : 'Add commitment'}
-        onPress={submit}
-        loading={addAnchor.isPending}
-        style={{ marginTop: space.lg }}
-      />
+        <Button
+          label={addAnchor.isPending ? 'Adding…' : 'Add commitment'}
+          size="large"
+          onPress={submit}
+          loading={addAnchor.isPending}
+          haptic="medium"
+          style={{ marginTop: space.lg }}
+        />
+      </Gutter>
     </Screen>
   );
 }
@@ -138,24 +184,25 @@ function Field({
   const colors = useTheme();
 
   return (
-    <View style={{ marginTop: space.md, gap: space.xs }}>
-      <T variant="small" color={colors.inkMuted}>
+    <View style={{ marginTop: space.md, gap: space.xxs }}>
+      <T variant="small" color={colors.text.secondary}>
         {label}
       </T>
       <TextInput
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={colors.inkFaint}
+        placeholderTextColor={colors.text.tertiary}
         autoCapitalize="none"
         style={{
-          backgroundColor: colors.surface,
-          borderColor: colors.line,
+          backgroundColor: colors.background.elevated,
+          borderColor: colors.border.subtle,
           borderWidth: 1,
-          borderRadius: radius.md,
-          paddingHorizontal: space.lg,
-          paddingVertical: 12,
-          color: colors.ink,
+          borderRadius: radius.control,
+          paddingHorizontal: space.md,
+          paddingVertical: 13,
+          color: colors.text.primary,
+          fontFamily: 'Inter_400Regular',
           fontSize: 15,
         }}
       />
@@ -164,7 +211,5 @@ function Field({
 }
 
 function defaultDate(): string {
-  const tomorrow = new Date(Date.now() + 86_400_000);
-
-  return tomorrow.toISOString().slice(0, 10);
+  return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 }
