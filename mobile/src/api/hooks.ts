@@ -225,6 +225,27 @@ export function useAcceptReplan(tripId: string | null) {
   });
 }
 
+export type BookingSummary = {
+  id: string;
+  reference: string;
+  state: string;
+  provider: string;
+  fulfilment: string;
+  redirect_url: string | null;
+  provider_booking_id: string | null;
+  total: { minor: number; currency: string; formatted: string } | null;
+  cancellation_policy: string | null;
+  failure_reason: string | null;
+  items: { id: string; title: string; experience_id: string | null; quantity: number; starts_at: string | null }[];
+};
+
+export function useBookings() {
+  return useQuery({
+    queryKey: ['bookings'],
+    queryFn: () => wrapped(http.get<{ data: BookingSummary[] }>('/bookings')),
+  });
+}
+
 export function usePassport() {
   return useQuery({
     queryKey: keys.passport(),
