@@ -1,13 +1,18 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { MapCanvas } from '../../src/components/MapCanvas';
-
 import { useDiscovery } from '../../src/api/hooks';
-import { Chip, Loading, Note, Row, Screen, T } from '../../src/components/primitives';
+import type { ExperienceCard } from '../../src/api/types';
+import { ScoreRing } from '../../src/components/ExperienceScore';
+import { Icon } from '../../src/components/Icon';
+import { MapCanvas } from '../../src/components/MapCanvas';
+import { Photo } from '../../src/components/Photo';
+import { Sheet } from '../../src/components/Sheet';
+import { Button, Chip, Gutter, Loading, Note, Row, Screen, T } from '../../src/components/primitives';
+import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
 import { useSession } from '../../src/store/session';
-import { scoreBand, space, useTheme } from '../../src/theme';
+import { radius, scoreBand, space, useTheme } from '../../src/theme';
 
 const FILTERS = [
   { key: 'must_experience', label: 'Must see' },
@@ -19,17 +24,19 @@ const FILTERS = [
 ];
 
 /**
- * Map discovery (spec s17.3).
+ * Map (Figma: 21).
  *
- * Rendered with Leaflet over OpenStreetMap inside a WebView: no API key, no
- * native map module, and it runs in Expo Go as well as a dev build. Pins carry
- * the Experience Score, price and saved state.
+ * An exploration surface rather than an afterthought. Pins carry the Experience
+ * Score so the map answers "which of these is worth my afternoon" at a glance,
+ * and selecting one opens a sheet with the reasoning rather than dumping the
+ * traveller straight into a detail page.
  */
 export default function MapScreen() {
   const colors = useTheme();
   const router = useRouter();
   const session = useSession();
   const [filters, setFilters] = useState<string[]>([]);
+  const [selected, setSelected] = useState<ExperienceCard | null>(null);
 
   const discovery = useDiscovery('now', { categories: filters, limit: 40 });
   const cards = discovery.data?.data ?? [];
@@ -51,61 +58,132 @@ export default function MapScreen() {
           lng: card.location!.lng,
           title: card.title,
           score: card.experience_score ?? 0,
-          price: card.is_free ? 'Free' : (card.price_from?.formatted ?? 'Price not verified'),
-          travel: card.travel ? `${card.travel.minutes} min` : '',
-          colour: scoreBand(card.experience_score ?? 0, colors).fg,
+          colour: scoreBand(card.experience_score ?? 0, colors).ring,
         })),
     [cards, colors],
   );
 
-  const html = useMemo(() => buildHtml(centre, markers, colors.bg), [centre, markers, colors.bg]);
+  const html = useMemo(
+    () => buildHtml(centre, markers, colors.background.base, colors.text.primary),
+    [centre, markers, colors.background.base, colors.text.primary],
+  );
 
   return (
     <Screen scroll={false}>
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm }}>
-        <T variant="title">Map</T>
-        <Row gap={space.sm} wrap>
-          {FILTERS.map((filter) => (
-            <Chip
-              key={filter.key}
-              label={filter.label}
-              selected={filters.includes(filter.key)}
-              tone="accent"
-              onPress={() =>
-                setFilters((current) =>
-                  current.includes(filter.key) ? current.filter((f) => f !== filter.key) : [...current, filter.key],
-                )
-              }
-            />
-          ))}
-        </Row>
-      </View>
+      <Gutter style={{ paddingTop: space.sm, paddingBottom: space.xs }}>
+        <T variant="h2">Map</T>
+      </Gutter>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.xs, paddingBottom: space.xs }}
+        style={{ flexGrow: 0 }}
+      >
+        {FILTERS.map((filter) => (
+          <Chip
+            key={filter.key}
+            label={filter.label}
+            selected={filters.includes(filter.key)}
+            tone="accent"
+            size="small"
+            onPress={() =>
+              setFilters((current) =>
+                current.includes(filter.key) ? current.filter((f) => f !== filter.key) : [...current, filter.key],
+              )
+            }
+          />
+        ))}
+      </ScrollView>
 
       {discovery.isLoading ? (
         <Loading label="Placing pins" />
       ) : markers.length === 0 ? (
-        <View style={{ padding: space.lg }}>
-          <Note>Nothing to plot yet. Pick a city on the Today tab first.</Note>
-        </View>
+        <Gutter>
+          <Note>Nothing to plot yet. Pick a city on the Discover tab first.</Note>
+        </Gutter>
       ) : (
-        <MapCanvas html={html} onSelect={(id) => router.push(`/experience/${id}`)} background={colors.bg} />
+        <MapCanvas
+          html={html}
+          background={colors.background.base}
+          onSelect={(id) => setSelected(cards.find((card) => card.id === id) ?? null)}
+        />
       )}
+
+      {/* ── Selected pin sheet ─────────────────────────────────────────── */}
+      <Sheet visible={!!selected} onClose={() => setSelected(null)}>
+        {selected ? (
+          <View style={{ gap: space.md }}>
+            <View style={{ borderRadius: radius.card, overflow: 'hidden' }}>
+              <Photo
+                id={selected.id}
+                uri={selected.image_url}
+                attribution={selected.image_attribution}
+                category={selected.categories[0]?.key}
+                height={150}
+              />
+            </View>
+
+            <Row justify="space-between" align="flex-start" gap={space.sm}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <T variant="h2" numberOfLines={2}>
+                  {selected.title}
+                </T>
+                {selected.location?.neighbourhood ? (
+                  <Row gap={5}>
+                    <Icon name="location" size={14} color={colors.text.tertiary} />
+                    <T variant="small" color={colors.text.secondary}>
+                      {selected.location.neighbourhood}
+                    </T>
+                  </Row>
+                ) : null}
+              </View>
+              {selected.experience_score !== null ? <ScoreRing score={selected.experience_score} size="medium" /> : null}
+            </Row>
+
+            <Row gap={space.md} wrap>
+              {selected.travel ? (
+                <Row gap={5}>
+                  <Icon name={selected.travel.mode === 'walk' ? 'walk' : 'transit'} size={15} color={colors.text.tertiary} />
+                  <T variant="small" color={colors.text.secondary}>
+                    {selected.travel.minutes} min away
+                  </T>
+                </Row>
+              ) : null}
+              <Row gap={5}>
+                <Icon name="clock" size={15} color={colors.text.tertiary} />
+                <T variant="small" color={colors.text.secondary}>
+                  {selected.duration_minutes} min
+                </T>
+              </Row>
+              <Row gap={5}>
+                <Icon name="money" size={15} color={colors.text.tertiary} />
+                <T variant="small" color={selected.is_free ? colors.status.open : colors.text.secondary}>
+                  {selected.is_free ? 'Free' : (selected.price_from?.formatted ?? 'Price not verified')}
+                </T>
+              </Row>
+            </Row>
+
+            {selected.why.length > 0 ? <WhyThisFits reasons={toFitReasons(selected.why.slice(0, 3))} /> : null}
+
+            <Button
+              label="Open experience"
+              onPress={() => {
+                const id = selected.id;
+                setSelected(null);
+                router.push(`/experience/${id}`);
+              }}
+            />
+          </View>
+        ) : null}
+      </Sheet>
     </Screen>
   );
 }
 
-type Marker = {
-  id: string;
-  lat: number;
-  lng: number;
-  title: string;
-  score: number;
-  price: string;
-  travel: string;
-  colour: string;
-};
+type Marker = { id: string; lat: number; lng: number; title: string; score: number; colour: string };
 
-function buildHtml(centre: { lat: number; lng: number }, markers: Marker[], background: string): string {
+function buildHtml(centre: { lat: number; lng: number }, markers: Marker[], background: string, ink: string): string {
   return `<!doctype html>
 <html>
 <head>
@@ -114,27 +192,27 @@ function buildHtml(centre: { lat: number; lng: number }, markers: Marker[], back
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   html, body, #map { margin:0; padding:0; height:100%; background:${background}; }
-  .pin { border-radius:999px; color:#fff; font:700 12px -apple-system,system-ui,sans-serif;
+  .pin { border-radius:999px; color:#fff;
+         font:600 12px Inter,-apple-system,system-ui,sans-serif;
          width:34px; height:34px; display:flex; align-items:center; justify-content:center;
-         box-shadow:0 2px 8px rgba(0,0,0,.35); border:2px solid rgba(255,255,255,.9); }
-  .leaflet-popup-content { font:14px -apple-system,system-ui,sans-serif; margin:10px 12px; }
-  .leaflet-popup-content b { display:block; margin-bottom:2px; }
-  .leaflet-popup-content small { color:#666; }
-  .leaflet-popup-content a { display:inline-block; margin-top:6px; color:#B4531F; font-weight:600; text-decoration:none; }
+         box-shadow:0 3px 10px rgba(13,27,42,.34); border:2.5px solid #fff; }
+  .leaflet-control-attribution { font-size:9px; color:${ink}99; }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  var map = L.map('map', { zoomControl: false }).setView([${centre.lat}, ${centre.lng}], 13);
+  var map = L.map('map', { zoomControl: false, attributionControl: true })
+    .setView([${centre.lat}, ${centre.lng}], 13);
+
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
   var markers = ${JSON.stringify(markers)};
-  var group = [];
+  var bounds = [];
 
   markers.forEach(function (m) {
     var icon = L.divIcon({
@@ -143,15 +221,19 @@ function buildHtml(centre: { lat: number; lng: number }, markers: Marker[], back
       iconSize: [34, 34],
       iconAnchor: [17, 17]
     });
-    var marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(map);
-    marker.bindPopup(
-      '<b>' + m.title + '</b><small>' + m.price + (m.travel ? ' · ' + m.travel : '') + '</small>' +
-      '<a href="#" onclick="window.ReactNativeWebView.postMessage(\\'' + m.id + '\\'); return false;">Open</a>'
-    );
-    group.push([m.lat, m.lng]);
+
+    L.marker([m.lat, m.lng], { icon: icon })
+      .addTo(map)
+      .on('click', function () {
+        window.ReactNativeWebView
+          ? window.ReactNativeWebView.postMessage(m.id)
+          : window.parent.postMessage(m.id, '*');
+      });
+
+    bounds.push([m.lat, m.lng]);
   });
 
-  if (group.length > 1) map.fitBounds(group, { padding: [40, 40] });
+  if (bounds.length > 1) map.fitBounds(bounds, { padding: [44, 44] });
 </script>
 </body>
 </html>`;
