@@ -63,6 +63,30 @@ class GuestBrowsingTest extends TestCase
         $this->assertDatabaseCount('saved_experiences', 1);
     }
 
+    public function test_a_destination_can_be_fetched_by_slug_and_by_id(): void
+    {
+        /* Regression: the id branch used to run for every lookup, and
+           PostgreSQL rejects comparing a uuid column to a slug, so this
+           endpoint returned 500 for the only form the app actually uses. */
+        $bySlug = $this->getJson('/api/destinations/london');
+
+        $bySlug->assertOk();
+        $this->assertSame('London', $bySlug->json('data.name'));
+        $this->assertNotEmpty($bySlug->json('data.city_essentials'));
+        $this->assertNotEmpty($bySlug->json('data.neighbourhoods'));
+        $this->assertNotEmpty($bySlug->json('data.dont_leave_without'));
+
+        $byId = $this->getJson('/api/destinations/' . $bySlug->json('data.id'));
+
+        $byId->assertOk();
+        $this->assertSame('London', $byId->json('data.name'));
+    }
+
+    public function test_an_unknown_destination_is_a_404_not_a_server_error(): void
+    {
+        $this->getJson('/api/destinations/not-a-real-city')->assertNotFound();
+    }
+
     public function test_one_guest_cannot_see_another_guests_saves(): void
     {
         $tokenA = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');

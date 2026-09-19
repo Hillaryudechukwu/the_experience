@@ -45,9 +45,14 @@ class DestinationController extends ApiController
 
     public function show(string $destination): JsonResponse
     {
+        /* PostgreSQL refuses to compare a uuid column to an arbitrary string, so
+           the id branch is only taken when the value actually looks like one.
+           Without this, every lookup by slug raised a 22P02 and the whole
+           endpoint 500'd. */
+        $isUuid = (bool) preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $destination);
+
         $model = Destination::with(['neighbourhoods', 'essentials', 'signatureItems'])
-            ->where('slug', $destination)
-            ->orWhere('id', $destination)
+            ->when($isUuid, fn ($q) => $q->where('id', $destination), fn ($q) => $q->where('slug', $destination))
             ->firstOrFail();
 
         return response()->json([
