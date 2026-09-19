@@ -15,6 +15,13 @@ export function clock(iso: string, timeZone?: string): string {
   });
 }
 
+export function weekdayAndTime(iso: string, timeZone?: string): string {
+  const date = new Date(iso);
+  const options: Intl.DateTimeFormatOptions = timeZone ? { timeZone } : {};
+
+  return `${date.toLocaleDateString([], { weekday: 'long', ...options })}, ${clock(iso, timeZone)}`;
+}
+
 export function dayLabel(iso: string, timeZone?: string): string {
   const options: Intl.DateTimeFormatOptions = timeZone ? { timeZone } : {};
   const key = (value: Date) => value.toLocaleDateString('en-CA', options);
@@ -31,6 +38,15 @@ export function dayLabel(iso: string, timeZone?: string): string {
 
 export function conditionLabel(condition: string): string {
   return condition.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+/** "3h 40m" — the shape the hero card needs. */
+export function windowLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
 export function minutesLabel(minutes: number): string {

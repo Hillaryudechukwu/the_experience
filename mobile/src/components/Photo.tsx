@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image, View, type StyleProp, type ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { space, useTheme } from '../theme';
-import { Artwork, T } from './primitives';
+import { artworkFor, radius, space, useTheme } from '../theme';
+import { T } from './primitives';
 
 export type ImageAttribution = {
   creator: string | null;
@@ -11,16 +12,40 @@ export type ImageAttribution = {
   source_url: string | null;
 } | null;
 
+/** Deterministic stand-in where no licensed photograph exists. */
+export function Artwork({
+  id,
+  category,
+  height = 120,
+  style,
+}: {
+  id: string;
+  category?: string;
+  height?: number | `${number}%`;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [from, to] = artworkFor(id, category);
+
+  return (
+    <LinearGradient
+      colors={[from, to]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[{ height: height as number, width: '100%' }, style]}
+    />
+  );
+}
+
 /**
  * A photograph of the place, or an honest stand-in.
  *
- * Most imagery comes from Wikimedia Commons under Creative Commons terms,
- * which oblige us to name the photographer and the licence wherever the image
- * appears. The credit is part of the component rather than something each
- * screen has to remember, so an image can never be rendered without it.
+ * Most imagery is Wikimedia Commons under Creative Commons terms, which oblige
+ * us to name the photographer and licence wherever the image appears. The
+ * credit is rendered here rather than by each screen, so an image physically
+ * cannot be shown without it.
  *
- * Where we have no licensed photograph, a deterministic wash is drawn instead
- * of a stock photo of somewhere else.
+ * Where no licensed photograph exists, a deterministic wash is drawn rather
+ * than a stock photo of somewhere else.
  */
 export function Photo({
   id,
@@ -28,66 +53,64 @@ export function Photo({
   attribution,
   category,
   height = 150,
-  label,
+  overlay = false,
+  children,
   showCredit = true,
+  rounded,
 }: {
   id: string;
   uri?: string | null;
   attribution?: ImageAttribution;
   category?: string;
   height?: number;
-  label?: string;
+  overlay?: boolean;
+  children?: React.ReactNode;
   showCredit?: boolean;
+  rounded?: number;
 }) {
   const colors = useTheme();
   const [failed, setFailed] = useState(false);
-
-  if (!uri || failed) {
-    return <Artwork id={id} category={category} height={height} label={label} />;
-  }
-
+  const usePhoto = !!uri && !failed;
   const credit = [attribution?.creator, attribution?.licence].filter(Boolean).join(' · ');
 
   return (
-    <View>
-      <Image
-        source={{ uri }}
-        style={{ width: '100%', height, backgroundColor: colors.surfaceAlt }}
-        resizeMode="cover"
-        onError={() => setFailed(true)}
-        accessibilityIgnoresInvertColors
-      />
+    <View style={{ height, width: '100%', borderRadius: rounded, overflow: rounded ? 'hidden' : 'visible' }}>
+      {usePhoto ? (
+        <Image
+          source={{ uri }}
+          style={{ width: '100%', height, backgroundColor: colors.background.sunken }}
+          resizeMode="cover"
+          onError={() => setFailed(true)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <Artwork id={id} category={category} height={height} />
+      )}
 
-      {label ? (
-        <View
-          style={{
-            position: 'absolute',
-            left: space.md,
-            top: space.md,
-            backgroundColor: 'rgba(0,0,0,0.55)',
-            borderRadius: 6,
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-          }}
-        >
-          <T variant="label" color="#FFFFFF">
-            {label}
-          </T>
-        </View>
+      {overlay ? (
+        <LinearGradient
+          colors={['rgba(13,27,42,0)', 'rgba(13,27,42,0.16)', 'rgba(13,27,42,0.78)']}
+          locations={[0, 0.45, 1]}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: height * 0.75 }}
+          pointerEvents="none"
+        />
       ) : null}
 
-      {showCredit && credit ? (
+      {children ? <View style={{ position: 'absolute', inset: 0 as never }}>{children}</View> : null}
+
+      {showCredit && usePhoto && credit ? (
         <View
           style={{
             position: 'absolute',
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: 'rgba(13,27,42,0.55)',
             paddingHorizontal: 6,
             paddingVertical: 2,
+            borderTopLeftRadius: radius.compact,
           }}
         >
-          <T variant="small" color="rgba(255,255,255,0.9)" numberOfLines={1} style={{ fontSize: 10 }}>
+          <T variant="caption" color="rgba(255,255,255,0.88)" numberOfLines={1} style={{ fontSize: 10 }}>
             {credit}
           </T>
         </View>
@@ -95,3 +118,45 @@ export function Photo({
     </View>
   );
 }
+
+/** Small square thumbnail for list rows. */
+export function Thumb({
+  id,
+  uri,
+  category,
+  size = 84,
+}: {
+  id: string;
+  uri?: string | null;
+  category?: string;
+  size?: number;
+}) {
+  const colors = useTheme();
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius.control,
+        overflow: 'hidden',
+        backgroundColor: colors.background.sunken,
+      }}
+    >
+      {uri && !failed ? (
+        <Image
+          source={{ uri }}
+          style={{ width: size, height: size }}
+          resizeMode="cover"
+          onError={() => setFailed(true)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <Artwork id={id} category={category} height={size} />
+      )}
+    </View>
+  );
+}
+
+export { space };

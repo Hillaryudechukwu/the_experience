@@ -4,34 +4,41 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  Text as RNText,
   View,
-  type PressableProps,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { artworkFor, radius, scoreBand, shadow, space, type as typography, useTheme } from '../theme';
+import { elevation, radius, space, typeScale, type ColorTokens, type TypeVariant, useTheme } from '../theme';
+
+/* ── Layout ────────────────────────────────────────────────────────────── */
 
 export function Screen({
   children,
   scroll = true,
   contentStyle,
   refreshControl,
+  edges = ['top', 'left', 'right'],
+  tone = 'base',
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   refreshControl?: React.ReactElement<import('react-native').RefreshControlProps>;
+  edges?: ('top' | 'bottom' | 'left' | 'right')[];
+  tone?: 'base' | 'warm' | 'elevated';
 }) {
   const colors = useTheme();
+  const background =
+    tone === 'warm' ? colors.background.warm : tone === 'elevated' ? colors.background.elevated : colors.background.base;
 
   const inner = scroll ? (
     <ScrollView
-      contentContainerStyle={[{ padding: space.lg, paddingBottom: space.xxl * 2 }, contentStyle]}
+      contentContainerStyle={[{ paddingBottom: space.colossal }, contentStyle]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
@@ -43,13 +50,57 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: background }} edges={edges}>
       {inner}
     </SafeAreaView>
   );
 }
 
-type TextVariant = keyof typeof typography;
+/** Horizontal page gutter, used everywhere so edges line up across screens. */
+export function Gutter({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[{ paddingHorizontal: space.lg }, style]}>{children}</View>;
+}
+
+export function Row({
+  children,
+  gap = space.xs,
+  wrap,
+  align = 'center',
+  justify,
+  style,
+}: {
+  children: React.ReactNode;
+  gap?: number;
+  wrap?: boolean;
+  align?: ViewStyle['alignItems'];
+  justify?: ViewStyle['justifyContent'];
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      style={[
+        { flexDirection: 'row', alignItems: align, justifyContent: justify, gap, flexWrap: wrap ? 'wrap' : 'nowrap' },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+export function Stack({
+  children,
+  gap = space.sm,
+  style,
+}: {
+  children: React.ReactNode;
+  gap?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return <View style={[{ gap }, style]}>{children}</View>;
+}
+
+/* ── Text ──────────────────────────────────────────────────────────────── */
 
 export function T({
   variant = 'body',
@@ -57,232 +108,293 @@ export function T({
   style,
   children,
   numberOfLines,
+  align,
 }: {
-  variant?: TextVariant;
+  variant?: TypeVariant;
   color?: string;
   style?: StyleProp<TextStyle>;
   children: React.ReactNode;
   numberOfLines?: number;
+  align?: TextStyle['textAlign'];
 }) {
   const colors = useTheme();
 
   return (
-    <Text
+    <RNText
       numberOfLines={numberOfLines}
-      style={[typography[variant], { color: color ?? colors.ink }, style]}
+      style={[typeScale[variant], { color: color ?? colors.text.primary, textAlign: align }, style]}
     >
       {children}
-    </Text>
+    </RNText>
   );
 }
+
+/* ── Surfaces ──────────────────────────────────────────────────────────── */
 
 export function Card({
   children,
   style,
   onPress,
+  tone = 'elevated',
+  level = 'card',
+  bordered = true,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
+  tone?: 'elevated' | 'warm' | 'sunken' | 'flat';
+  level?: 'card' | 'feature' | 'none';
+  bordered?: boolean;
 }) {
   const colors = useTheme();
+
+  const background = {
+    elevated: colors.background.elevated,
+    warm: colors.background.warm,
+    sunken: colors.background.sunken,
+    flat: 'transparent',
+  }[tone];
+
   const base: ViewStyle = {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
+    backgroundColor: background,
+    borderRadius: level === 'feature' ? radius.feature : radius.card,
+    borderWidth: bordered ? StyleSheet.hairlineWidth : 0,
+    borderColor: colors.border.subtle,
     overflow: 'hidden',
-    ...shadow(colors),
+    ...(level === 'none' ? {} : level === 'feature' ? elevation.feature : elevation.card),
   };
 
   if (!onPress) return <View style={[base, style]}>{children}</View>;
 
   return (
-    <Pressable style={({ pressed }) => [base, style, pressed && { opacity: 0.85 }]} onPress={onPress}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress();
+      }}
+      style={({ pressed }) => [base, style, pressed && { opacity: 0.92, transform: [{ scale: 0.995 }] }]}
+    >
       {children}
     </Pressable>
   );
 }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+
+type ButtonTone = 'primary' | 'secondary' | 'tertiary' | 'inverse';
+type ButtonSize = 'small' | 'medium' | 'large';
+
+const SIZES: Record<ButtonSize, { paddingVertical: number; paddingHorizontal: number; variant: TypeVariant }> = {
+  small: { paddingVertical: 9, paddingHorizontal: space.md, variant: 'smallStrong' },
+  medium: { paddingVertical: 13, paddingHorizontal: space.lg, variant: 'bodyStrong' },
+  large: { paddingVertical: 16, paddingHorizontal: space.xl, variant: 'bodyStrong' },
+};
 
 export function Button({
   label,
   onPress,
   tone = 'primary',
+  size = 'medium',
   disabled,
   loading,
   style,
+  icon,
+  haptic = 'light',
 }: {
   label: string;
   onPress?: () => void;
-  tone?: 'primary' | 'secondary' | 'ghost';
+  tone?: ButtonTone;
+  size?: ButtonSize;
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  icon?: React.ReactNode;
+  haptic?: 'light' | 'medium' | 'none';
 }) {
   const colors = useTheme();
+  const dimensions = SIZES[size];
 
-  const tones: Record<string, { bg: string; fg: string; border: string }> = {
-    primary: { bg: colors.accent, fg: '#FFFFFF', border: colors.accent },
-    secondary: { bg: colors.surface, fg: colors.ink, border: colors.line },
-    ghost: { bg: 'transparent', fg: colors.accent, border: 'transparent' },
+  const tones: Record<ButtonTone, { bg: string; fg: string; border: string }> = {
+    primary: { bg: colors.action.primary, fg: colors.text.onAccent, border: 'transparent' },
+    secondary: { bg: colors.background.elevated, fg: colors.text.primary, border: colors.border.strong },
+    tertiary: { bg: 'transparent', fg: colors.action.primary, border: 'transparent' },
+    inverse: { bg: colors.text.primary, fg: colors.text.inverse, border: 'transparent' },
   };
   const t = tones[tone];
 
   return (
     <Pressable
-      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      onPress={() => {
+        if (haptic !== 'none') {
+          const style = haptic === 'medium' ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light;
+          Haptics.impactAsync(style).catch(() => {});
+        }
+        onPress?.();
+      }}
       disabled={disabled || loading}
       style={({ pressed }) => [
         {
-          backgroundColor: t.bg,
+          backgroundColor: pressed && tone === 'primary' ? colors.action.primaryPressed : t.bg,
           borderColor: t.border,
-          borderWidth: StyleSheet.hairlineWidth,
+          borderWidth: tone === 'secondary' ? StyleSheet.hairlineWidth : 0,
           borderRadius: radius.pill,
-          paddingVertical: 14,
-          paddingHorizontal: space.xl,
+          paddingVertical: dimensions.paddingVertical,
+          paddingHorizontal: dimensions.paddingHorizontal,
+          minHeight: 44,
+          flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
+          gap: space.xs,
+          opacity: disabled ? 0.4 : pressed ? 0.94 : 1,
         },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={t.fg} />
+        <ActivityIndicator color={t.fg} size="small" />
       ) : (
-        <Text style={[typography.bodyStrong, { color: t.fg }]}>{label}</Text>
+        <>
+          {icon}
+          <RNText style={[typeScale[dimensions.variant], { color: t.fg }]}>{label}</RNText>
+        </>
       )}
     </Pressable>
   );
 }
 
+/* ── Chips ─────────────────────────────────────────────────────────────── */
+
 export function Chip({
   label,
   selected,
   onPress,
-  tone,
+  tone = 'neutral',
+  size = 'medium',
+  icon,
 }: {
   label: string;
   selected?: boolean;
   onPress?: () => void;
-  tone?: 'accent' | 'neutral';
+  tone?: 'neutral' | 'accent';
+  size?: 'small' | 'medium';
+  icon?: React.ReactNode;
 }) {
   const colors = useTheme();
-  const activeBg = tone === 'accent' ? colors.accent : colors.ink;
+  const activeBg = tone === 'accent' ? colors.action.primary : colors.text.primary;
 
-  const Wrapper: React.ComponentType<PressableProps> = onPress ? Pressable : (View as never);
-
-  return (
-    <Wrapper
-      onPress={onPress}
-      style={({ pressed }: { pressed?: boolean }) => ({
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: radius.pill,
-        backgroundColor: selected ? activeBg : colors.surface,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: selected ? activeBg : colors.line,
-        opacity: pressed ? 0.8 : 1,
-      })}
-    >
-      <Text
+  const body = (
+    <Row gap={6}>
+      {icon}
+      <RNText
         style={[
-          typography.small,
-          { color: selected ? colors.surface : colors.inkMuted, fontWeight: '600' },
+          typeScale[size === 'small' ? 'caption' : 'smallStrong'],
+          { color: selected ? colors.text.onAccent : colors.text.secondary },
         ]}
       >
         {label}
-      </Text>
-    </Wrapper>
+      </RNText>
+    </Row>
+  );
+
+  const styleFor = (pressed: boolean): ViewStyle => ({
+    paddingVertical: size === 'small' ? 7 : 10,
+    paddingHorizontal: size === 'small' ? space.sm : space.md,
+    borderRadius: radius.pill,
+    backgroundColor: selected ? activeBg : colors.background.elevated,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: selected ? activeBg : colors.border.subtle,
+    opacity: pressed ? 0.85 : 1,
+    minHeight: size === 'small' ? 32 : 40,
+    justifyContent: 'center',
+  });
+
+  if (!onPress) return <View style={styleFor(false)}>{body}</View>;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!selected }}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress();
+      }}
+      style={({ pressed }) => styleFor(pressed)}
+    >
+      {body}
+    </Pressable>
   );
 }
 
-export function Row({
-  children,
-  gap = space.sm,
-  wrap,
+/* ── Section header ────────────────────────────────────────────────────── */
+
+export function SectionHeader({
+  title,
+  caption,
+  action,
+  onAction,
   style,
 }: {
-  children: React.ReactNode;
-  gap?: number;
-  wrap?: boolean;
+  title: string;
+  caption?: string;
+  action?: string;
+  onAction?: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
-  return (
-    <View
-      style={[
-        { flexDirection: 'row', alignItems: 'center', gap, flexWrap: wrap ? 'wrap' : 'nowrap' },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
-}
-
-export function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   const colors = useTheme();
 
   return (
-    <Row style={{ justifyContent: 'space-between', marginTop: space.xl, marginBottom: space.md }}>
-      <Text style={[typography.label, { color: colors.inkFaint }]}>{title}</Text>
-      {action && (
-        <Pressable onPress={onAction} hitSlop={8}>
-          <Text style={[typography.small, { color: colors.accent, fontWeight: '600' }]}>{action}</Text>
+    <Row justify="space-between" align="flex-end" style={[{ marginTop: space.xxl, marginBottom: space.sm }, style]}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <T variant="h3">{title}</T>
+        {caption ? (
+          <T variant="small" color={colors.text.secondary}>
+            {caption}
+          </T>
+        ) : null}
+      </View>
+      {action ? (
+        <Pressable onPress={onAction} hitSlop={10} accessibilityRole="button">
+          <T variant="smallStrong" color={colors.action.primary}>
+            {action}
+          </T>
         </Pressable>
-      )}
+      ) : null}
     </Row>
   );
 }
 
-export function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' }) {
-  const colors = useTheme();
-  const band = scoreBand(score, colors);
-  const dimension = size === 'sm' ? 38 : 46;
+/* ── Feedback ──────────────────────────────────────────────────────────── */
 
-  return (
-    <View
-      style={{
-        width: dimension,
-        height: dimension,
-        borderRadius: dimension / 2,
-        backgroundColor: band.bg,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text style={{ color: band.fg, fontWeight: '800', fontSize: size === 'sm' ? 14 : 17 }}>{score}</Text>
-    </View>
-  );
-}
-
-/** Stand-in artwork: a stable wash per experience, never a stock photo of somewhere else. */
-export function Artwork({
-  id,
-  category,
-  height = 120,
-  label,
+export function Note({
+  children,
+  tone = 'neutral',
+  icon,
 }: {
-  id: string;
-  category?: string;
-  height?: number;
-  label?: string;
+  children: React.ReactNode;
+  tone?: 'neutral' | 'warning' | 'success' | 'info';
+  icon?: React.ReactNode;
 }) {
-  const [from, to] = artworkFor(id, category);
+  const colors = useTheme();
+
+  const tones = {
+    neutral: { bg: colors.background.sunken, fg: colors.text.secondary },
+    warning: { bg: colors.statusSoft.warning, fg: colors.status.warning },
+    success: { bg: colors.statusSoft.open, fg: colors.status.open },
+    info: { bg: colors.action.soft, fg: colors.action.onSoft },
+  } as const;
 
   return (
-    <LinearGradient colors={[from, to]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height, justifyContent: 'flex-end' }}>
-      {label ? (
-        <Text
-          style={[
-            typography.label,
-            { color: 'rgba(255,255,255,0.86)', padding: space.md },
-          ]}
-        >
-          {label}
-        </Text>
-      ) : null}
-    </LinearGradient>
+    <Row
+      align="flex-start"
+      gap={space.xs}
+      style={{ backgroundColor: tones[tone].bg, borderRadius: radius.control, padding: space.sm }}
+    >
+      {icon}
+      <RNText style={[typeScale.small, { color: tones[tone].fg, flex: 1 }]}>{children}</RNText>
+    </Row>
   );
 }
 
@@ -290,36 +402,63 @@ export function Loading({ label }: { label?: string }) {
   const colors = useTheme();
 
   return (
-    <View style={{ paddingVertical: space.xxl, alignItems: 'center', gap: space.sm }}>
-      <ActivityIndicator color={colors.accent} />
-      {label ? <T variant="small" color={colors.inkMuted}>{label}</T> : null}
+    <View style={{ paddingVertical: space.xxxl, alignItems: 'center', gap: space.sm }}>
+      <ActivityIndicator color={colors.action.primary} />
+      {label ? (
+        <T variant="small" color={colors.text.secondary}>
+          {label}
+        </T>
+      ) : null}
     </View>
   );
 }
 
-export function Note({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'warn' | 'good' }) {
-  const colors = useTheme();
-  const tones = {
-    neutral: { bg: colors.surfaceAlt, fg: colors.inkMuted },
-    warn: { bg: colors.warnSoft, fg: colors.warn },
-    good: { bg: colors.positiveSoft, fg: colors.positive },
-  } as const;
-
-  return (
-    <View style={{ backgroundColor: tones[tone].bg, borderRadius: radius.md, padding: space.md }}>
-      <Text style={[typography.small, { color: tones[tone].fg }]}>{children}</Text>
-    </View>
-  );
-}
-
-export function EmptyState({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
+/** Skeleton block for loading states (Figma: 51). */
+export function Skeleton({ height = 16, width, style }: { height?: number; width?: number | string; style?: StyleProp<ViewStyle> }) {
   const colors = useTheme();
 
   return (
-    <View style={{ paddingVertical: space.xxl, gap: space.sm, alignItems: 'flex-start' }}>
-      <T variant="heading">{title}</T>
-      <T variant="body" color={colors.inkMuted}>{body}</T>
-      {action}
+    <View
+      style={[
+        {
+          height,
+          width: (width as number) ?? '100%',
+          borderRadius: radius.compact,
+          backgroundColor: colors.background.sunken,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+export function EmptyState({
+  title,
+  body,
+  action,
+}: {
+  title: string;
+  body: string;
+  action?: React.ReactNode;
+}) {
+  const colors = useTheme();
+
+  return (
+    <View style={{ paddingVertical: space.xxxl, gap: space.xs }}>
+      <T variant="h3">{title}</T>
+      <T variant="body" color={colors.text.secondary}>
+        {body}
+      </T>
+      {action ? <View style={{ marginTop: space.sm, alignSelf: 'flex-start' }}>{action}</View> : null}
     </View>
   );
 }
+
+/** Thin divider used inside cards rather than between them. */
+export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
+  const colors = useTheme();
+
+  return <View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border.subtle }, style]} />;
+}
+
+export type { ColorTokens };
