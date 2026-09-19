@@ -7,6 +7,9 @@ type Draft = {
   interests: string[];
   adults: number;
   children: number;
+  pace: 'slow' | 'moderate' | 'fast';
+  budget: 'budget' | 'moderate' | 'premium' | 'luxury';
+  touristStyle: number;
   set: (patch: Partial<Omit<Draft, 'set' | 'clear'>>) => void;
   clear: () => void;
 };
@@ -18,6 +21,9 @@ const initial = {
   interests: [] as string[],
   adults: 1,
   children: 0,
+  pace: 'moderate' as const,
+  budget: 'moderate' as const,
+  touristStyle: 60,
 };
 
 export const useOnboardingDraft = create<Draft>((set) => ({
