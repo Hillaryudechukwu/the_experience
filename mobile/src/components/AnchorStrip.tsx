@@ -94,6 +94,18 @@ export function AnchorStrip({
   );
 }
 
+/**
+ * Whether the strip would draw anything.
+ *
+ * The screen above it owns the "Your day" heading, and a heading with nothing
+ * under it reads as a rendering failure. It cannot answer this by counting
+ * anchors, because the strip hides the ones already behind the traveller — so
+ * it asks the same question the strip does rather than a similar one.
+ */
+export function hasUpcomingAnchors(anchors: Anchor[]): boolean {
+  return buildSlots(anchors).length > 0;
+}
+
 function buildSlots(anchors: Anchor[]): Slot[] {
   /*
    * Only what is still ahead. The strip was rendering every anchor on the

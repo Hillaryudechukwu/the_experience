@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { API_URL } from '../../src/api/client';
 import { useDestination, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
-import { AnchorStrip } from '../../src/components/AnchorStrip';
+import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
 import { DestinationHero } from '../../src/components/DestinationHero';
 import { QuickActions } from '../../src/components/QuickActions';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
@@ -169,7 +169,7 @@ export default function Discover() {
       />
 
       {/* ── Anchor strip ───────────────────────────────────────────────── */}
-      {journey && journey.anchors.length > 0 ? (
+      {journey && hasUpcomingAnchors(journey.anchors) ? (
         <View style={{ marginTop: space.lg }}>
           <Gutter>
             <T variant="label" color={colors.text.tertiary}>
