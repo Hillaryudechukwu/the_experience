@@ -6,7 +6,7 @@ import { useDiscovery, useJourney } from '../../src/api/hooks';
 import { ScoreRing } from '../../src/components/ExperienceScore';
 import { Icon } from '../../src/components/Icon';
 import { Photo } from '../../src/components/Photo';
-import { Button, Card, Gutter, Loading, Row, Screen, T } from '../../src/components/primitives';
+import { Button, Card, CardPress, Gutter, Loading, Row, Screen, T } from '../../src/components/primitives';
 import { clock, conditionLabel } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
@@ -80,27 +80,32 @@ export default function Ready() {
           <T variant="label" color={colors.text.tertiary} style={{ marginBottom: space.xs }}>
             Start here
           </T>
-          <Card onPress={() => router.replace(`/experience/${top.id}`)} level="feature">
-            <Photo
-              id={top.id}
-              uri={top.image_url}
-              attribution={top.image_attribution}
-              category={top.categories[0]?.key}
-              height={160}
-            />
-            <Row justify="space-between" align="flex-start" gap={space.sm} style={{ padding: space.md }}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <T variant="h3" numberOfLines={2}>
-                  {top.title}
-                </T>
-                {top.why[0] ? (
-                  <T variant="small" color={colors.text.secondary} numberOfLines={2}>
-                    {top.why[0]}
+          <Card level="feature">
+            <CardPress
+              onPress={() => router.replace(`/experience/${top.id}`)}
+              accessibilityLabel={`Start with ${top.title}`}
+            >
+              <Photo
+                id={top.id}
+                uri={top.image_url}
+                attribution={top.image_attribution}
+                category={top.categories[0]?.key}
+                height={160}
+              />
+              <Row justify="space-between" align="flex-start" gap={space.sm} style={{ padding: space.md }}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <T variant="h3" numberOfLines={2}>
+                    {top.title}
                   </T>
-                ) : null}
-              </View>
-              {top.experience_score !== null ? <ScoreRing score={top.experience_score} size="medium" /> : null}
-            </Row>
+                  {top.why[0] ? (
+                    <T variant="small" color={colors.text.secondary} numberOfLines={2}>
+                      {top.why[0]}
+                    </T>
+                  ) : null}
+                </View>
+                {top.experience_score !== null ? <ScoreRing score={top.experience_score} size="medium" /> : null}
+              </Row>
+            </CardPress>
           </Card>
         </Gutter>
       ) : null}

@@ -8,7 +8,7 @@ import { categoryAccent, radius, space, useTheme } from '../theme';
 import { Icon } from './Icon';
 import { ScoreMedallion, ScorePill, ScoreRing } from './ExperienceScore';
 import { Photo, Thumb } from './Photo';
-import { Card, Row, T } from './primitives';
+import { Card, CardPress, Row, T } from './primitives';
 import { toFitReasons, WhyThisFits } from './WhyThisFits';
 
 type Variant = 'editorial' | 'compact' | 'recommendation' | 'rail' | 'feature';
@@ -104,11 +104,9 @@ export function ExperienceCardView({
        * So the card body is the button, and the heart sits beside it.
        */
       <Card level="feature" style={{ width: 272 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${card.title}. ${card.experience_score !== null ? `Experience score ${card.experience_score}. ` : ''}Open details.`}
+        <CardPress
           onPress={open}
-          style={({ pressed }) => ({ opacity: pressed ? 0.94 : 1 })}
+          accessibilityLabel={`${card.title}. ${card.experience_score !== null ? `Experience score ${card.experience_score}. ` : ''}Open details.`}
         >
           <Photo
             id={card.id}
@@ -156,7 +154,7 @@ export function ExperienceCardView({
                 .join(' · ')}
             </T>
           </View>
-        </Pressable>
+        </CardPress>
 
         {/* The medallion straddles the photograph and the body. Sitting it on
             the seam is what makes the score read as belonging to the card
@@ -211,17 +209,19 @@ export function ExperienceCardView({
   /* ── Compact: thumbnail row for dense lists ──────────────────────────── */
   if (variant === 'compact') {
     return (
-      <Card onPress={open} style={{ marginBottom: space.sm }} level="card">
-        <Row align="flex-start" gap={space.sm} style={{ padding: space.sm }}>
-          <Thumb id={card.id} uri={card.image_url} category={primary?.key} size={76} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <T variant="bodyStrong" numberOfLines={2}>
-              {card.title}
-            </T>
-            {meta}
-          </View>
-          {card.experience_score !== null ? <ScoreRing score={card.experience_score} size="compact" animate={false} /> : null}
-        </Row>
+      <Card style={{ marginBottom: space.sm }} level="card">
+        <CardPress onPress={open} accessibilityLabel={`${card.title}. Open details.`}>
+          <Row align="flex-start" gap={space.sm} style={{ padding: space.sm }}>
+            <Thumb id={card.id} uri={card.image_url} category={primary?.key} size={76} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <T variant="bodyStrong" numberOfLines={2}>
+                {card.title}
+              </T>
+              {meta}
+            </View>
+            {card.experience_score !== null ? <ScoreRing score={card.experience_score} size="compact" animate={false} /> : null}
+          </Row>
+        </CardPress>
       </Card>
     );
   }
@@ -230,82 +230,84 @@ export function ExperienceCardView({
   const showWhy = variant === 'recommendation' && card.why.length > 0;
 
   return (
-    <Card onPress={open} style={{ marginBottom: space.md }} level={variant === 'recommendation' ? 'feature' : 'card'}>
-      <Photo
-        id={card.id}
-        uri={card.image_url}
-        attribution={card.image_attribution}
-        category={primary?.key}
-        height={variant === 'recommendation' ? 176 : 132}
-        overlay
-        creditAlign="top"
-      >
-        <View style={{ flex: 1, justifyContent: 'space-between', padding: space.sm }}>
-          <Row justify="space-between" align="flex-start">
-            {primary ? (
-              <View
-                style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 9,
-                  borderRadius: radius.pill,
-                  backgroundColor: accent,
-                }}
-              >
-                <T variant="caption" color="#FFFFFF">
-                  {primary.label}
-                </T>
-              </View>
-            ) : (
-              <View />
-            )}
-          </Row>
+    <Card style={{ marginBottom: space.md }} level={variant === 'recommendation' ? 'feature' : 'card'}>
+      <CardPress onPress={open} accessibilityLabel={`${card.title}. Open details.`}>
+        <Photo
+          id={card.id}
+          uri={card.image_url}
+          attribution={card.image_attribution}
+          category={primary?.key}
+          height={variant === 'recommendation' ? 176 : 132}
+          overlay
+          creditAlign="top"
+        >
+          <View style={{ flex: 1, justifyContent: 'space-between', padding: space.sm }}>
+            <Row justify="space-between" align="flex-start">
+              {primary ? (
+                <View
+                  style={{
+                    paddingVertical: 4,
+                    paddingHorizontal: 9,
+                    borderRadius: radius.pill,
+                    backgroundColor: accent,
+                  }}
+                >
+                  <T variant="caption" color="#FFFFFF">
+                    {primary.label}
+                  </T>
+                </View>
+              ) : (
+                <View />
+              )}
+            </Row>
 
-          <View>
-            <T variant={variant === 'recommendation' ? 'h2' : 'h3'} color="#FFFFFF" numberOfLines={2}>
-              {card.title}
-            </T>
-            {card.location?.neighbourhood ? (
-              <T variant="small" color="rgba(255,255,255,0.82)">
-                {card.location.neighbourhood}
+            <View>
+              <T variant={variant === 'recommendation' ? 'h2' : 'h3'} color="#FFFFFF" numberOfLines={2}>
+                {card.title}
               </T>
+              {card.location?.neighbourhood ? (
+                <T variant="small" color="rgba(255,255,255,0.82)">
+                  {card.location.neighbourhood}
+                </T>
+              ) : null}
+            </View>
+          </View>
+        </Photo>
+
+        <View style={{ padding: space.md, gap: space.sm }}>
+          <Row justify="space-between" align="flex-start" gap={space.sm}>
+            <View style={{ flex: 1, gap: space.xs }}>
+              <T variant="small" color={colors.text.secondary} numberOfLines={2}>
+                {card.summary}
+              </T>
+              {meta}
+            </View>
+            {card.experience_score !== null ? (
+              <ScoreRing score={card.experience_score} size={variant === 'recommendation' ? 'medium' : 'compact'} />
             ) : null}
-          </View>
-        </View>
-      </Photo>
+          </Row>
 
-      <View style={{ padding: space.md, gap: space.sm }}>
-        <Row justify="space-between" align="flex-start" gap={space.sm}>
-          <View style={{ flex: 1, gap: space.xs }}>
-            <T variant="small" color={colors.text.secondary} numberOfLines={2}>
-              {card.summary}
-            </T>
-            {meta}
-          </View>
-          {card.experience_score !== null ? (
-            <ScoreRing score={card.experience_score} size={variant === 'recommendation' ? 'medium' : 'compact'} />
+          {showWhy ? <WhyThisFits reasons={toFitReasons(card.why.slice(0, 3))} title="Why this fits" /> : null}
+
+          {!showWhy && card.why.length > 0 ? (
+            <Row gap={6} align="flex-start">
+              <Icon name="sparkle" size={14} color={colors.action.primary} />
+              <T variant="small" color={colors.text.primary} style={{ flex: 1 }} numberOfLines={2}>
+                {card.why[0]}
+              </T>
+            </Row>
           ) : null}
-        </Row>
 
-        {showWhy ? <WhyThisFits reasons={toFitReasons(card.why.slice(0, 3))} title="Why this fits" /> : null}
-
-        {!showWhy && card.why.length > 0 ? (
-          <Row gap={6} align="flex-start">
-            <Icon name="sparkle" size={14} color={colors.action.primary} />
-            <T variant="small" color={colors.text.primary} style={{ flex: 1 }} numberOfLines={2}>
-              {card.why[0]}
-            </T>
-          </Row>
-        ) : null}
-
-        {card.caveats.length > 0 && variant === 'recommendation' ? (
-          <Row gap={6} align="flex-start">
-            <Icon name="info" size={14} color={colors.text.tertiary} />
-            <T variant="small" color={colors.text.tertiary} style={{ flex: 1 }} numberOfLines={2}>
-              {card.caveats[0]}
-            </T>
-          </Row>
-        ) : null}
-      </View>
+          {card.caveats.length > 0 && variant === 'recommendation' ? (
+            <Row gap={6} align="flex-start">
+              <Icon name="info" size={14} color={colors.text.tertiary} />
+              <T variant="small" color={colors.text.tertiary} style={{ flex: 1 }} numberOfLines={2}>
+                {card.caveats[0]}
+              </T>
+            </Row>
+          ) : null}
+        </View>
+      </CardPress>
     </Card>
   );
 }

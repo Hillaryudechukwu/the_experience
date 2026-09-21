@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { usePassport } from '../src/api/hooks';
 import { Icon } from '../src/components/Icon';
-import { Card, Divider, EmptyState, Gutter, Loading, Row, Screen, SectionHeader, T } from '../src/components/primitives';
+import { Card, CardPress, Divider, EmptyState, Gutter, Loading, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { titleCase } from '../src/lib/format';
 import { radius, space, useTheme } from '../src/theme';
 
@@ -147,18 +147,23 @@ export default function PassportScreen() {
             <SectionHeader title="Recently" />
             <View style={{ gap: space.sm }}>
               {data.recent.map((entry) => (
-                <Card key={entry.experience_id + entry.completed_at} onPress={() => router.push(`/experience/${entry.experience_id}`)}>
-                  <Row justify="space-between" style={{ padding: space.md }}>
-                    <View style={{ flex: 1 }}>
-                      <T variant="bodyStrong" numberOfLines={1}>
-                        {entry.title}
-                      </T>
-                      <T variant="small" color={colors.text.secondary}>
-                        {entry.destination} · {new Date(entry.completed_at).toLocaleDateString()}
-                      </T>
-                    </View>
-                    <Icon name="chevron" size={16} color={colors.text.tertiary} />
-                  </Row>
+                <Card key={entry.experience_id + entry.completed_at}>
+                  <CardPress
+                    onPress={() => router.push(`/experience/${entry.experience_id}`)}
+                    accessibilityLabel={`Open ${entry.title}`}
+                  >
+                    <Row justify="space-between" style={{ padding: space.md }}>
+                      <View style={{ flex: 1 }}>
+                        <T variant="bodyStrong" numberOfLines={1}>
+                          {entry.title}
+                        </T>
+                        <T variant="small" color={colors.text.secondary}>
+                          {entry.destination} · {new Date(entry.completed_at).toLocaleDateString()}
+                        </T>
+                      </View>
+                      <Icon name="chevron" size={16} color={colors.text.tertiary} />
+                    </Row>
+                  </CardPress>
                 </Card>
               ))}
             </View>

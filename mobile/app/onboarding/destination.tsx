@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useDestinations } from '../../src/api/hooks';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
-import { Button, Card, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
+import { Button, Card, CardPress, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -112,23 +112,25 @@ export default function Destination() {
         {isLoading ? <ActivityIndicator color={colors.action.primary} /> : null}
 
         {destinations.map((destination) => (
-          <Card key={destination.id} onPress={() => choose(destination)}>
-            <Row justify="space-between" align="flex-start" style={{ padding: space.md }} gap={space.sm}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <T variant="h3">{destination.name}</T>
-                {destination.summary ? (
-                  <T variant="small" color={colors.text.secondary} numberOfLines={2}>
-                    {destination.summary}
+          <Card key={destination.id}>
+            <CardPress onPress={() => choose(destination)} accessibilityLabel={`Choose ${destination.name}`}>
+              <Row justify="space-between" align="flex-start" style={{ padding: space.md }} gap={space.sm}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <T variant="h3">{destination.name}</T>
+                  {destination.summary ? (
+                    <T variant="small" color={colors.text.secondary} numberOfLines={2}>
+                      {destination.summary}
+                    </T>
+                  ) : null}
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <T variant="caption" color={colors.text.tertiary}>
+                    {destination.country}
                   </T>
-                ) : null}
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <T variant="caption" color={colors.text.tertiary}>
-                  {destination.country}
-                </T>
-                <Icon name="chevron" size={16} color={colors.text.tertiary} />
-              </View>
-            </Row>
+                  <Icon name="chevron" size={16} color={colors.text.tertiary} />
+                </View>
+              </Row>
+            </CardPress>
           </Card>
         ))}
 

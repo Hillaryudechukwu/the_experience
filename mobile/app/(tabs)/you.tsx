@@ -8,6 +8,7 @@ import { Icon, type IconName } from '../../src/components/Icon';
 import {
   Button,
   Card,
+  CardPress,
   Chip,
   Divider,
   Gutter,
@@ -145,12 +146,14 @@ export default function You() {
       {passport ? (
         <Gutter>
           <SectionHeader title="Passport" action="Open" onAction={() => router.push('/passport')} />
-          <Card onPress={() => router.push('/passport')}>
-            <Row justify="space-around" style={{ padding: space.lg }}>
-              <Stat label="Experiences" value={passport.totals.experiences} />
-              <Stat label="Cities" value={passport.totals.cities} />
-              <Stat label="Countries" value={passport.totals.countries} />
-            </Row>
+          <Card>
+            <CardPress onPress={() => router.push('/passport')} accessibilityLabel="Open your passport">
+              <Row justify="space-around" style={{ padding: space.lg }}>
+                <Stat label="Experiences" value={passport.totals.experiences} />
+                <Stat label="Cities" value={passport.totals.cities} />
+                <Stat label="Countries" value={passport.totals.countries} />
+              </Row>
+            </CardPress>
           </Card>
         </Gutter>
       ) : null}

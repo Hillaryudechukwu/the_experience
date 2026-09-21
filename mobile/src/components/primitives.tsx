@@ -155,17 +155,28 @@ export function T({
 
 /* ── Surfaces ──────────────────────────────────────────────────────────── */
 
+/**
+ * A card surface. Deliberately not pressable.
+ *
+ * It used to take an `onPress` and wrap itself in a button, which reads well
+ * at the call site and quietly breaks the moment the card gains a control of
+ * its own — a save heart, an overflow menu. A button cannot contain a button:
+ * the browser rejects the markup, and the reason it does is that a keyboard or
+ * screen-reader user has no way to reach the inner control. That is a defect
+ * you cannot see in a screenshot, and it had already shipped once.
+ *
+ * So the surface and the action are separate. Put a `CardPress` inside for the
+ * tappable region, and anything that is its own control goes beside it.
+ */
 export function Card({
   children,
   style,
-  onPress,
   tone = 'elevated',
   level = 'card',
   bordered = true,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  onPress?: () => void;
   tone?: 'elevated' | 'warm' | 'sunken' | 'flat';
   level?: 'card' | 'feature' | 'none';
   bordered?: boolean;
@@ -188,16 +199,36 @@ export function Card({
     ...(level === 'none' ? {} : level === 'feature' ? elevation.feature : elevation.card),
   };
 
-  if (!onPress) return <View style={[base, style]}>{children}</View>;
+  return <View style={[base, style]}>{children}</View>;
+}
 
+/**
+ * The tappable region of a card.
+ *
+ * Sits inside a `Card` and covers whatever opening the card should mean. Any
+ * control with its own meaning — save, dismiss, a menu — belongs outside this,
+ * as a sibling, so that both are reachable.
+ */
+export function CardPress({
+  children,
+  onPress,
+  accessibilityLabel,
+  style,
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         onPress();
       }}
-      style={({ pressed }) => [base, style, pressed && { opacity: 0.92, transform: [{ scale: 0.995 }] }]}
+      style={({ pressed }) => [pressed && { opacity: 0.92 }, style]}
     >
       {children}
     </Pressable>
