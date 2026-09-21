@@ -24,7 +24,7 @@ import {
 } from '../../src/components/primitives';
 import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
 import { clock, minutesLabel, titleCase } from '../../src/lib/format';
-import { elevation, radius, space, useTheme } from '../../src/theme';
+import { elevation, radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
 
 /**
  * Experience detail (Figma: 20).
@@ -138,7 +138,7 @@ export default function ExperienceScreen() {
                       </T>
                     </View>
                     <T variant="caption" color={colors.text.tertiary}>
-                      {dynamic.rating.freshness.source}
+                      {sourceLabel(dynamic.rating.freshness.source)}
                     </T>
                   </Row>
                 </>
@@ -464,6 +464,27 @@ export default function ExperienceScreen() {
   );
 }
 
+/** Provider keys are internal. Travellers get the name of the actual source. */
+function sourceLabel(source: string | null): string {
+  if (!source) return 'Not verified';
+
+  const names: Record<string, string> = {
+    google_places: 'Google',
+    osm: 'OpenStreetMap',
+    wikimedia: 'Wikimedia',
+    seed_demo: 'Editorial',
+    sandbox: 'Sandbox supplier',
+    deeplink: 'Partner',
+    viator: 'Viator',
+    open_meteo: 'Open-Meteo',
+    seeded_forecast: 'Simulated forecast',
+    osrm: 'OSRM',
+    estimator: 'Estimated',
+  };
+
+  return names[source] ?? source.replace(/_/g, ' ');
+}
+
 function CircleButton({
   icon,
   onPress,
@@ -480,11 +501,12 @@ function CircleButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
+      hitSlop={6}
       style={({ pressed }) => ({
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(13,27,42,0.5)',
+        width: TOUCH_TARGET,
+        height: TOUCH_TARGET,
+        borderRadius: TOUCH_TARGET / 2,
+        backgroundColor: 'rgba(13,27,42,0.55)',
         alignItems: 'center',
         justifyContent: 'center',
         opacity: pressed ? 0.75 : 1,
@@ -520,7 +542,7 @@ function Fact({
         <T variant="bodyStrong">{value}</T>
       </Row>
       <T variant="caption" color={freshness.is_stale ? colors.status.warning : colors.text.tertiary} align="right">
-        {freshness.source ? `${freshness.label} · ${freshness.source}` : 'Not verified'}
+        {freshness.source ? `${freshness.label} · ${sourceLabel(freshness.source)}` : 'Not verified'}
       </T>
     </View>
   );

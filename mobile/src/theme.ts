@@ -8,11 +8,12 @@ import {
   motion,
   radius,
   space,
+  TOUCH_TARGET,
   typeScale,
   type TypeVariant,
 } from './design/tokens';
 
-export { elevation, fonts, motion, radius, space, typeScale };
+export { elevation, fonts, motion, radius, space, TOUCH_TARGET, typeScale };
 export type { ColorTokens, TypeVariant };
 
 /** Kept for call sites that still pass `type.body` style objects. */

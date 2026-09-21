@@ -38,7 +38,10 @@ export function Screen({
 
   const inner = scroll ? (
     <ScrollView
-      contentContainerStyle={[{ paddingBottom: space.colossal }, contentStyle]}
+      /* Deep enough that the floating guide button never sits on top of the
+         last card. A control that covers the content it sits beside is worse
+         than one that is slightly further away. */
+      contentContainerStyle={[{ paddingBottom: 132 }, contentStyle]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
@@ -182,7 +185,7 @@ export function Card({
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 
-type ButtonTone = 'primary' | 'secondary' | 'tertiary' | 'inverse';
+type ButtonTone = 'primary' | 'secondary' | 'tertiary' | 'inverse' | 'onAccent' | 'onAccentGhost';
 type ButtonSize = 'small' | 'medium' | 'large';
 
 const SIZES: Record<ButtonSize, { paddingVertical: number; paddingHorizontal: number; variant: TypeVariant }> = {
@@ -220,6 +223,15 @@ export function Button({
     secondary: { bg: colors.background.elevated, fg: colors.text.primary, border: colors.border.strong },
     tertiary: { bg: 'transparent', fg: colors.action.primary, border: 'transparent' },
     inverse: { bg: colors.text.primary, fg: colors.text.inverse, border: 'transparent' },
+    /*
+     * For the brand gradient, whose colour does not follow the theme. Screens
+     * used to reach this look by passing tone="secondary" and overriding the
+     * background in `style` — which left the foreground on the theme token and
+     * produced white-on-white in dark mode. Making it a tone means the pair
+     * always travels together.
+     */
+    onAccent: { bg: '#FFFFFF', fg: '#0D1B2A', border: 'transparent' },
+    onAccentGhost: { bg: 'transparent', fg: '#FFFFFF', border: 'rgba(255,255,255,0.45)' },
   };
   const t = tones[tone];
 
@@ -239,7 +251,7 @@ export function Button({
         {
           backgroundColor: pressed && tone === 'primary' ? colors.action.primaryPressed : t.bg,
           borderColor: t.border,
-          borderWidth: tone === 'secondary' ? StyleSheet.hairlineWidth : 0,
+          borderWidth: tone === 'secondary' || tone === 'onAccentGhost' ? StyleSheet.hairlineWidth : 0,
           borderRadius: radius.pill,
           paddingVertical: dimensions.paddingVertical,
           paddingHorizontal: dimensions.paddingHorizontal,
@@ -291,7 +303,10 @@ export function Chip({
       <RNText
         style={[
           typeScale[size === 'small' ? 'caption' : 'smallStrong'],
-          { color: selected ? colors.text.onAccent : colors.text.secondary },
+          /* A neutral chip fills with text.primary, which is near-white in dark
+             mode — so its label has to be the inverse, not onAccent. Getting
+             this wrong rendered white on white. */
+          { color: selected ? (tone === 'accent' ? colors.text.onAccent : colors.text.inverse) : colors.text.secondary },
         ]}
       >
         {label}
@@ -307,16 +322,21 @@ export function Chip({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: selected ? activeBg : colors.border.subtle,
     opacity: pressed ? 0.85 : 1,
-    minHeight: size === 'small' ? 32 : 40,
+    minHeight: size === 'small' ? 34 : 40,
     justifyContent: 'center',
   });
 
   if (!onPress) return <View style={styleFor(false)}>{body}</View>;
 
+  /* A 34px pill looks right but misses the 44px target, so the difference is
+     made up in hitSlop rather than by inflating the design. */
+  const slop = size === 'small' ? 6 : 3;
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
+      hitSlop={{ top: slop, bottom: slop, left: 4, right: 4 }}
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         onPress();

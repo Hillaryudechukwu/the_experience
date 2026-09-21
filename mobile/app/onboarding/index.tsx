@@ -53,14 +53,13 @@ export default function Welcome() {
             <Button
               label="Start exploring"
               size="large"
+              tone="onAccent"
               onPress={() => router.push('/onboarding/destination')}
-              style={{ backgroundColor: '#FFFFFF' }}
-              tone="secondary"
               haptic="medium"
             />
             <Button
               label="Continue as guest"
-              tone="tertiary"
+              tone="onAccentGhost"
               onPress={async () => {
                 await session.completeOnboarding();
                 router.replace('/(tabs)');

@@ -95,7 +95,14 @@ export function AnchorStrip({
 }
 
 function buildSlots(anchors: Anchor[]): Slot[] {
-  const sorted = [...anchors].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  /*
+   * Only what is still ahead. The strip was rendering every anchor on the
+   * journey, so at 20:30 it was cheerfully offering a free window that had
+   * ended that morning — advice about a day already spent.
+   */
+  const now = Date.now();
+  const upcoming = anchors.filter((anchor) => new Date(anchor.ends_at).getTime() > now);
+  const sorted = [...(upcoming.length > 0 ? upcoming : [])].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const slots: Slot[] = [];
 
   sorted.forEach((anchor, index) => {

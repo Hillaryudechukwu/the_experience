@@ -27,6 +27,11 @@ const palette = {
 
 /* ── Semantic colour, per mode (Figma: 7) ──────────────────────────────── */
 export type ColorTokens = {
+  /* Fixed brand values that do not flip with the mode. The city header draws
+     white text over a photograph in both modes, so the ink behind it has to be
+     the same midnight in both — a mode-aware value would turn the scrim white
+     in light mode and make the header unreadable. */
+  brand: { midnight: string; blue: string; sand: string; onPhoto: string; onPhotoMuted: string };
   background: { base: string; elevated: string; warm: string; sunken: string };
   text: { primary: string; secondary: string; tertiary: string; inverse: string; onAccent: string };
   action: { primary: string; primaryPressed: string; secondary: string; soft: string; onSoft: string };
@@ -39,16 +44,29 @@ export type ColorTokens = {
 };
 
 const light: ColorTokens = {
+  brand: {
+    midnight: palette.midnightInk,
+    blue: palette.experienceBlue,
+    sand: palette.journeySand,
+    onPhoto: palette.white,
+    onPhotoMuted: 'rgba(255,255,255,0.82)',
+  },
   background: {
     base: palette.cloud,
     elevated: palette.white,
     warm: palette.journeySand,
     sunken: palette.skyMist,
   },
+  /*
+   * Measured against WCAG AA, not chosen by eye. Most of this UI is 11–13px
+   * captions and timestamps, which need 4.5:1 — the original tertiary managed
+   * 2.5:1 on the base surface and was effectively decorative. Tertiary is now
+   * the brand Slate (4.7:1) and secondary steps darker to keep the hierarchy.
+   */
   text: {
     primary: palette.midnightInk,
-    secondary: palette.slate,
-    tertiary: '#93A0B4',
+    secondary: '#4A5468',
+    tertiary: palette.slate,
     inverse: palette.white,
     onAccent: palette.white,
   },
@@ -86,16 +104,24 @@ const light: ColorTokens = {
 };
 
 const dark: ColorTokens = {
+  brand: {
+    midnight: palette.midnightInk,
+    blue: palette.experienceBlue,
+    sand: palette.journeySand,
+    onPhoto: palette.white,
+    onPhotoMuted: 'rgba(255,255,255,0.82)',
+  },
   background: {
     base: palette.night,
     elevated: palette.nightSurface,
     warm: '#1B2433',
     sunken: '#0B1524',
   },
+  /* Same audit: #64748B measured 3.6:1 on the elevated surface. */
   text: {
     primary: '#F2F6FC',
-    secondary: '#94A3B8',
-    tertiary: '#64748B',
+    secondary: '#A8B6C8',
+    tertiary: '#8796AA',
     inverse: palette.midnightInk,
     onAccent: palette.white,
   },
@@ -150,6 +176,9 @@ export const space = {
 } as const;
 
 /* ── Radius (Figma: 9) ─────────────────────────────────────────────────── */
+/** WCAG AA minimum interactive size (Figma: 59). */
+export const TOUCH_TARGET = 44;
+
 export const radius = {
   compact: 8,
   control: 12,

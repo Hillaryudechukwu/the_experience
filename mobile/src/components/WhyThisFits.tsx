@@ -46,8 +46,13 @@ export function WhyThisFits({
       </T>
 
       <View style={{ gap: space.xs }}>
-        {reasons.map((reason) => (
-          <Row key={reason.text} align="flex-start" gap={space.xs}>
+        {/* Keyed by position, not by the sentence. The scorer composes these
+            lines from separate components and can legitimately produce the
+            same wording twice — "fits the time you have" can come from both
+            the window and the anchor check — and two identical keys make React
+            reuse the wrong node rather than render the second line. */}
+        {reasons.map((reason, index) => (
+          <Row key={`${index}:${reason.text}`} align="flex-start" gap={space.xs}>
             <View style={{ paddingTop: 1 }}>
               <Icon name={reason.icon} size={16} color={colors.text.secondary} />
             </View>

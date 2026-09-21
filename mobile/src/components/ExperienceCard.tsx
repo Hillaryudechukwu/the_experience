@@ -2,16 +2,16 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { recordEvents } from '../api/hooks';
+import { recordEvents, useToggleSave } from '../api/hooks';
 import type { ExperienceCard as CardData } from '../api/types';
 import { categoryAccent, radius, space, useTheme } from '../theme';
 import { Icon } from './Icon';
-import { ScorePill, ScoreRing } from './ExperienceScore';
+import { ScoreMedallion, ScorePill, ScoreRing } from './ExperienceScore';
 import { Photo, Thumb } from './Photo';
 import { Card, Row, T } from './primitives';
 import { toFitReasons, WhyThisFits } from './WhyThisFits';
 
-type Variant = 'editorial' | 'compact' | 'recommendation' | 'rail';
+type Variant = 'editorial' | 'compact' | 'recommendation' | 'rail' | 'feature';
 
 function priceLabel(card: CardData): string {
   if (card.is_free) return 'Free';
@@ -91,6 +91,67 @@ export function ExperienceCardView({
     </Row>
   );
 
+  /* ── Feature: the top-pick card the home rail is built around ────────── */
+  if (variant === 'feature') {
+    const fit = card.why[0] ?? null;
+
+    return (
+      <Card onPress={open} style={{ width: 272 }} level="feature">
+        <Photo
+          id={card.id}
+          uri={card.image_url}
+          attribution={card.image_attribution}
+          category={primary?.key}
+          height={152}
+          showCredit={false}
+        />
+
+        {/* The medallion straddles the photograph and the body. Sitting it on
+            the seam is what makes the score read as belonging to the card
+            rather than being stamped onto the picture. */}
+        {card.experience_score !== null ? (
+          <View style={{ position: 'absolute', top: 152 - 34, right: space.sm }}>
+            <ScoreMedallion score={card.experience_score} size="compact" />
+          </View>
+        ) : null}
+
+        <View style={{ padding: space.md, gap: 6 }}>
+          <T variant="h3" numberOfLines={1} style={{ paddingRight: 46 }}>
+            {card.title}
+          </T>
+
+          {card.categories.length > 0 ? (
+            <T variant="small" color={colors.text.secondary} numberOfLines={1}>
+              {card.categories.slice(0, 3).map((c) => c.label).join(' · ')}
+            </T>
+          ) : null}
+
+          {fit ? (
+            <Row gap={5} align="flex-start" style={{ marginTop: 2 }}>
+              <Icon name="check" size={14} color={colors.status.open} strokeWidth={2.2} />
+              <T variant="small" color={colors.status.open} style={{ flex: 1 }} numberOfLines={1}>
+                {fit}
+              </T>
+            </Row>
+          ) : null}
+
+          <Row justify="space-between" align="center" style={{ marginTop: 2 }}>
+            <T variant="small" color={colors.text.secondary} numberOfLines={1} style={{ flex: 1 }}>
+              {[
+                card.travel ? `${card.travel.minutes} min away` : null,
+                durationLabel(card.duration_minutes),
+                priceLabel(card),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </T>
+            <SaveHeart id={card.id} saved={false} />
+          </Row>
+        </View>
+      </Card>
+    );
+  }
+
   /* ── Rail: horizontal scroller, minimal fields ───────────────────────── */
   if (variant === 'rail') {
     return (
@@ -99,7 +160,7 @@ export function ExperienceCardView({
           <Photo id={card.id} uri={card.image_url} attribution={card.image_attribution} category={primary?.key} height={124} overlay>
             {card.experience_score !== null ? (
               <View style={{ position: 'absolute', top: space.xs, left: space.xs }}>
-                <ScorePill score={card.experience_score} />
+                <ScorePill score={card.experience_score} compact />
               </View>
             ) : null}
           </Photo>
@@ -215,5 +276,40 @@ export function ExperienceCardView({
         ) : null}
       </View>
     </Card>
+  );
+}
+
+/**
+ * The save control that sits on a card.
+ *
+ * Optimistic on purpose: a heart that waits for a round trip before filling in
+ * feels broken on a slow connection, and the worst case of being wrong is that
+ * it flips back.
+ */
+function SaveHeart({ id, saved }: { id: string; saved: boolean }) {
+  const colors = useTheme();
+  const toggle = useToggleSave(id);
+  const [on, setOn] = React.useState(saved);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={on ? 'Remove from saved' : 'Save for later'}
+      accessibilityState={{ selected: on }}
+      hitSlop={12}
+      onPress={() => {
+        const next = !on;
+        setOn(next);
+        toggle.mutate(on, { onError: () => setOn(!next) });
+      }}
+      style={({ pressed }) => ({ padding: 4, opacity: pressed ? 0.6 : 1 })}
+    >
+      <Icon
+        name={on ? 'saved' : 'save'}
+        size={19}
+        color={on ? colors.experience.food : colors.text.tertiary}
+        strokeWidth={1.9}
+      />
+    </Pressable>
   );
 }

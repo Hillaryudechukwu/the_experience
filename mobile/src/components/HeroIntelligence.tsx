@@ -62,22 +62,9 @@ export function HeroIntelligence({
         </View>
 
         <Row gap={space.xs}>
-          <Button
-            label={primaryLabel}
-            onPress={onPrimary}
-            tone="secondary"
-            size="medium"
-            haptic="medium"
-            style={{ flex: 1, backgroundColor: '#FFFFFF', borderColor: 'transparent' }}
-          />
+          <Button label={primaryLabel} onPress={onPrimary} tone="onAccent" size="medium" haptic="medium" style={{ flex: 1 }} />
           {secondaryLabel && onSecondary ? (
-            <Button
-              label={secondaryLabel}
-              onPress={onSecondary}
-              tone="tertiary"
-              size="medium"
-              style={{ paddingHorizontal: space.md }}
-            />
+            <Button label={secondaryLabel} onPress={onSecondary} tone="onAccentGhost" size="medium" style={{ flex: 1 }} />
           ) : null}
         </Row>
       </LinearGradient>

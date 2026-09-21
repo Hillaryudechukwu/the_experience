@@ -155,6 +155,7 @@ export type Destination = {
   lat: number;
   lng: number;
   summary: string | null;
+  hero_image_url: string | null;
 };
 
 export type DestinationDetail = Destination & {
@@ -167,6 +168,8 @@ export type DestinationDetail = Destination & {
     ideal_duration_minutes: number;
     lat: number;
     lng: number;
+    image_url: string | null;
+    image_attribution: ImageAttribution;
   }[];
   dont_leave_without: { title: string; description: string; kind: string; experience_id: string | null }[];
   city_essentials: {

@@ -11,7 +11,7 @@ import { elevation, radius, space, useTheme } from '../../src/theme';
 /**
  * Primary navigation (Figma: 15).
  *
- * Five destinations: Discover, Map, Trip, Bookings, You. The AI guide is
+ * Five destinations: Home, Explore, Plan, Bookings, Profile. The AI guide is
  * deliberately not one of them — it is a floating contextual action instead,
  * because spending a fifth of the navigation on a chat entry point would push
  * out something the traveller needs far more often.
@@ -37,22 +37,27 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarActiveTintColor: colors.action.primary,
           tabBarInactiveTintColor: colors.text.tertiary,
+          /* 56px could not fit an icon and a label, so the labels were being
+             clipped away entirely — leaving five unlabelled glyphs, which the
+             accessibility bar explicitly rules out. */
+          tabBarShowLabel: true,
           tabBarStyle: {
             backgroundColor: colors.background.elevated,
             borderTopColor: colors.border.subtle,
             borderTopWidth: 1,
-            height: 56 + insets.bottom,
-            paddingTop: 6,
-            paddingBottom: insets.bottom || 8,
+            height: 64 + insets.bottom,
+            paddingTop: 8,
+            paddingBottom: (insets.bottom || 8) + 6,
           },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 2 },
+          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11, marginTop: 4 },
+          tabBarIconStyle: { marginTop: 0 },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Discover', tabBarIcon: tab('compass') }} />
-        <Tabs.Screen name="map" options={{ title: 'Map', tabBarIcon: tab('map') }} />
-        <Tabs.Screen name="trip" options={{ title: 'Trip', tabBarIcon: tab('trip') }} />
+        <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: tab('compass') }} />
+        <Tabs.Screen name="map" options={{ title: 'Explore', tabBarIcon: tab('map') }} />
+        <Tabs.Screen name="trip" options={{ title: 'Plan', tabBarIcon: tab('trip') }} />
         <Tabs.Screen name="bookings" options={{ title: 'Bookings', tabBarIcon: tab('bookings') }} />
-        <Tabs.Screen name="you" options={{ title: 'You', tabBarIcon: tab('person') }} />
+        <Tabs.Screen name="you" options={{ title: 'Profile', tabBarIcon: tab('person') }} />
       </Tabs>
 
       <FloatingGuide onPress={() => router.push('/guide')} bottomInset={insets.bottom} />
@@ -75,7 +80,7 @@ function FloatingGuide({ onPress, bottomInset }: { onPress: () => void; bottomIn
       style={({ pressed }) => ({
         position: 'absolute',
         right: space.lg,
-        bottom: 56 + bottomInset + space.md,
+        bottom: 64 + bottomInset + space.md,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.xs,

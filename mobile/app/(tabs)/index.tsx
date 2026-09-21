@@ -3,12 +3,14 @@ import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native
 import { useRouter } from 'expo-router';
 
 import { API_URL } from '../../src/api/client';
-import { useDestination, useDiscovery, useJourney, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
+import { useDestination, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
 import { AnchorStrip } from '../../src/components/AnchorStrip';
+import { DestinationHero } from '../../src/components/DestinationHero';
+import { QuickActions } from '../../src/components/QuickActions';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
-import { HeroIntelligence } from '../../src/components/HeroIntelligence';
 import { Icon } from '../../src/components/Icon';
 import { MOODS, MoodTile } from '../../src/components/MoodTile';
+import { Photo } from '../../src/components/Photo';
 import {
   Button,
   Card,
@@ -23,7 +25,7 @@ import {
   Skeleton,
   T,
 } from '../../src/components/primitives';
-import { clock, conditionLabel, weekdayAndTime, windowLabel } from '../../src/lib/format';
+import { clock, conditionLabel, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -66,6 +68,7 @@ export default function Discover() {
   const { data: journey } = useJourney(session.journeyId);
   const { data: trip } = useTrip(session.tripId);
   const { data: saved } = useSaved();
+  const { data: profile } = useProfile();
   const surprise = useSurpriseMe();
 
   const context = discovery.data?.context;
@@ -102,6 +105,10 @@ export default function Discover() {
     );
   }
 
+  const greeting = `${timeOfDayGreeting(context ? new Date(context.local_time) : undefined)}${
+    profile?.display_name ? `, ${profile.display_name.split(' ')[0]}` : ''
+  }`;
+
   const heroHeadline = context?.window_minutes
     ? `You have ${windowLabel(context.window_minutes)}${context.next_anchor ? ` before ${context.next_anchor.title.toLowerCase()}` : ''}.`
     : window
@@ -116,6 +123,7 @@ export default function Discover() {
 
   return (
     <Screen
+      edges={['left', 'right']}
       refreshControl={
         <RefreshControl
           refreshing={discovery.isFetching}
@@ -124,88 +132,41 @@ export default function Discover() {
         />
       }
     >
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <Gutter style={{ paddingTop: space.sm }}>
-        <Row justify="space-between" align="flex-start">
-          <View style={{ flex: 1 }}>
-            <T variant="displayL">{session.destinationName ?? 'Your city'}</T>
-            <Row gap={space.xs} style={{ marginTop: 4 }} wrap>
-              {context ? (
-                <T variant="small" color={colors.text.secondary}>
-                  {weekdayAndTime(context.local_time, tz)}
-                </T>
-              ) : null}
-              {context?.weather ? (
-                <>
-                  <T variant="small" color={colors.text.tertiary}>
-                    ·
-                  </T>
-                  <Row gap={5}>
-                    <Icon name="weather" size={14} color={colors.text.tertiary} />
-                    <T variant="small" color={colors.text.secondary}>
-                      {Math.round(context.weather.temperature_c)}°C {conditionLabel(context.weather.condition)}
-                    </T>
-                  </Row>
-                </>
-              ) : null}
-            </Row>
-          </View>
+      {/* ── City header (Figma: 3, 12) ─────────────────────────────────
+          Photograph of where the traveller actually is, carrying the city
+          switch, the weather, the local time and the one sentence that says
+          what the next stretch of the trip is good for. */}
+      <DestinationHero
+        city={session.destinationName ?? 'Your city'}
+        imageUri={destination?.hero_image_url}
+        greeting={greeting}
+        headline={heroHeadline}
+        detail={heroDetail}
+        timeLabel={context ? clock(context.local_time, tz) : null}
+        dateLabel={context ? dateStamp(context.local_time, tz) : null}
+        temperature={context?.weather?.temperature_c ?? null}
+        condition={context?.weather ? conditionLabel(context.weather.condition) : null}
+        onPressCity={() => router.push('/onboarding/destination')}
+        onPressProfile={() => router.push('/(tabs)/you')}
+        onPressSearch={() => router.push('/search')}
+      />
 
-          <Pressable onPress={() => router.push('/(tabs)/you')} hitSlop={10} accessibilityLabel="Your profile">
-            <View
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 21,
-                backgroundColor: colors.background.elevated,
-                borderWidth: 1,
-                borderColor: colors.border.subtle,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon name="person" size={20} color={colors.text.secondary} />
-            </View>
-          </Pressable>
-        </Row>
-
-        {/* ── Search entry ─────────────────────────────────────────────── */}
-        <Pressable
-          onPress={() => router.push('/search')}
-          accessibilityRole="search"
-          style={({ pressed }) => ({
-            marginTop: space.md,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.xs,
-            backgroundColor: colors.background.elevated,
-            borderWidth: 1,
-            borderColor: colors.border.subtle,
-            borderRadius: radius.pill,
-            paddingHorizontal: space.md,
-            paddingVertical: 13,
-            opacity: pressed ? 0.9 : 1,
-          })}
-        >
-          <Icon name="search" size={18} color={colors.text.tertiary} />
-          <T variant="body" color={colors.text.tertiary}>
-            What do you feel like doing?
-          </T>
-        </Pressable>
-      </Gutter>
-
-      {/* ── Hero intelligence ──────────────────────────────────────────── */}
-      <Gutter style={{ marginTop: space.md }}>
-        <HeroIntelligence
-          meta={context?.journey ? 'For your trip' : 'Right now'}
-          headline={heroHeadline}
-          detail={heroDetail}
-          primaryLabel={window ? 'Build this window' : 'Build my day'}
-          onPrimary={() => router.push('/(tabs)/trip')}
-          secondaryLabel={results.length > 0 ? 'See options' : undefined}
-          onSecondary={() => router.push('/search')}
-        />
-      </Gutter>
+      <QuickActions
+        actions={[
+          { key: 'nearby', label: 'Nearby', icon: 'location', onPress: () => router.push('/search') },
+          {
+            key: 'for-you',
+            label: 'For you',
+            icon: 'sparkle',
+            onPress: () => {
+              setWindow(null);
+              setMood(null);
+            },
+          },
+          { key: 'open-now', label: 'Open now', icon: 'clock', onPress: () => setWindow(60) },
+          { key: 'map', label: 'Map', icon: 'map', onPress: () => router.push('/(tabs)/map') },
+        ]}
+      />
 
       {/* ── Anchor strip ───────────────────────────────────────────────── */}
       {journey && journey.anchors.length > 0 ? (
@@ -264,13 +225,25 @@ export default function Discover() {
         ))}
       </ScrollView>
 
-      {/* ── Best for you now ───────────────────────────────────────────── */}
+      {/* ── Top picks (Figma: 3) ───────────────────────────────────────
+          The headline rail: the strongest card in full, then the rest as
+          feature cards the traveller can flick through. The heading names the
+          part of the day rather than the algorithm, because that is the
+          question being answered. */}
       <Gutter>
         <SectionHeader
-          title={window ? `Best use of ${windowLabel(window)}` : mood ? 'Closest to your mood' : 'Best for you now'}
+          title={
+            window
+              ? `Best use of ${windowLabel(window)}`
+              : mood
+                ? 'Closest to your mood'
+                : `Top picks for your ${partOfDay(context?.local_time, tz)}`
+          }
           caption={
             discovery.data ? `Chosen from ${discovery.data.candidates_considered} nearby options` : undefined
           }
+          action={results.length > 0 ? 'See all' : undefined}
+          onAction={() => router.push('/search')}
         />
       </Gutter>
 
@@ -300,16 +273,6 @@ export default function Discover() {
           />
         ) : null}
 
-        {rest.slice(0, 3).map((card) => (
-          <ExperienceCardView
-            key={card.id}
-            card={card}
-            variant="compact"
-            recommendationSetId={discovery.data?.recommendation_set_id}
-            surface={surface}
-          />
-        ))}
-
         {!discovery.isLoading && results.length === 0 && !discovery.isError ? (
           <EmptyState
             title="Nothing strong fits all of that"
@@ -317,6 +280,24 @@ export default function Discover() {
           />
         ) : null}
       </Gutter>
+
+      {rest.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.sm, paddingVertical: 2 }}
+        >
+          {rest.slice(0, 6).map((card) => (
+            <ExperienceCardView
+              key={card.id}
+              card={card}
+              variant="feature"
+              recommendationSetId={discovery.data?.recommendation_set_id}
+              surface={surface}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
       {/* ── Today's plan ───────────────────────────────────────────────── */}
       {todaysItems.length > 0 ? (
@@ -492,7 +473,14 @@ export default function Discover() {
           </Gutter>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.sm }}>
             {destination.neighbourhoods.map((area) => (
-              <Card key={area.id} style={{ width: 240 }} tone="elevated">
+              <Card key={area.id} style={{ width: 240, overflow: 'hidden' }} tone="elevated">
+                <Photo
+                  id={area.id}
+                  uri={area.image_url}
+                  attribution={area.image_attribution}
+                  height={124}
+                  showCredit={false}
+                />
                 <View style={{ padding: space.md, gap: 6 }}>
                   <Row justify="space-between">
                     <T variant="h3">{area.name}</T>
@@ -526,4 +514,30 @@ export default function Discover() {
       ) : null}
     </Screen>
   );
+}
+
+/** "Mon 12 May" — the design's date stamp, short enough to sit beside the clock. */
+function dateStamp(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleDateString([], {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
+/** "afternoon", "morning", "evening" — what the picks are actually for. */
+function partOfDay(iso: string | undefined, timeZone?: string): string {
+  const hour = Number(
+    new Date(iso ?? Date.now()).toLocaleString('en-GB', {
+      hour: '2-digit',
+      hour12: false,
+      ...(timeZone ? { timeZone } : {}),
+    }),
+  );
+
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+
+  return 'evening';
 }

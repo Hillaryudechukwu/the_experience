@@ -48,14 +48,21 @@ export function Sheet({
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border.strong }} />
             </View>
 
-            {title ? (
-              <Row justify="space-between" style={{ paddingHorizontal: space.lg, paddingTop: space.md }}>
-                <T variant="h3">{title}</T>
-                <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                  <Icon name="close" size={22} color={colors.text.secondary} />
-                </Pressable>
-              </Row>
-            ) : null}
+            {/* The close control is unconditional. There is no swipe-to-dismiss on
+                web, so a titleless sheet previously left tapping the scrim as the
+                only way out — discoverable to nobody. */}
+            <Row justify="space-between" style={{ paddingHorizontal: space.lg, paddingTop: space.md }}>
+              {title ? <T variant="h3">{title}</T> : <View />}
+              <Pressable
+                onPress={onClose}
+                hitSlop={14}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={{ width: 32, height: 32, alignItems: 'flex-end', justifyContent: 'center' }}
+              >
+                <Icon name="close" size={22} color={colors.text.secondary} />
+              </Pressable>
+            </Row>
 
             <ScrollView
               contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }}

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
-import { motion, radius, scoreBand, space, typeScale, useTheme } from '../theme';
+import { elevation, motion, radius, scoreBand, space, typeScale, useTheme } from '../theme';
 import { Row, T } from './primitives';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -86,6 +86,93 @@ export function ScoreRing({
   );
 }
 
+/**
+ * The score as it appears over photography (Figma: 3, 5, 12).
+ *
+ * The plain ring is drawn on whatever is behind it, which is fine on a card
+ * but unreadable over a photograph. This puts it on an opaque disc with the
+ * words "EXPERIENCE SCORE" set small beneath the number — the label is what
+ * stops a traveller reading 94 as a review score out of a hundred, and it is
+ * the one place in the product where that distinction has to survive being
+ * glanced at from across a hero image.
+ */
+export function ScoreMedallion({
+  score,
+  size = 'medium',
+  onPress,
+}: {
+  score: number;
+  size?: Size;
+  onPress?: () => void;
+}) {
+  const colors = useTheme();
+  const band = scoreBand(score, colors);
+  const box = DIMENSIONS[size].box + (size === 'large' ? 22 : 18);
+
+  const body = (
+    <View
+      style={{
+        width: box,
+        height: box,
+        borderRadius: box / 2,
+        backgroundColor: colors.background.elevated,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...elevation.feature,
+      }}
+    >
+      <Svg width={box - 6} height={box - 6} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
+        <Circle
+          cx={(box - 6) / 2}
+          cy={(box - 6) / 2}
+          r={(box - 6) / 2 - 3}
+          stroke={colors.border.subtle}
+          strokeWidth={3}
+          fill="none"
+        />
+        <Circle
+          cx={(box - 6) / 2}
+          cy={(box - 6) / 2}
+          r={(box - 6) / 2 - 3}
+          stroke={band.ring}
+          strokeWidth={3}
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={2 * Math.PI * ((box - 6) / 2 - 3)}
+          strokeDashoffset={2 * Math.PI * ((box - 6) / 2 - 3) * (1 - Math.max(0, Math.min(100, score)) / 100)}
+        />
+      </Svg>
+      <T variant={size === 'compact' ? 'scoreSmall' : 'score'} color={colors.text.primary}>
+        {score}
+      </T>
+      {size !== 'compact' ? (
+        <T
+          variant="caption"
+          color={colors.text.tertiary}
+          style={{ fontSize: 6.5, letterSpacing: 0.35, marginTop: -2 }}
+          numberOfLines={1}
+        >
+          EXPERIENCE SCORE
+        </T>
+      ) : null}
+    </View>
+  );
+
+  if (!onPress) return body;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Experience score ${score} out of 100. ${band.label}. Tap to see why.`}
+      hitSlop={8}
+      style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
 /** Ring plus the fit language, for hero and detail placements. */
 export function ScoreBadge({
   score,
@@ -132,8 +219,14 @@ export function ScoreBadge({
   );
 }
 
-/** Compact pill for dense lists and map sheets. */
-export function ScorePill({ score }: { score: number }) {
+/**
+ * Compact pill for dense lists and map sheets.
+ *
+ * `compact` drops the band label. On a 190px rail card the full form truncated
+ * to "69 · Worth consider…", which reads as a rendering fault rather than a
+ * score — the number alone is better than a broken sentence.
+ */
+export function ScorePill({ score, compact = false }: { score: number; compact?: boolean }) {
   const colors = useTheme();
   const band = scoreBand(score, colors);
 
@@ -144,14 +237,14 @@ export function ScorePill({ score }: { score: number }) {
         alignItems: 'center',
         gap: 6,
         paddingVertical: 5,
-        paddingHorizontal: 10,
+        paddingHorizontal: compact ? 8 : 10,
         borderRadius: radius.pill,
         backgroundColor: band.bg,
       }}
     >
       <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: band.ring }} />
-      <T variant="smallStrong" color={band.fg}>
-        {score} · {band.short}
+      <T variant="smallStrong" color={band.fg} numberOfLines={1}>
+        {compact ? score : `${score} · ${band.short}`}
       </T>
     </View>
   );

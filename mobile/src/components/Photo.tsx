@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Image, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { Icon, type IconName } from './Icon';
 import { artworkFor, radius, space, useTheme } from '../theme';
 import { T } from './primitives';
 
@@ -12,27 +13,68 @@ export type ImageAttribution = {
   source_url: string | null;
 } | null;
 
+/**
+ * The glyph drawn on a generated card.
+ *
+ * Without it the fallback was a bare gradient, which reads as an image that
+ * failed to load rather than as a deliberate stand-in. A mark that matches the
+ * kind of place makes the same card look intentional, and it tells the
+ * traveller something — a fork means somewhere to eat, whatever the wash
+ * behind it happens to be.
+ */
+function glyphFor(category?: string): IconName {
+  switch (category) {
+    case 'food_experience':
+      return 'food';
+    case 'nightlife':
+      return 'sparkle';
+    case 'family':
+      return 'family';
+    case 'nature':
+      return 'walk';
+    case 'free':
+      return 'money';
+    case 'culture':
+    case 'must_experience':
+      return 'guide';
+    case 'hidden_gem':
+    case 'local_favourite':
+      return 'compass';
+    case 'iconic':
+      return 'location';
+    default:
+      return 'camera';
+  }
+}
+
 /** Deterministic stand-in where no licensed photograph exists. */
 export function Artwork({
   id,
   category,
   height = 120,
   style,
+  glyph = true,
 }: {
   id: string;
   category?: string;
   height?: number | `${number}%`;
   style?: StyleProp<ViewStyle>;
+  glyph?: boolean;
 }) {
   const [from, to] = artworkFor(id, category);
+  const size = typeof height === 'number' ? Math.round(Math.min(64, Math.max(20, height * 0.32))) : 40;
 
   return (
     <LinearGradient
       colors={[from, to]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[{ height: height as number, width: '100%' }, style]}
-    />
+      style={[{ height: height as number, width: '100%', alignItems: 'center', justifyContent: 'center' }, style]}
+    >
+      {glyph && size >= 20 ? (
+        <Icon name={glyphFor(category)} size={size} color="rgba(255,255,255,0.34)" strokeWidth={1.4} />
+      ) : null}
+    </LinearGradient>
   );
 }
 
