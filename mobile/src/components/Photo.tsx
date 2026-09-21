@@ -98,6 +98,7 @@ export function Photo({
   overlay = false,
   children,
   showCredit = true,
+  creditAlign = 'bottom',
   rounded,
 }: {
   id: string;
@@ -108,6 +109,7 @@ export function Photo({
   overlay?: boolean;
   children?: React.ReactNode;
   showCredit?: boolean;
+  creditAlign?: 'bottom' | 'top';
   rounded?: number;
 }) {
   const colors = useTheme();
@@ -140,16 +142,22 @@ export function Photo({
 
       {children ? <View style={{ position: 'absolute', inset: 0 as never }}>{children}</View> : null}
 
+      {/* The credit is obligatory, so the only question is where it can sit
+          without landing on something. Cards that write a title across the
+          bottom of the photograph send it to the top corner instead, which is
+          empty in every one of those layouts. */}
       {showCredit && usePhoto && credit ? (
         <View
           style={{
             position: 'absolute',
             right: 0,
-            bottom: 0,
+            ...(creditAlign === 'top'
+              ? { top: 0, borderBottomLeftRadius: radius.compact }
+              : { bottom: 0, borderTopLeftRadius: radius.compact }),
+            maxWidth: '62%',
             backgroundColor: 'rgba(13,27,42,0.55)',
             paddingHorizontal: 6,
             paddingVertical: 2,
-            borderTopLeftRadius: radius.compact,
           }}
         >
           <T variant="caption" color="rgba(255,255,255,0.88)" numberOfLines={1} style={{ fontSize: 10 }}>

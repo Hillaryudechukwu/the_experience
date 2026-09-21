@@ -220,7 +220,7 @@ class BackfillImagery
 
     private function applyDestinationHero(Destination $destination): bool
     {
-        if ($destination->hero_image_url !== null) {
+        if ($destination->hero_image_url !== null && $destination->hero_image_attribution !== null) {
             return false;
         }
 
@@ -240,12 +240,18 @@ class BackfillImagery
                 return false;
             }
 
-            $destination->forceFill(['hero_image_url' => $best->image_url])->save();
+            $destination->forceFill([
+                'hero_image_url' => $best->image_url,
+                'hero_image_attribution' => $best->image_attribution,
+            ])->save();
 
             return true;
         }
 
-        $destination->forceFill(['hero_image_url' => $image['url']])->save();
+        $destination->forceFill([
+            'hero_image_url' => $image['url'],
+            'hero_image_attribution' => $this->attribution($image),
+        ])->save();
 
         return true;
     }

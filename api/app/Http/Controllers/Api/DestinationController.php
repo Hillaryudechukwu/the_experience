@@ -38,6 +38,7 @@ class DestinationController extends ApiController
                 'lat' => $d->lat,
                 'lng' => $d->lng,
                 'hero_image_url' => $d->hero_image_url,
+                'hero_image_attribution' => $d->hero_image_attribution,
                 'summary' => $d->summary,
             ])->all(),
         ]);
@@ -68,6 +69,7 @@ class DestinationController extends ApiController
                 'lng' => $model->lng,
                 'summary' => $model->summary,
                 'hero_image_url' => $model->hero_image_url,
+                'hero_image_attribution' => $model->hero_image_attribution,
                 'neighbourhoods' => $model->neighbourhoods->map(fn ($n) => [
                     'id' => $n->id,
                     'slug' => $n->slug,

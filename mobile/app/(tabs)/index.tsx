@@ -139,6 +139,7 @@ export default function Discover() {
       <DestinationHero
         city={session.destinationName ?? 'Your city'}
         imageUri={destination?.hero_image_url}
+        attribution={destination?.hero_image_attribution}
         greeting={greeting}
         headline={heroHeadline}
         detail={heroDetail}
@@ -479,7 +480,7 @@ export default function Discover() {
                   uri={area.image_url}
                   attribution={area.image_attribution}
                   height={124}
-                  showCredit={false}
+                  creditAlign="top"
                 />
                 <View style={{ padding: space.md, gap: 6 }}>
                   <Row justify="space-between">

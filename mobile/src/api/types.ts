@@ -156,6 +156,7 @@ export type Destination = {
   lng: number;
   summary: string | null;
   hero_image_url: string | null;
+  hero_image_attribution: ImageAttribution;
 };
 
 export type DestinationDetail = Destination & {

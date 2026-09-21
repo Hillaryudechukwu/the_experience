@@ -1,12 +1,13 @@
-import React from 'react';
-import { Platform, Pressable, View, type ColorValue } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, Pressable, View, type ColorValue } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '../../src/components/Icon';
 import { T } from '../../src/components/primitives';
-import { elevation, radius, space, useTheme } from '../../src/theme';
+import { useChrome } from '../../src/store/chrome';
+import { elevation, motion, radius, space, useTheme } from '../../src/theme';
 
 /* The tab bar's vertical budget, named so the height below is arithmetic
    rather than a number someone has to re-measure. */
@@ -121,11 +122,46 @@ export default function TabsLayout() {
   );
 }
 
-/** The AI guide, always within reach but never occupying a tab. */
+/**
+ * The AI guide, always within reach but never occupying a tab.
+ *
+ * It gets out of the way while the traveller is reading. A button pinned over
+ * the content it sits beside is a button that hides a card every time someone
+ * scrolls past one, and the guide is not urgent enough to earn that — it slides
+ * out on the way down and comes back the moment the scroll reverses or stops.
+ */
 function FloatingGuide({ onPress, bottomInset }: { onPress: () => void; bottomInset: number }) {
   const colors = useTheme();
+  const hidden = useChrome((state) => state.guideHidden);
+  const shift = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.timing(shift, {
+      toValue: hidden ? 1 : 0,
+      duration: motion.quick,
+      easing: Easing.out(Easing.cubic),
+      /* The native driver stalls part-way through on web when a new scroll
+         interrupts the one in flight, leaving the button stranded at a third
+         of its opacity. The JS driver finishes. */
+      useNativeDriver: Platform.OS !== 'web',
+    });
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [hidden, shift]);
 
   return (
+    <Animated.View
+      pointerEvents={hidden ? 'none' : 'auto'}
+      style={{
+        position: 'absolute',
+        right: space.lg,
+        bottom: BAR_HEIGHT + bottomInset + space.md,
+        opacity: shift.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: [{ translateY: shift.interpolate({ inputRange: [0, 1], outputRange: [0, 24] }) }],
+      }}
+    >
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Open the Experience Guide"
@@ -134,9 +170,6 @@ function FloatingGuide({ onPress, bottomInset }: { onPress: () => void; bottomIn
         onPress();
       }}
       style={({ pressed }) => ({
-        position: 'absolute',
-        right: space.lg,
-        bottom: BAR_HEIGHT + bottomInset + space.md,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.xs,
@@ -154,5 +187,6 @@ function FloatingGuide({ onPress, bottomInset }: { onPress: () => void; bottomIn
         Ask
       </T>
     </Pressable>
+    </Animated.View>
   );
 }

@@ -103,7 +103,7 @@ export function ExperienceCardView({
           attribution={card.image_attribution}
           category={primary?.key}
           height={152}
-          showCredit={false}
+          creditAlign="top"
         />
 
         {/* The medallion straddles the photograph and the body. Sitting it on
@@ -157,7 +157,15 @@ export function ExperienceCardView({
     return (
       <Pressable onPress={open} style={({ pressed }) => ({ width: 190, opacity: pressed ? 0.9 : 1 })}>
         <View style={{ borderRadius: radius.card, overflow: 'hidden' }}>
-          <Photo id={card.id} uri={card.image_url} attribution={card.image_attribution} category={primary?.key} height={124} overlay>
+          <Photo
+            id={card.id}
+            uri={card.image_url}
+            attribution={card.image_attribution}
+            category={primary?.key}
+            height={124}
+            overlay
+            creditAlign="top"
+          >
             {card.experience_score !== null ? (
               <View style={{ position: 'absolute', top: space.xs, left: space.xs }}>
                 <ScorePill score={card.experience_score} compact />
@@ -208,6 +216,7 @@ export function ExperienceCardView({
         category={primary?.key}
         height={variant === 'recommendation' ? 176 : 132}
         overlay
+        creditAlign="top"
       >
         <View style={{ flex: 1, justifyContent: 'space-between', padding: space.sm }}>
           <Row justify="space-between" align="flex-start">

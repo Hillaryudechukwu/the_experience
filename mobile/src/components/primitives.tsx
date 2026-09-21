@@ -13,6 +13,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useChrome } from '../store/chrome';
 import { elevation, radius, space, typeScale, type ColorTokens, type TypeVariant, useTheme } from '../theme';
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
@@ -36,6 +37,14 @@ export function Screen({
   const background =
     tone === 'warm' ? colors.background.warm : tone === 'elevated' ? colors.background.elevated : colors.background.base;
 
+  const setGuideHidden = useChrome((state) => state.setGuideHidden);
+  const lastOffset = React.useRef(0);
+
+  /* Whatever this screen did to the guide button, undo it on the way out.
+     Otherwise a screen left mid-scroll hides the button on the tab you switch
+     to, where nothing is scrolling to bring it back. */
+  React.useEffect(() => () => setGuideHidden(false), [setGuideHidden]);
+
   const inner = scroll ? (
     <ScrollView
       /* Deep enough that the floating guide button never sits on top of the
@@ -45,6 +54,18 @@ export function Screen({
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
+      scrollEventThrottle={16}
+      onScroll={(event) => {
+        const offset = event.nativeEvent.contentOffset.y;
+        const delta = offset - lastOffset.current;
+
+        /* A threshold, because without one the button flickers on the small
+           offsets a finger produces while holding still. */
+        if (Math.abs(delta) < 8) return;
+
+        lastOffset.current = offset;
+        setGuideHidden(delta > 0 && offset > 96);
+      }}
     >
       {children}
     </ScrollView>

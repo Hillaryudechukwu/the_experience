@@ -3,6 +3,7 @@ import { Image, Pressable, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ImageAttribution } from '../api/types';
 import { Icon } from './Icon';
 import { T } from './primitives';
 import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
@@ -25,6 +26,7 @@ import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
 export function DestinationHero({
   city,
   imageUri,
+  attribution,
   greeting,
   headline,
   detail,
@@ -39,6 +41,7 @@ export function DestinationHero({
 }: {
   city: string;
   imageUri?: string | null;
+  attribution?: ImageAttribution;
   greeting: string;
   headline?: string | null;
   detail?: string | null;
@@ -54,6 +57,9 @@ export function DestinationHero({
   const colors = useTheme();
   const insets = useSafeAreaInsets();
   const total = height + insets.top;
+  const credit = imageUri
+    ? [attribution?.creator, attribution?.licence].filter(Boolean).join(' · ') || null
+    : null;
 
   return (
     <View style={{ height: total, width: '100%', backgroundColor: colors.brand.midnight }}>
@@ -163,6 +169,22 @@ export function DestinationHero({
         ) : null}
 
         <View style={{ flex: 1 }} />
+
+        {/* Most of this photography is Creative Commons, where naming the
+            photographer is a condition of publishing it, not a courtesy. It is
+            set small and right-aligned above the greeting — the one strip of
+            the frame nothing else occupies. */}
+        {credit ? (
+          <T
+            variant="caption"
+            color="rgba(255,255,255,0.62)"
+            align="right"
+            numberOfLines={1}
+            style={{ fontSize: 10, marginBottom: 6 }}
+          >
+            {credit}
+          </T>
+        ) : null}
 
         {/* ── The greeting, and what the time you have is good for ─────── */}
         <T variant="displayL" color="#FFFFFF">

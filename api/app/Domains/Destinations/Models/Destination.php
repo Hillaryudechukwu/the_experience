@@ -18,7 +18,7 @@ class Destination extends Model
 
     protected function casts(): array
     {
-        return ['languages' => 'array', 'lat' => 'float', 'lng' => 'float'];
+        return ['languages' => 'array', 'hero_image_attribution' => 'array', 'lat' => 'float', 'lng' => 'float'];
     }
 
     public function point(): GeoPoint
