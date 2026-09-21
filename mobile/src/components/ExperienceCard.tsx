@@ -96,47 +96,57 @@ export function ExperienceCardView({
     const fit = card.why[0] ?? null;
 
     return (
-      <Card onPress={open} style={{ width: 272 }} level="feature">
-        <Photo
-          id={card.id}
-          uri={card.image_url}
-          attribution={card.image_attribution}
-          category={primary?.key}
-          height={152}
-          creditAlign="top"
-        />
+      /*
+       * The card is not one big button with a heart inside it.
+       * Saving and opening are two different actions, and nesting one
+       * control inside another gives a keyboard or screen-reader user no way
+       * to reach the inner one — the browser rejects the markup outright.
+       * So the card body is the button, and the heart sits beside it.
+       */
+      <Card level="feature" style={{ width: 272 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${card.title}. ${card.experience_score !== null ? `Experience score ${card.experience_score}. ` : ''}Open details.`}
+          onPress={open}
+          style={({ pressed }) => ({ opacity: pressed ? 0.94 : 1 })}
+        >
+          <Photo
+            id={card.id}
+            uri={card.image_url}
+            attribution={card.image_attribution}
+            category={primary?.key}
+            height={152}
+            creditAlign="top"
+          />
 
-        {/* The medallion straddles the photograph and the body. Sitting it on
-            the seam is what makes the score read as belonging to the card
-            rather than being stamped onto the picture. */}
-        {card.experience_score !== null ? (
-          <View style={{ position: 'absolute', top: 152 - 34, right: space.sm }}>
-            <ScoreMedallion score={card.experience_score} size="compact" />
-          </View>
-        ) : null}
-
-        <View style={{ padding: space.md, gap: 6 }}>
-          <T variant="h3" numberOfLines={1} style={{ paddingRight: 46 }}>
-            {card.title}
-          </T>
-
-          {card.categories.length > 0 ? (
-            <T variant="small" color={colors.text.secondary} numberOfLines={1}>
-              {card.categories.slice(0, 3).map((c) => c.label).join(' · ')}
+          <View style={{ padding: space.md, gap: 6 }}>
+            <T variant="h3" numberOfLines={1} style={{ paddingRight: 46 }}>
+              {card.title}
             </T>
-          ) : null}
 
-          {fit ? (
-            <Row gap={5} align="flex-start" style={{ marginTop: 2 }}>
-              <Icon name="check" size={14} color={colors.status.open} strokeWidth={2.2} />
-              <T variant="small" color={colors.status.open} style={{ flex: 1 }} numberOfLines={1}>
-                {fit}
+            {card.categories.length > 0 ? (
+              <T variant="small" color={colors.text.secondary} numberOfLines={1}>
+                {card.categories.slice(0, 3).map((c) => c.label).join(' · ')}
               </T>
-            </Row>
-          ) : null}
+            ) : null}
 
-          <Row justify="space-between" align="center" style={{ marginTop: 2 }}>
-            <T variant="small" color={colors.text.secondary} numberOfLines={1} style={{ flex: 1 }}>
+            {fit ? (
+              <Row gap={5} align="flex-start" style={{ marginTop: 2 }}>
+                <Icon name="check" size={14} color={colors.status.open} strokeWidth={2.2} />
+                <T variant="small" color={colors.status.open} style={{ flex: 1 }} numberOfLines={1}>
+                  {fit}
+                </T>
+              </Row>
+            ) : null}
+
+            {/* Right padding keeps the meta line clear of the heart, which is
+                laid over this row rather than inside it. */}
+            <T
+              variant="small"
+              color={colors.text.secondary}
+              numberOfLines={1}
+              style={{ marginTop: 2, paddingRight: 36 }}
+            >
               {[
                 card.travel ? `${card.travel.minutes} min away` : null,
                 durationLabel(card.duration_minutes),
@@ -145,8 +155,20 @@ export function ExperienceCardView({
                 .filter(Boolean)
                 .join(' · ')}
             </T>
-            <SaveHeart id={card.id} saved={false} />
-          </Row>
+          </View>
+        </Pressable>
+
+        {/* The medallion straddles the photograph and the body. Sitting it on
+            the seam is what makes the score read as belonging to the card
+            rather than being stamped onto the picture. */}
+        {card.experience_score !== null ? (
+          <View style={{ position: 'absolute', top: 152 - 34, right: space.sm }} pointerEvents="none">
+            <ScoreMedallion score={card.experience_score} size="compact" />
+          </View>
+        ) : null}
+
+        <View style={{ position: 'absolute', right: space.sm, bottom: space.sm }}>
+          <SaveHeart id={card.id} saved={false} />
         </View>
       </Card>
     );
