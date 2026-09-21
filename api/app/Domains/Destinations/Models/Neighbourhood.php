@@ -15,6 +15,6 @@ class Neighbourhood extends Model
 
     protected function casts(): array
     {
-        return ['best_for' => 'array', 'lat' => 'float', 'lng' => 'float'];
+        return ['best_for' => 'array', 'image_attribution' => 'array', 'lat' => 'float', 'lng' => 'float'];
     }
 }

@@ -10,6 +10,7 @@ use App\Domains\ExternalSources\DTO\PlaceEnrichment;
 use App\Domains\ExternalSources\Services\OutboundHttp;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Editorial content from Wikipedia, Wikidata and Wikimedia Commons.
@@ -102,7 +103,65 @@ class WikimediaEnricher implements PlaceEnricher
         );
     }
 
-    /** @return array{extract:string,url:string,thumbnail:?string}|null */
+    /**
+     * A photograph of a city, for a destination hero.
+     *
+     * Wikipedia's own summary thumbnail for a city is usually a montage — four
+     * postcards in a grid — which reads as a collage rather than a place. The
+     * Wikidata "image" claim is a single chosen photograph instead, so the
+     * article is used only to find the entity, and the picture comes from the
+     * claim. Where there is no claim we fall back to the article thumbnail,
+     * because a montage still beats an empty header.
+     *
+     * @return array{url:string,licence:?string,licence_url:?string,creator:?string,source_url:string}|null
+     */
+    public function cityImage(string $name, ?string $country = null): ?array
+    {
+        $key = 'wikimedia:city:v1:' . Str::slug($name . ' ' . ($country ?? ''));
+        $payload = Cache::get($key);
+
+        if (! is_array($payload)) {
+            try {
+                $summary = $this->wikipediaSummary($name);
+                $entity = $summary['wikidata'] ?? null;
+                $file = $entity !== null ? $this->wikidataImage($entity) : null;
+                $image = $file !== null ? $this->commonsImage($file) : null;
+
+                if ($image === null && ($summary['thumbnail'] ?? null) !== null) {
+                    $image = [
+                        'url' => $summary['thumbnail'],
+                        'licence' => 'See Wikipedia',
+                        'licence_url' => null,
+                        'creator' => null,
+                        'source_url' => $summary['url'],
+                    ];
+                }
+
+                $payload = $image === null ? ['empty' => true] : ['image' => $image];
+                Cache::put($key, $payload, (int) config('experience.enrichment.cache_seconds', 604800));
+            } catch (\Throwable $e) {
+                Log::info('enrichment.city_image_unavailable', ['city' => $name, 'message' => $e->getMessage()]);
+
+                return null;
+            }
+        }
+
+        return ($payload['empty'] ?? false) ? null : $payload['image'];
+    }
+
+    /**
+     * The licensed photograph attached to a Wikidata entity, if it has one.
+     *
+     * @return array{url:string,licence:?string,licence_url:?string,creator:?string,source_url:string}|null
+     */
+    public function imageForWikidata(string $entityId): ?array
+    {
+        $file = $this->wikidataImage($entityId);
+
+        return $file === null ? null : $this->commonsImage($file);
+    }
+
+    /** @return array{extract:string,url:string,thumbnail:?string,wikidata:?string}|null */
     private function wikipediaSummary(string $reference): ?array
     {
         /* OSM stores "en:Tower of London". */
@@ -128,7 +187,8 @@ class WikimediaEnricher implements PlaceEnricher
         return [
             'extract' => $extract,
             'url' => $body['content_urls']['desktop']['page'] ?? "https://{$language}.wikipedia.org/wiki/" . rawurlencode($title),
-            'thumbnail' => $body['thumbnail']['source'] ?? null,
+            'thumbnail' => $body['originalimage']['source'] ?? $body['thumbnail']['source'] ?? null,
+            'wikidata' => $body['wikibase_item'] ?? null,
         ];
     }
 

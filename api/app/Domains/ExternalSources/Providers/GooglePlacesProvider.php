@@ -180,6 +180,71 @@ class GooglePlacesProvider implements PlaceDataProvider
         return $this->toCandidate($response->json() ?? []);
     }
 
+    /**
+     * A photograph of a place, with the attribution Google's terms require.
+     *
+     * Two calls, because Google separates the photo reference from the bytes.
+     * `skipHttpRedirect` is the important flag: without it the media endpoint
+     * answers with a 302, so the only URL we could store is the one carrying
+     * our API key — which would then be published to every phone running the
+     * app. With it we get the final googleusercontent URL back as JSON, and
+     * the key never leaves the server.
+     *
+     * @return array{url:string,creator:?string,creator_url:?string}|null
+     */
+    public function photoFor(string $providerId, int $maxWidth = 1600): ?array
+    {
+        $key = (string) config('experience.place_data.google.api_key');
+
+        $details = $this->http
+            ->for($this->key())
+            ->withHeaders([
+                'X-Goog-Api-Key' => $key,
+                'X-Goog-FieldMask' => 'photos',
+            ])
+            ->get(self::BASE . '/places/' . $providerId);
+
+        if ($details->status() === 404) {
+            return null;
+        }
+
+        if ($details->failed()) {
+            throw new \RuntimeException("Google Places photos returned {$details->status()}.");
+        }
+
+        $photo = $details->json('photos.0');
+
+        if (! is_array($photo) || ! is_string($photo['name'] ?? null)) {
+            return null;
+        }
+
+        $media = $this->http
+            ->for($this->key())
+            ->withHeaders(['X-Goog-Api-Key' => $key])
+            ->get(self::BASE . '/' . $photo['name'] . '/media', [
+                'maxWidthPx' => $maxWidth,
+                'skipHttpRedirect' => 'true',
+            ]);
+
+        if ($media->failed()) {
+            throw new \RuntimeException("Google photo media returned {$media->status()}.");
+        }
+
+        $url = $media->json('photoUri');
+
+        if (! is_string($url) || $url === '') {
+            return null;
+        }
+
+        $author = $photo['authorAttributions'][0] ?? [];
+
+        return [
+            'url' => $url,
+            'creator' => is_string($author['displayName'] ?? null) ? $author['displayName'] : null,
+            'creator_url' => is_string($author['uri'] ?? null) ? $author['uri'] : null,
+        ];
+    }
+
     /** @return list<string> */
     private function includedTypes(array $kinds): array
     {

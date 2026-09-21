@@ -77,6 +77,8 @@ class DestinationController extends ApiController
                     'ideal_duration_minutes' => $n->ideal_duration_minutes,
                     'lat' => $n->lat,
                     'lng' => $n->lng,
+                    'image_url' => $n->image_url,
+                    'image_attribution' => $n->image_attribution,
                 ])->all(),
                 /* Spec s5.3 — the culturally meaningful checklist. */
                 'dont_leave_without' => $model->signatureItems->map(fn ($i) => [
