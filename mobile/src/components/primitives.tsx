@@ -237,7 +237,7 @@ export function CardPress({
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 
-type ButtonTone = 'primary' | 'secondary' | 'tertiary' | 'inverse' | 'onAccent' | 'onAccentGhost';
+type ButtonTone = 'primary' | 'secondary' | 'tertiary' | 'inverse' | 'onAccent' | 'onAccentGhost' | 'destructive';
 type ButtonSize = 'small' | 'medium' | 'large';
 
 const SIZES: Record<ButtonSize, { paddingVertical: number; paddingHorizontal: number; variant: TypeVariant }> = {
@@ -284,6 +284,12 @@ export function Button({
      */
     onAccent: { bg: '#FFFFFF', fg: '#0D1B2A', border: 'transparent' },
     onAccentGhost: { bg: 'transparent', fg: '#FFFFFF', border: 'rgba(255,255,255,0.45)' },
+    /*
+     * Irreversible actions. A tone rather than a flag, so the label colour can
+     * never be set independently of the background — the mistake that produced
+     * the white-on-white above.
+     */
+    destructive: { bg: colors.status.error, fg: '#FFFFFF', border: 'transparent' },
   };
   const t = tones[tone];
 

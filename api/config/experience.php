@@ -421,4 +421,23 @@ return [
         'store_location_history' => false,
         'context_snapshot_retention_days' => 30,
     ],
+
+    /*
+     * Both stores ask for a policy URL and a "last updated" date, and the date
+     * has to be honest — it is the one field a reviewer can check against the
+     * content. Kept here so changing the policy and dating it is one edit.
+     */
+    'legal' => [
+        'privacy_updated' => env('EXPERIENCE_PRIVACY_UPDATED', 'September 2026'),
+
+        /*
+         * Its own key rather than reusing http.contact_email. That one is the
+         * From: header on calls to Overpass and Nominatim — an address for
+         * their operators to report abuse to — and the address a traveller
+         * writes to about their data is a different thing that may well be a
+         * different inbox.
+         */
+        'privacy_contact' => env('PRIVACY_CONTACT_EMAIL', env('CONTACT_EMAIL')),
+    ],
+
 ];

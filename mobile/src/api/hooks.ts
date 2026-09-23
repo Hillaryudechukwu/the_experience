@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { http } from './client';
+import { clearIdentity, http } from './client';
 import type {
   AssistantReply,
   Destination,
@@ -132,6 +132,29 @@ export function useToggleSave(id: string) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: keys.experience(id) });
       client.invalidateQueries({ queryKey: keys.saved() });
+    },
+  });
+}
+
+/**
+ * Erases the traveller (Apple 5.1.1(v)).
+ *
+ * The whole query cache is cleared rather than invalidated: invalidation would
+ * refetch, and there is nothing left to fetch. A guest sends no password —
+ * there is no account and nothing to prove.
+ */
+export function useDeleteAccount() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (password?: string) =>
+      http.delete<{ status: string; retained_bookings: number }>(
+        '/auth/account',
+        password ? { password } : undefined,
+      ),
+    onSuccess: async () => {
+      await clearIdentity();
+      client.clear();
     },
   });
 }

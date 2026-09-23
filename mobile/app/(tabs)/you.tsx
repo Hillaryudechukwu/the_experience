@@ -1,8 +1,8 @@
 import React from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { http } from '../../src/api/client';
+import { API_URL, http } from '../../src/api/client';
 import { useExperienceDna, usePassport, useProfile, useUpdateProfile } from '../../src/api/hooks';
 import { Icon, type IconName } from '../../src/components/Icon';
 import {
@@ -22,6 +22,10 @@ import {
 import { titleCase } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
+
+/* The policy lives beside the API rather than in the bundle, so it stays one
+   document for the app, the store listings and a reviewer with only a browser. */
+const PRIVACY_POLICY_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/privacy`;
 
 const INTERESTS = [
   'history', 'food', 'culture', 'architecture', 'nature', 'art', 'music',
@@ -233,6 +237,27 @@ export default function You() {
         </Card>
       </Gutter>
 
+      {/* ── Account ────────────────────────────────────────────────────
+          Both stores require these two to be reachable from inside the app:
+          a policy a traveller can actually read, and a way out. Neither is
+          buried behind a support email. */}
+      <Gutter style={{ marginTop: space.lg }}>
+        <Card>
+          <LinkRow
+            icon="lock"
+            label="Privacy policy"
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+          />
+          <Divider />
+          <LinkRow
+            icon="close"
+            label="Delete my account"
+            tone="destructive"
+            onPress={() => router.push('/account/delete')}
+          />
+        </Card>
+      </Gutter>
+
       <Gutter style={{ marginTop: space.lg }}>
         <Pressable
           onPress={() =>
@@ -272,8 +297,19 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+function LinkRow({
+  icon,
+  label,
+  onPress,
+  tone = 'neutral',
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  tone?: 'neutral' | 'destructive';
+}) {
   const colors = useTheme();
+  const ink = tone === 'destructive' ? colors.status.error : colors.text.secondary;
 
   return (
     <Pressable
@@ -283,8 +319,10 @@ function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPr
     >
       <Row justify="space-between" style={{ padding: space.md }}>
         <Row gap={space.sm}>
-          <Icon name={icon} size={18} color={colors.text.secondary} />
-          <T variant="body">{label}</T>
+          <Icon name={icon} size={18} color={ink} />
+          <T variant="body" color={tone === 'destructive' ? colors.status.error : undefined}>
+            {label}
+          </T>
         </Row>
         <Icon name="chevron" size={16} color={colors.text.tertiary} />
       </Row>

@@ -73,6 +73,20 @@ export async function getAuthToken() {
   return authToken;
 }
 
+/**
+ * Forgets who this device is.
+ *
+ * Used after account deletion. The guest token has to go with the auth token:
+ * the server has just destroyed that session, so keeping it locally would mean
+ * every subsequent request presenting a token for something that no longer
+ * exists. Clearing both lets the next call mint a clean session.
+ */
+export async function clearIdentity() {
+  authToken = null;
+  guestToken = null;
+  await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, GUEST_TOKEN_KEY]);
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -151,5 +165,5 @@ export const http = {
   post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
     api<T>(path, { method: 'POST', body: body ?? {}, headers }),
   patch: <T>(path: string, body: unknown) => api<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => api<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) => api<T>(path, { method: 'DELETE', body }),
 };

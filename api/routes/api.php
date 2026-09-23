@@ -31,6 +31,9 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    /* Guests included: the erasure is the same, they simply have no password
+       to re-enter and no user row at the end of it. */
+    Route::delete('auth/account', [AuthController::class, 'destroyAccount']);
 
     Route::get('traveller/profile', [TravellerProfileController::class, 'show']);
     Route::patch('traveller/profile', [TravellerProfileController::class, 'update']);
