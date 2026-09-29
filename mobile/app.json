@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uk.co.synteric.experience",
+      "associatedDomains": ["applinks:experience.synteric.co.uk"],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Your location is used only to work out what is worth doing near you right now. You can decline and pick a city instead."
       }
@@ -21,7 +22,21 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "uk.co.synteric.experience"
+      "package": "uk.co.synteric.experience",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "experience.synteric.co.uk",
+              "pathPrefix": "/experience"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -23,9 +23,18 @@ import { titleCase } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
-/* The policy lives beside the API rather than in the bundle, so it stays one
-   document for the app, the store listings and a reviewer with only a browser. */
-const PRIVACY_POLICY_URL = `${API_URL.replace(/\/api\/?$/, '')}/legal/privacy`;
+/*
+ * The policy lives on the web rather than in the bundle, so the app, the two
+ * store listings and a reviewer with only a browser all read one document.
+ *
+ * It prefers a URL on a domain we own, because that is the one the listings
+ * carry and it has to survive the backend moving host — a store listing
+ * pointing at a dead policy is a compliance failure, not a broken link. The
+ * copy served beside the API is the fallback for development and for any build
+ * that has not been given the public address.
+ */
+const PRIVACY_POLICY_URL =
+  process.env.EXPO_PUBLIC_PRIVACY_URL ?? `${API_URL.replace(/\/api\/?$/, '')}/legal/privacy`;
 
 const INTERESTS = [
   'history', 'food', 'culture', 'architecture', 'nature', 'art', 'music',

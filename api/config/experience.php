@@ -438,6 +438,51 @@ return [
          * different inbox.
          */
         'privacy_contact' => env('PRIVACY_CONTACT_EMAIL', env('CONTACT_EMAIL')),
+
+        /*
+         * Where the policy publicly lives.
+         *
+         * The store listing carries this URL, and a listing URL that breaks
+         * because the backend moved host is a compliance problem rather than
+         * an inconvenience. So the canonical address is a domain we own and
+         * control independently of wherever the API happens to be deployed;
+         * the app-served copy at /legal/privacy remains the fallback.
+         */
+        'privacy_url' => env('PRIVACY_POLICY_URL'),
+    ],
+
+    /*
+     * Android App Links and iOS Universal Links.
+     *
+     * Both platforms verify the association by fetching a file from the
+     * domain, which is the point: only someone who controls the domain can
+     * publish it, so only they can claim to open its links. Serving those two
+     * files from here means the association is configuration rather than
+     * another thing to remember to upload.
+     *
+     * The Android fingerprint is the SHA-256 of the certificate the app is
+     * actually signed with, which EAS generates at the first build — until it
+     * is set, the endpoint reports itself unconfigured rather than serving an
+     * association that cannot verify.
+     */
+    'app_links' => [
+        'host' => env('APP_LINKS_HOST'),
+        'android_package' => env('APP_LINKS_ANDROID_PACKAGE', 'uk.co.synteric.experience'),
+        'android_sha256' => array_values(array_filter(
+            explode(',', (string) env('APP_LINKS_ANDROID_SHA256', '')),
+        )),
+        'ios_bundle_id' => env('APP_LINKS_IOS_BUNDLE_ID', 'uk.co.synteric.experience'),
+        'ios_team_id' => env('APP_LINKS_IOS_TEAM_ID'),
+
+        /*
+         * The routes a link may legitimately deep-link into — and only those
+         * the app actually has a screen for. Claiming a path the app cannot
+         * render is worse than not claiming it: the link stops reaching the
+         * browser that could have shown it, and the traveller gets a dead end
+         * inside the app instead. /experience/{id} is the one shareable route
+         * today; the privacy policy deliberately stays in the browser.
+         */
+        'paths' => ['/experience/*'],
     ],
 
 ];
