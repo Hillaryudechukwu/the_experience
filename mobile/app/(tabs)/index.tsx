@@ -6,7 +6,7 @@ import { API_URL } from '../../src/api/client';
 import { useDestination, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
 import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
 import { DestinationHero } from '../../src/components/DestinationHero';
-import { QuickActions } from '../../src/components/QuickActions';
+import { QUICK_ACTIONS_OVERLAP, QuickActions } from '../../src/components/QuickActions';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
 import { Icon } from '../../src/components/Icon';
 import { MOODS, MoodTile } from '../../src/components/MoodTile';
@@ -150,6 +150,7 @@ export default function Discover() {
         onPressCity={() => router.push('/onboarding/destination')}
         onPressProfile={() => router.push('/(tabs)/you')}
         onPressSearch={() => router.push('/search')}
+        overlapBelow={QUICK_ACTIONS_OVERLAP}
       />
 
       <QuickActions

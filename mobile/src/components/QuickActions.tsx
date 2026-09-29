@@ -24,7 +24,22 @@ export type QuickAction = {
  * Only four, and they never scroll. A row you can take in at a glance is the
  * reason this exists; a fifth item would turn it into another rail.
  */
-export function QuickActions({ actions, overlap = 28 }: { actions: QuickAction[]; overlap?: number }) {
+/**
+ * How far the card rides up over whatever is above it.
+ *
+ * Exported because the header has to reserve this much room at its own foot —
+ * two components sharing one measurement, rather than two numbers that happen
+ * to agree until someone edits one of them.
+ */
+export const QUICK_ACTIONS_OVERLAP = 28;
+
+export function QuickActions({
+  actions,
+  overlap = QUICK_ACTIONS_OVERLAP,
+}: {
+  actions: QuickAction[];
+  overlap?: number;
+}) {
   const colors = useTheme();
 
   return (

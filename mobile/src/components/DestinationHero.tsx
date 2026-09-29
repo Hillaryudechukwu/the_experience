@@ -38,6 +38,7 @@ export function DestinationHero({
   onPressProfile,
   onPressSearch,
   height = 320,
+  overlapBelow = 0,
 }: {
   city: string;
   imageUri?: string | null;
@@ -53,10 +54,30 @@ export function DestinationHero({
   onPressProfile?: () => void;
   onPressSearch?: () => void;
   height?: number;
+  /**
+   * How far the next element rides up over this one.
+   *
+   * The card below overlaps the header on purpose — that is what makes the
+   * header read as the top of a page rather than a banner above one. But it
+   * has to overlap the photograph, not the search field sitting at the foot of
+   * it, so the header reserves the same distance at its own bottom. Left at 0
+   * the two collide, which is exactly what happened.
+   */
+  overlapBelow?: number;
 }) {
   const colors = useTheme();
   const insets = useSafeAreaInsets();
-  const total = height + insets.top;
+  /*
+   * The reserved strip is extra photograph, not less room for the text.
+   *
+   * Padding the foot alone would have taken the overlap out of the content
+   * box, and the first thing to give way in a fixed-height flex column is
+   * whichever child has no height of its own — here the photo credit, which
+   * collapsed to two pixels and vanished while still being present in the DOM.
+   * Growing the box by the same amount it is padded leaves the content exactly
+   * as it was and gives the card below more picture to sit on.
+   */
+  const total = height + insets.top + overlapBelow;
   const credit = imageUri
     ? [attribution?.creator, attribution?.licence].filter(Boolean).join(' · ') || null
     : null;
@@ -81,7 +102,7 @@ export function DestinationHero({
         pointerEvents="none"
       />
 
-      <View style={{ flex: 1, paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.lg }}>
+      <View style={{ flex: 1, paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.lg + overlapBelow }}>
         {/* ── Wordmark, city switch, profile ───────────────────────────── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <View style={{ flex: 1 }}>
@@ -180,7 +201,10 @@ export function DestinationHero({
             color="rgba(255,255,255,0.62)"
             align="right"
             numberOfLines={1}
-            style={{ fontSize: 10, marginBottom: 6 }}
+            /* Never the thing that gives way. Most of this photography is
+               Creative Commons, where the credit is a condition of showing the
+               picture at all, so it cannot be the flexible one. */
+            style={{ fontSize: 10, marginBottom: 6, flexShrink: 0 }}
           >
             {credit}
           </T>
