@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Tests\Feature\AI;
 
 use App\Domains\AI\Services\AssistantOrchestrator;
+use App\Domains\AI\Tools\AssistantToolbox;
 use App\Domains\Shared\ValueObjects\Actor;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 /**
@@ -97,6 +99,50 @@ class ModelDrivenAssistantTest extends TestCase
 
     public function test_a_price_the_model_invented_is_removed_before_the_traveller_sees_it(): void
     {
+        /*
+         * The tool result is pinned rather than ranked, and that is the point
+         * of this test rather than an implementation detail of it.
+         *
+         * The premise is that £42 appears nowhere in what the model was given.
+         * Letting the live ranker pick the experiences made that premise
+         * depend on the clock and the weather: the guard treats minor units as
+         * authorising the major-unit rendering, so any price between £42.00
+         * and £42.99 anywhere in the result set legitimately grounds a bare
+         * "42" — as does any duration of 2520 to 2579 minutes, by the same
+         * rule applied to hours. The test passed or failed according to which
+         * experiences happened to rank near Borough at the hour it ran.
+         *
+         * Nothing about the behaviour under test needs a real ranking. What it
+         * needs is a known set of facts that demonstrably excludes the number,
+         * which is asserted below rather than assumed.
+         */
+        $facts = [
+            'recommendation_set_id' => 'set-under-test',
+            'context' => ['local_time' => '10:15', 'window_minutes' => null, 'weather' => 'cloudy'],
+            'results' => [[
+                'experience_id' => 'exp-borough-market',
+                'title' => 'Borough Market',
+                'score' => 88,
+                'travel_minutes' => 7,
+                'duration_minutes' => 60,
+                'price' => null,
+                'is_free' => true,
+                'why' => ['Matches your interest in food'],
+                'caveats' => [],
+            ]],
+        ];
+
+        $this->assertStringNotContainsString(
+            '42',
+            json_encode($facts, JSON_THROW_ON_ERROR),
+            'The fixture must not contain the number the model is supposed to have invented.',
+        );
+
+        $this->partialMock(
+            AssistantToolbox::class,
+            fn (MockInterface $toolbox) => $toolbox->shouldReceive('call')->once()->andReturn($facts),
+        );
+
         Http::fake(['api.anthropic.com/*' => Http::sequence()
             ->push($this->toolUse('recommend_experiences', ['limit' => 2]))
             ->push($this->text('Borough Market is great. Entry is £42 on the door.')),
