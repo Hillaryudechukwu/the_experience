@@ -8,7 +8,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.theexperience.app",
+      "bundleIdentifier": "uk.co.synteric.experience",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Your location is used only to work out what is worth doing near you right now. You can decline and pick a city instead."
       }
@@ -21,7 +21,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.theexperience.app"
+      "package": "uk.co.synteric.experience"
     },
     "web": {
       "favicon": "./assets/favicon.png"
