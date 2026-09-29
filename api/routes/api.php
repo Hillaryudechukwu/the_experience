@@ -20,7 +20,7 @@ use App\Domains\ExternalSources\Services\ProviderRegistry;
 use Illuminate\Support\Facades\Route;
 
 /*
- * The Experience — API surface (spec s21).
+ * Interlude — API surface (spec s21).
  *
  * Everything here works for a guest: the ResolveActor middleware mints a guest
  * session on first contact and returns it in X-Guest-Token. Registering later

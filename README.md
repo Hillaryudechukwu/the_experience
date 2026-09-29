@@ -1,13 +1,14 @@
-# The Experience
+# Interlude
 
-*Don't just visit. Experience it.*
+*Make the most of the time between.*
 
 A context-aware travel operating system. Given a specific traveller and a specific
 journey, it answers one question better than a map, a review directory or a ticket
 marketplace can: **what is the best use of the next part of this trip?**
 
-Built from `The_Experience_Comprehensive_JEM.md` (the master product spec). This
-repository implements the MVP scope in §28 and the first commercial milestone in §34.
+Built from `The_Experience_Comprehensive_JEM.md` (the master product spec, written
+before the product was named). This repository implements the MVP scope in §28 and
+the first commercial milestone in §34.
 
 ```
 api/      Laravel 13 modular monolith  ·  PostgreSQL  ·  Redis

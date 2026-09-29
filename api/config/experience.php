@@ -1,7 +1,7 @@
 <?php
 
 /**
- * The Experience — engine configuration.
+ * Interlude — engine configuration.
  *
  * Scoring weights, journey playbooks and freshness policy live here rather than
  * in controllers or the UI (spec s6.1: "Weights should be configurable,

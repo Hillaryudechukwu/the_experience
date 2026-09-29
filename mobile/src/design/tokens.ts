@@ -1,5 +1,5 @@
 /**
- * Design tokens for The Experience.
+ * Design tokens for Interlude.
  *
  * Mirrors the Figma variable structure one-to-one, so a token renamed in the
  * design file has an obvious counterpart here. Nothing in the app reaches for a

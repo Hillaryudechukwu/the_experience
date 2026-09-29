@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "The Experience",
-    "slug": "the-experience",
+    "name": "Interlude",
+    "slug": "interlude",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -51,7 +51,7 @@
         }
       ]
     ],
-    "scheme": "theexperience",
+    "scheme": "interlude",
     "newArchEnabled": true
   }
 }

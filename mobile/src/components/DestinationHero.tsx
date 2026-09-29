@@ -86,7 +86,7 @@ export function DestinationHero({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <View style={{ flex: 1 }}>
             <T variant="caption" color="rgba(255,255,255,0.72)" style={{ letterSpacing: 0.6 }}>
-              The Experience
+              Interlude
             </T>
             <Pressable
               onPress={onPressCity}

@@ -138,7 +138,7 @@
   </p>
 
   <hr>
-  <footer>{{ config('app.name') }} · Travel Deeper. Live More.</footer>
+  <footer>{{ config('app.name') }} · Make the most of the time between.</footer>
 </main>
 </body>
 </html>

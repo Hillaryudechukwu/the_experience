@@ -1,4 +1,4 @@
-# The Experience — API
+# Interlude — API
 
 Laravel 13 modular monolith on PostgreSQL. See [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md)
 for the domain map and the reasoning behind the engine.
