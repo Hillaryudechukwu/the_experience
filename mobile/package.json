@@ -30,7 +30,9 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/react": "~19.2.2",
+    "http-server": "^14.1.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -38,7 +40,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:browser": "playwright test",
+    "test:browser:ui": "playwright test --ui"
   },
   "private": true
 }
