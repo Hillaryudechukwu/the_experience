@@ -18,6 +18,7 @@ use App\Domains\ExternalSources\Providers\OsrmRoutingProvider;
 use App\Domains\ExternalSources\Providers\OverpassPlaceProvider;
 use App\Domains\ExternalSources\Providers\SandboxTicketProvider;
 use App\Domains\ExternalSources\Providers\SeededWeatherProvider;
+use App\Domains\ExternalSources\Providers\GetYourGuideProvider;
 use App\Domains\ExternalSources\Providers\ViatorProvider;
 use App\Domains\ExternalSources\Providers\WikimediaEnricher;
 use App\Domains\ExternalSources\Services\ProviderRegistry;
@@ -34,6 +35,7 @@ class ExperienceServiceProvider extends ServiceProvider
             $registry->register($app->make(SandboxTicketProvider::class));
             $registry->register($app->make(DeepLinkAffiliateProvider::class));
             $registry->register($app->make(ViatorProvider::class));
+            $registry->register($app->make(GetYourGuideProvider::class));
 
             return $registry;
         });

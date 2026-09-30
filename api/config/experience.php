@@ -303,6 +303,10 @@ return [
             'wikimedia' => 200,
             'google_places' => 300,
             'frankfurter' => 60,
+            /* Commercial APIs meter by contract rather than by goodwill, so
+               this is a ceiling we set until they tell us theirs. */
+            'getyourguide' => 60,
+            'viator' => 60,
         ],
     ],
 
@@ -330,6 +334,11 @@ return [
     ],
 
     'currency' => [
+        /* What we ask suppliers to quote in, before any conversion for
+           display. Referenced by the provider adapters, so it has to exist:
+           a default on a config key that is not defined reads like a setting
+           and behaves like a hard-coded constant. */
+        'base' => env('EXPERIENCE_BASE_CURRENCY', 'GBP'),
         'driver' => env('EXPERIENCE_CURRENCY_DRIVER', 'frankfurter'),
         'base_url' => env('FRANKFURTER_URL', 'https://api.frankfurter.dev'),
         'cache_seconds' => 21600,
@@ -405,7 +414,12 @@ return [
             'base_url' => env('DEEPLINK_BASE_URL', 'https://partner.example.com/checkout'),
         ],
         'viator' => ['api_key' => env('VIATOR_API_KEY')],
-        'getyourguide' => ['api_key' => env('GETYOURGUIDE_API_KEY')],
+        'getyourguide' => [
+            'api_key' => env('GETYOURGUIDE_API_KEY'),
+            /* Attribution. Without it a booking we sent them is a booking we
+               do not get paid for, so it rides on every outbound link. */
+            'partner_id' => env('GETYOURGUIDE_PARTNER_ID'),
+        ],
     ],
 
     /* Canonical place resolution thresholds (spec s11). */
