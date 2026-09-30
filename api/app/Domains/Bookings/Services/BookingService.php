@@ -8,6 +8,7 @@ use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
 use App\Domains\Bookings\BookingState;
 use App\Domains\Bookings\Models\Booking;
 use App\Domains\ExternalSources\Contracts\ProviderCapability;
+use App\Domains\ExternalSources\DTO\Availability;
 use App\Domains\ExternalSources\DTO\BookingRequest;
 use App\Domains\ExternalSources\DTO\DateRange;
 use App\Domains\ExternalSources\Models\ProviderProduct;
@@ -96,7 +97,48 @@ class BookingService
 
                 /* Only claim availability if the supplier can actually tell us. */
                 if (in_array(ProviderCapability::LIVE_AVAILABILITY, $provider->capabilities(), true) && $startsAt !== null) {
-                    $availability = $provider->availability($product->provider_product_id, DateRange::singleDay($startsAt));
+                    /*
+                     * Through the registry, so a supplier that throws becomes an
+                     * unknown answer rather than an exception escaping a booking
+                     * that has already been written to the database.
+                     */
+                    $availability = $this->registry->attempt(
+                        $product->provider,
+                        fn () => $provider->availability($product->provider_product_id, DateRange::singleDay($startsAt)),
+                        Availability::unknown(
+                            $product->provider,
+                            $product->provider_product_id,
+                            'Supplier is temporarily unreachable.',
+                        ),
+                    );
+
+                    /*
+                     * "We could not ask" is not "there is nothing left".
+                     *
+                     * An unknown availability has no slots, so checking only for
+                     * an empty list told a traveller their date was sold out
+                     * whenever the supplier was down — a statement about the
+                     * product, made from a fact about us, which spec s15.1
+                     * forbids precisely because the traveller acts on it and
+                     * goes elsewhere.
+                     *
+                     * It still fails the booking rather than proceeding: the
+                     * next transition is AvailabilityConfirmed, and that is a
+                     * claim we have not earned. Nothing has been charged at this
+                     * point, so the honest answer costs the traveller a retry
+                     * rather than money.
+                     */
+                    if (! $availability->isLive) {
+                        $this->machine->transition(
+                            $booking,
+                            BookingState::Failed,
+                            'provider',
+                            'Could not reach the supplier to confirm availability, so nothing was booked. '
+                                . 'Nothing has been charged — please try again shortly.',
+                        );
+
+                        return $this->payload($booking->fresh(['items']));
+                    }
 
                     if ($availability->slots === []) {
                         $this->machine->transition($booking, BookingState::Failed, 'provider', 'No availability for the requested date.');
