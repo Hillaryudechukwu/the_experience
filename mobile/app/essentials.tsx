@@ -3,7 +3,7 @@ import { Linking, Pressable, View } from 'react-native';
 
 import { useDestination } from '../src/api/hooks';
 import { Icon, type IconName } from '../src/components/Icon';
-import { Card, Gutter, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
+import { Card, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
 import { useBackTo } from '../src/lib/navigation';
@@ -36,12 +36,46 @@ export default function Essentials() {
   const colors = useTheme();
   const goBack = useBackTo('/(tabs)');
   const slug = useSession((s) => s.destinationSlug);
-  const { data, isLoading } = useDestination(slug);
+  const { data, isLoading, isError, refetch } = useDestination(slug);
 
-  if (isLoading || !data) {
+  /* Drawn in every state, including the ones that fail. A screen whose only
+     way out sits below the content is a screen you cannot leave when the
+     content does not arrive. */
+  const backControl = (
+    <Pressable
+      accessibilityRole="button"
+      onPress={goBack}
+      hitSlop={12}
+      accessibilityLabel="Back"
+    >
+      <Icon name="back" size={24} color={colors.text.primary} />
+    </Pressable>
+  );
+
+  if (isLoading) {
     return (
       <Screen>
+        <Gutter style={{ paddingTop: space.sm }}>{backControl}</Gutter>
         <Loading />
+      </Screen>
+    );
+  }
+
+  /*
+   * "Did not load" is not "still loading".
+   *
+   * The guard here was `isLoading || !data`, and a failed request leaves
+   * isLoading false with data undefined — so the condition still held and the
+   * spinner turned forever. No error, no retry, and nothing on screen but a
+   * progress indicator.
+   */
+  if (isError || !data) {
+    return (
+      <Screen>
+        <Gutter style={{ paddingTop: space.sm }}>{backControl}</Gutter>
+        <Gutter>
+          <LoadFailure title="City essentials did not load" onRetry={() => refetch()} />
+        </Gutter>
       </Screen>
     );
   }
@@ -50,14 +84,7 @@ export default function Essentials() {
     <Screen>
       <Gutter style={{ paddingTop: space.sm }}>
         <Row gap={space.xs}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={goBack}
-            hitSlop={12}
-            accessibilityLabel="Back"
-          >
-            <Icon name="back" size={24} color={colors.text.primary} />
-          </Pressable>
+          {backControl}
         </Row>
         <T variant="displayL" style={{ marginTop: space.sm }}>
           Need to know

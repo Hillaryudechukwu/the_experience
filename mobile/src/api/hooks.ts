@@ -13,6 +13,7 @@ import type {
   Journey,
   Passport,
   TravellerProfile,
+  UncoveredPlace,
   Trip,
 } from './types';
 import { discoveryPayload, useSession } from '../store/session';
@@ -32,10 +33,22 @@ export const keys = {
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
 };
 
+/**
+ * Covered cities, and — when none match — the places that exist anyway.
+ *
+ * The two come back under separate keys and stay separate here. A geocoded
+ * city has no experiences behind it, so merging them would let a screen offer
+ * one as though it were bookable.
+ */
 export function useDestinations(q?: string) {
   return useQuery({
     queryKey: keys.destinations(q),
-    queryFn: () => wrapped(http.get<{ data: Destination[] }>(`/destinations${q ? `?q=${encodeURIComponent(q)}` : ''}`)),
+    queryFn: async () => {
+      const path = `/destinations${q ? `?q=${encodeURIComponent(q)}` : ''}`;
+      const body = await http.get<{ data: Destination[]; elsewhere?: UncoveredPlace[] }>(path);
+
+      return { covered: body.data ?? [], elsewhere: body.elsewhere ?? [] };
+    },
   });
 }
 

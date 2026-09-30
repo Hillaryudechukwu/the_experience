@@ -17,6 +17,26 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: true,
+
+  /*
+   * Capped, because the suite shares one IP with the API's own rate limiter.
+   *
+   * The API allows 300 requests a minute per address, and ninety tests across
+   * two viewports at full parallelism push past it. Requests then come back
+   * 429 in a pattern that depends on machine speed, which is not something a
+   * layout suite should be measuring.
+   *
+   * Worth recording what happened the first time this bit: two tests timed out
+   * waiting for a control, and the cap did not fix them, because they were not
+   * flaky. The 429s had exposed a real defect — three screens rendered a
+   * spinner forever when their request failed — and the rate limit was simply
+   * the thing making it reproducible. The cap is for determinism; it was the
+   * screens that were broken.
+   *
+   * Raising the app's limit to suit the tests would have been fixing the wrong
+   * thing: the limit is real and protects a real deployment.
+   */
+  workers: 3,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: process.env.CI ? 'github' : 'list',

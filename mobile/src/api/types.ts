@@ -159,6 +159,23 @@ export type Destination = {
   hero_image_attribution: ImageAttribution;
 };
 
+/**
+ * A place that exists but that we do not cover.
+ *
+ * Deliberately not a Destination: it has no id, because there is nothing in
+ * the catalogue behind it. Keeping it a separate type means the compiler
+ * refuses the mistake of feeding one to a screen that expects experiences.
+ */
+export type UncoveredPlace = {
+  name: string;
+  display_name: string;
+  country: string;
+  country_code: string | null;
+  lat: number;
+  lng: number;
+  covered: false;
+};
+
 export type DestinationDetail = Destination & {
   neighbourhoods: {
     id: string;

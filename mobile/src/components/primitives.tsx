@@ -510,6 +510,37 @@ export function Skeleton({ height = 16, width, style }: { height?: number; width
   );
 }
 
+/**
+ * A request that did not arrive.
+ *
+ * Several screens guarded with `if (isLoading || !data) return <Loading />`,
+ * which is a spinner that never stops: when a request fails, isLoading goes
+ * false and data stays undefined, so the condition still holds. A traveller on
+ * a poor connection, or one whose request was rate limited, watched it turn
+ * forever with no error, no retry and — before the back controls were fixed —
+ * no way off the screen either.
+ *
+ * "Loading" and "did not load" are different states and have to look
+ * different. This is the second, and it always offers the way out.
+ */
+export function LoadFailure({
+  title = 'That did not load',
+  body = 'The connection dropped or the server was busy. Nothing is lost — try again.',
+  onRetry,
+}: {
+  title?: string;
+  body?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <EmptyState
+      title={title}
+      body={body}
+      action={onRetry ? <Button label="Try again" tone="secondary" onPress={onRetry} /> : undefined}
+    />
+  );
+}
+
 export function EmptyState({
   title,
   body,

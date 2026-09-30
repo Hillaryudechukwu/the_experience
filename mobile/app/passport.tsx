@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { usePassport } from '../src/api/hooks';
 import { Icon } from '../src/components/Icon';
-import { Card, CardPress, Divider, EmptyState, Gutter, Loading, Row, Screen, SectionHeader, T } from '../src/components/primitives';
+import { Card, CardPress, Divider, EmptyState, Gutter, LoadFailure, Loading, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { titleCase } from '../src/lib/format';
 import { radius, space, useTheme } from '../src/theme';
 import { useBackTo } from '../src/lib/navigation';
@@ -19,31 +19,58 @@ export default function PassportScreen() {
   const colors = useTheme();
   const router = useRouter();
   const goBack = useBackTo('/(tabs)/you');
-  const { data, isLoading } = usePassport();
+  const { data, isLoading, isError, refetch } = usePassport();
 
-  if (isLoading || !data) {
+  /* Drawn in every state, including the ones that fail. A screen whose only
+     way out sits below the content is a screen you cannot leave when the
+     content does not arrive. */
+  const header = (
+    <Gutter style={{ paddingTop: space.sm }}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={goBack}
+        hitSlop={12}
+        accessibilityLabel="Back"
+      >
+        <Icon name="back" size={24} color={colors.text.primary} />
+      </Pressable>
+      <T variant="displayL" style={{ marginTop: space.sm }}>
+        Passport
+      </T>
+    </Gutter>
+  );
+
+  if (isLoading) {
     return (
       <Screen>
+        {header}
         <Loading />
+      </Screen>
+    );
+  }
+
+  /*
+   * "Did not load" is not "still loading".
+   *
+   * The guard here was `isLoading || !data`, and a failed request leaves
+   * isLoading false with data undefined — so the condition still held and the
+   * spinner turned forever. No error, no retry, and nothing on screen but a
+   * progress indicator.
+   */
+  if (isError || !data) {
+    return (
+      <Screen>
+        {header}
+        <Gutter>
+          <LoadFailure title="Your passport did not load" onRetry={() => refetch()} />
+        </Gutter>
       </Screen>
     );
   }
 
   return (
     <Screen>
-      <Gutter style={{ paddingTop: space.sm }}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={goBack}
-          hitSlop={12}
-          accessibilityLabel="Back"
-        >
-          <Icon name="back" size={24} color={colors.text.primary} />
-        </Pressable>
-        <T variant="displayL" style={{ marginTop: space.sm }}>
-          Passport
-        </T>
-      </Gutter>
+      {header}
 
       {data.totals.experiences === 0 ? (
         <Gutter>

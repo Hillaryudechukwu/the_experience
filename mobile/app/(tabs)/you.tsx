@@ -5,20 +5,7 @@ import { useRouter } from 'expo-router';
 import { API_URL, http } from '../../src/api/client';
 import { useExperienceDna, usePassport, useProfile, useUpdateProfile } from '../../src/api/hooks';
 import { Icon, type IconName } from '../../src/components/Icon';
-import {
-  Button,
-  Card,
-  CardPress,
-  Chip,
-  Divider,
-  Gutter,
-  Loading,
-  Note,
-  Row,
-  Screen,
-  SectionHeader,
-  T,
-} from '../../src/components/primitives';
+import { Button, Card, CardPress, Chip, Divider, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
 import { titleCase } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
@@ -54,15 +41,27 @@ export default function You() {
   const router = useRouter();
   const session = useSession();
 
-  const { data: profile, isLoading } = useProfile();
+  const { data: profile, isLoading, isError, refetch } = useProfile();
   const { data: dna } = useExperienceDna();
   const { data: passport } = usePassport();
   const update = useUpdateProfile();
 
-  if (isLoading || !profile) {
+  /* Loading and "did not load" are different states. Collapsing them into one
+     spinner meant a failed request turned forever. */
+  if (isLoading) {
     return (
       <Screen>
         <Loading />
+      </Screen>
+    );
+  }
+
+  if (isError || !profile) {
+    return (
+      <Screen>
+        <Gutter>
+          <LoadFailure title="Your profile did not load" onRetry={() => refetch()} />
+        </Gutter>
       </Screen>
     );
   }

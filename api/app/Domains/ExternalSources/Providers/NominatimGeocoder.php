@@ -30,7 +30,7 @@ class NominatimGeocoder
         return 'Geocoding © OpenStreetMap contributors (ODbL)';
     }
 
-    /** @return list<array{name:string,display_name:string,lat:float,lng:float,country:?string,country_code:?string,osm_id:string}> */
+    /** @return list<array{name:string,display_name:string,lat:float,lng:float,country:?string,country_code:?string,osm_id:string,kind:?string}> */
     public function search(string $query, int $limit = 5): array
     {
         $query = trim($query);
@@ -40,7 +40,7 @@ class NominatimGeocoder
         }
 
         return Cache::remember(
-            'nominatim:search:' . mb_strtolower($query) . ":{$limit}",
+            'nominatim:search:v2:' . config('app.locale', 'en') . ':' . mb_strtolower($query) . ":{$limit}",
             (int) config('experience.place_data.osm.geocode_cache_seconds', 604800),
             function () use ($query, $limit) {
                 $response = $this->http
@@ -50,6 +50,12 @@ class NominatimGeocoder
                         'format' => 'jsonv2',
                         'addressdetails' => 1,
                         'limit' => $limit,
+                        /* Names in the interface's language rather than the
+                           local one. Without it a search for Barcelona offers
+                           "España" and a fuzzy match on Lagos offers a country
+                           written in Lao script — both correct, neither
+                           readable by the person who typed the query. */
+                        'accept-language' => config('app.locale', 'en'),
                     ]);
 
                 if ($response->failed()) {
@@ -67,6 +73,12 @@ class NominatimGeocoder
                             ? mb_strtoupper($row['address']['country_code'])
                             : null,
                         'osm_id' => ($row['osm_type'] ?? 'node') . '/' . ($row['osm_id'] ?? ''),
+                        /* What sort of thing this is — "city", "town",
+                           "country", but also "shop" or "postbox", because
+                           Nominatim answers a vague query with anything it can
+                           find. Callers that want places to travel to need to
+                           be able to tell those apart. */
+                        'kind' => $row['addresstype'] ?? $row['type'] ?? null,
                     ])
                     ->values()
                     ->all();

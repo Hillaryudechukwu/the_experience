@@ -7,7 +7,7 @@ import { useDestinations } from '../../src/api/hooks';
 import { useDebounced } from '../../src/lib/useDebounced';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
-import { Button, Card, CardPress, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
+import { Button, Card, CardPress, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -28,9 +28,17 @@ export default function Destination() {
   /* Debounced for the same reason as the search screen: this list already
      updates as you type, but without a pause it issues a request per
      keystroke, and "London" is six. */
-  const { data: destinations = [], isLoading } = useDestinations(
-    useDebounced(query.trim()) || undefined,
-  );
+  const { data, isLoading } = useDestinations(useDebounced(query.trim()) || undefined);
+  const destinations = data?.covered ?? [];
+
+  /* Places that exist but that we do not cover. The API only looks these up
+     when nothing in the catalogue matched, so this is empty almost always. */
+  const elsewhere = data?.elsewhere ?? [];
+
+  /* The whole catalogue, for the empty state: "not Paris" is only useful
+     alongside what we can actually help with. */
+  const { data: all } = useDestinations();
+  const covered = all?.covered ?? [];
   const { setDestination, setCoords, setLocationPrecision } = useSession();
 
   const useMyLocation = async () => {
@@ -140,8 +148,60 @@ export default function Destination() {
           </Card>
         ))}
 
+        {/*
+          * A dead end, turned into a way forward.
+          *
+          * This used to be one sentence naming the four cities in prose, which
+          * would have been a lie the day a fifth was added, and which left a
+          * traveller whose city is not covered with nothing to do but retype.
+          * The list below is the catalogue itself, and every entry is
+          * tappable, so the answer to "we are not in Paris yet" is the set of
+          * places we can actually be useful in.
+          */}
         {!isLoading && destinations.length === 0 ? (
-          <Note>No cities match that yet. The catalogue currently covers London, Rome, New York and Tokyo.</Note>
+          <View style={{ gap: space.sm }}>
+            {/* Name what they typed back to them. "We found Paris, we just do
+                not cover it" answers a different question from "no results",
+                and it is the question they were actually asking. */}
+            {elsewhere.length > 0 ? (
+              <View style={{ gap: space.xs }}>
+                <T variant="label" color={colors.text.tertiary}>
+                  Found, but not covered yet
+                </T>
+                {elsewhere.map((place) => (
+                  <Row key={place.display_name} gap={space.xs} align="flex-start">
+                    <Icon name="location" size={15} color={colors.text.tertiary} />
+                    <T variant="small" color={colors.text.secondary} style={{ flex: 1 }}>
+                      {`${place.name}, ${place.country}`}
+                    </T>
+                  </Row>
+                ))}
+              </View>
+            ) : null}
+
+            <Note>
+              {elsewhere.length > 0
+                ? 'We only cover a city once we have researched it properly — opening hours, walking times, what is actually worth your time. Somewhere we had merely geocoded would give you worse answers than a map.'
+                : `We could not find ${query.trim()} at all. Check the spelling, or pick one of these.`}
+            </Note>
+
+            {covered.length > 0 ? (
+              <>
+                <T variant="label" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
+                  Where we can help today
+                </T>
+                <Row gap={space.xs} wrap>
+                  {covered.map((destination) => (
+                    <Chip
+                      key={destination.id}
+                      label={`${destination.name}`}
+                      onPress={() => choose(destination)}
+                    />
+                  ))}
+                </Row>
+              </>
+            ) : null}
+          </View>
         ) : null}
       </Gutter>
     </Screen>
