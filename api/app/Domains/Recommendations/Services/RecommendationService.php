@@ -11,10 +11,13 @@ use App\Domains\ExternalSources\Services\OfferService;
 use App\Domains\Recommendations\DTO\ScoredExperience;
 use App\Domains\Recommendations\DTO\ScoringContext;
 use App\Domains\Recommendations\Models\Recommendation;
+use App\Domains\Recommendations\Models\RecommendationReason;
 use App\Domains\Recommendations\Models\RecommendationSet;
 use App\Domains\Recommendations\Scoring\ExperienceScorer;
 use App\Domains\Shared\ValueObjects\Actor;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Produces a ranked, explained, persisted set of recommendations.
@@ -94,39 +97,80 @@ class RecommendationService
                 'generation_ms' => (int) ((microtime(true) - $started) * 1000),
             ]);
 
+            /*
+             * Written in two statements rather than one per row.
+             *
+             * This loop issued an insert for every recommendation and another
+             * for every reason behind it — and the scorer produces a reason
+             * per contributing component, so a four-card answer cost
+             * thirty-four round trips inside the transaction, and a
+             * twelve-card one well over a hundred. It is the single largest
+             * cost of the hottest endpoint in the product, and it grows with
+             * the result count.
+             *
+             * The ids are generated up front because the reasons reference
+             * them, which is also what makes one batch possible instead of a
+             * lookup per row.
+             */
+            $now = CarbonImmutable::now();
+            $rows = [];
+            $reasons = [];
+
             foreach ($selected as $rank => $scored) {
-                $recommendation = Recommendation::create([
+                $id = (string) Str::uuid7();
+
+                $rows[] = [
+                    'id' => $id,
                     'recommendation_set_id' => $set->id,
                     'experience_id' => $scored->candidate->experience->id,
                     'rank' => $rank + 1,
                     'score' => $scored->score,
                     'is_sponsored' => false,
-                ]);
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
 
                 foreach ($scored->components as $component) {
                     foreach ($component->reasons as $reason) {
-                        $recommendation->reasons()->create([
+                        $reasons[] = [
+                            'id' => (string) Str::uuid7(),
+                            'recommendation_id' => $id,
                             'component' => $component->component,
                             'direction' => $reason->direction,
                             'contribution' => $scored->contributions[$component->component] ?? 0,
                             'message' => $reason->message,
-                        ]);
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
                     }
                 }
+            }
+
+            if ($rows !== []) {
+                Recommendation::insert($rows);
+            }
+
+            /* Chunked: Postgres binds every value in the statement, and a
+               wide result set on a twelve-card surface can approach the
+               parameter ceiling. */
+            foreach (array_chunk($reasons, 200) as $chunk) {
+                RecommendationReason::insert($chunk);
             }
 
             return $set;
         });
 
-        foreach ($selected as $scored) {
-            $this->events->record($actor, 'impression', [
+        /* One statement, not one per card. */
+        $this->events->recordMany($actor, array_map(
+            fn (ScoredExperience $scored) => ['impression', [
                 'subject_type' => 'experience',
                 'subject_id' => $scored->candidate->experience->id,
                 'recommendation_set_id' => $set->id,
                 'surface' => $context->surface,
                 'properties' => ['score' => $scored->score],
-            ]);
-        }
+            ]],
+            $selected,
+        ));
 
         return [
             'set' => $set,

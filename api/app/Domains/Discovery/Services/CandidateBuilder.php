@@ -34,7 +34,9 @@ class CandidateBuilder
         $radius = (int) ($options['radius_metres'] ?? 12000);
 
         $query = Experience::query()
-            ->with(['place', 'categories'])
+            /* place.neighbourhood because the presenter reads its name for
+               every card, which was a query per result. */
+            ->with(['place.neighbourhood', 'categories'])
             ->where('experiences.status', 'published');
 
         if (! empty($options['destination_id'])) {

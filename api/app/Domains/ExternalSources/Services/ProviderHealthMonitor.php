@@ -17,11 +17,27 @@ use Throwable;
  */
 class ProviderHealthMonitor
 {
+    /**
+     * Remembered for the life of the request.
+     *
+     * isAvailable() is asked once per provider per capability lookup, and the
+     * registry consults it on every call it brokers — eight queries on a
+     * four-card discovery response, all returning the same rows written
+     * milliseconds apart. A circuit that opens mid-request is not a case worth
+     * a query per check: the recorders below clear the entry they touch, so
+     * anything that actually changes is still seen.
+     *
+     * @var array<string, bool>
+     */
+    private array $available = [];
+
     public function isAvailable(string $provider): bool
     {
-        $health = ProviderHealth::where('provider', $provider)->first();
+        return $this->available[$provider] ??= (function () use ($provider) {
+            $health = ProviderHealth::where('provider', $provider)->first();
 
-        return $health === null || ! $health->isCircuitOpen();
+            return $health === null || ! $health->isCircuitOpen();
+        })();
     }
 
     public function recordSuccess(string $provider, int $latencyMs): void
@@ -65,6 +81,10 @@ class ProviderHealthMonitor
 
     private function record(string $provider): ProviderHealth
     {
+        /* Whatever we are about to write may change availability, so the
+           memoised answer for this provider stops being trustworthy here. */
+        unset($this->available[$provider]);
+
         return ProviderHealth::firstOrCreate(['provider' => $provider], ['status' => 'unknown']);
     }
 }

@@ -29,6 +29,10 @@ class ExperienceServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        /* A singleton so its per-request memo is actually shared: resolved
+           fresh, each consumer kept its own and asked the database again. */
+        $this->app->singleton(\App\Domains\ExternalSources\Services\ProviderHealthMonitor::class);
+
         $this->app->singleton(ProviderRegistry::class, function ($app) {
             $registry = new ProviderRegistry($app->make(\App\Domains\ExternalSources\Services\ProviderHealthMonitor::class));
 
