@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\AI\Services\IntentParser;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
+use App\Domains\Discovery\Services\NameRelevance;
 use App\Domains\Experiences\Services\ExperiencePresenter;
 use App\Domains\Recommendations\DTO\ScoredExperience;
 use App\Domains\Recommendations\Services\RecommendationService;
@@ -24,6 +25,7 @@ class DiscoveryController extends ApiController
         private readonly ExperiencePresenter $presenter,
         private readonly IntentParser $intents,
         private readonly RecordBehaviouralEvent $events,
+        private readonly NameRelevance $relevance,
     ) {}
 
     /** Spec s4.1 — "I'm Here Now". */
@@ -82,6 +84,7 @@ class DiscoveryController extends ApiController
         $response = $this->respond($request, $input, (int) $request->input('limit', 12));
 
         $payload = $response->getData(true);
+        $payload['data'] = $this->relevance->promote($payload['data'] ?? [], $request->input('q'));
         $payload['interpreted'] = [
             'understood_as' => $parsed['echo'],
             'filters' => $input,

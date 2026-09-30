@@ -17,6 +17,7 @@ import {
 } from '../src/components/primitives';
 import { radius, space, useTheme } from '../src/theme';
 import { useBackTo } from '../src/lib/navigation';
+import { useDebounced } from '../src/lib/useDebounced';
 
 const EXAMPLES = [
   'Something romantic tonight',
@@ -39,15 +40,27 @@ export default function Search() {
   const colors = useTheme();
   const goBack = useBackTo('/(tabs)');
   const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState('');
+
+  /*
+   * Typing is the search. There is no separate submit step.
+   *
+   * The screen used to run only on onSubmitEditing, so a traveller typing a
+   * place name watched an empty screen until they found the return key — and
+   * on a soft keyboard, "search" is easy to miss. The return key still works
+   * and now simply skips the wait.
+   */
+  const [immediate, setImmediate] = useState('');
+  const debounced = useDebounced(query.trim());
+  const submitted = immediate || debounced;
 
   const search = useSearch(submitted, submitted.length > 2);
   const results = search.data?.data ?? [];
   const interpreted = search.data?.interpreted;
 
+  /* Tapping an example, or clearing: both should take effect at once. */
   const run = (text: string) => {
     setQuery(text);
-    setSubmitted(text.trim());
+    setImmediate(text.trim());
   };
 
   return (
@@ -85,8 +98,12 @@ export default function Search() {
             placeholder="What do you feel like doing?"
             placeholderTextColor={colors.text.tertiary}
             value={query}
-            onChangeText={setQuery}
-            onSubmitEditing={() => setSubmitted(query.trim())}
+            onChangeText={(text) => {
+              setQuery(text);
+              /* Let the debounce take over again once they resume typing. */
+              setImmediate('');
+            }}
+            onSubmitEditing={() => setImmediate(query.trim())}
             returnKeyType="search"
             autoFocus
             style={{

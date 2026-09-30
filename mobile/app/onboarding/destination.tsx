@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 
 import { useDestinations } from '../../src/api/hooks';
+import { useDebounced } from '../../src/lib/useDebounced';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Card, CardPress, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
@@ -24,7 +25,12 @@ export default function Destination() {
   const [locating, setLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
 
-  const { data: destinations = [], isLoading } = useDestinations(query.trim() || undefined);
+  /* Debounced for the same reason as the search screen: this list already
+     updates as you type, but without a pause it issues a request per
+     keystroke, and "London" is six. */
+  const { data: destinations = [], isLoading } = useDestinations(
+    useDebounced(query.trim()) || undefined,
+  );
   const { setDestination, setCoords, setLocationPrecision } = useSession();
 
   const useMyLocation = async () => {
