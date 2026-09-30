@@ -7,6 +7,7 @@ import { useAssistant } from '../src/api/hooks';
 import { Icon } from '../src/components/Icon';
 import { Chip, Loading, Note, Row, T } from '../src/components/primitives';
 import { radius, space, useTheme } from '../src/theme';
+import { useBackTo } from '../src/lib/navigation';
 
 type Bubble = {
   role: 'user' | 'assistant';
@@ -38,6 +39,7 @@ const QUICK_ACTIONS = [
 export default function Guide() {
   const colors = useTheme();
   const router = useRouter();
+  const goBack = useBackTo('/(tabs)');
   const scroller = useRef<ScrollView>(null);
 
   const [input, setInput] = useState('');
@@ -100,7 +102,12 @@ export default function Guide() {
               </T>
             </View>
           </Row>
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close">
+          <Pressable
+            accessibilityRole="button"
+            onPress={goBack}
+            hitSlop={12}
+            accessibilityLabel="Close"
+          >
             <Icon name="close" size={24} color={colors.text.secondary} />
           </Pressable>
         </Row>

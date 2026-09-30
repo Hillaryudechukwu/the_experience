@@ -1,12 +1,12 @@
 import React from 'react';
 import { Linking, Pressable, View } from 'react-native';
-import { useRouter } from 'expo-router';
 
 import { useDestination } from '../src/api/hooks';
 import { Icon, type IconName } from '../src/components/Icon';
 import { Card, Gutter, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
+import { useBackTo } from '../src/lib/navigation';
 
 const CATEGORY_ICON: Record<string, IconName> = {
   currency: 'money',
@@ -34,7 +34,7 @@ const CATEGORY_ICON: Record<string, IconName> = {
  */
 export default function Essentials() {
   const colors = useTheme();
-  const router = useRouter();
+  const goBack = useBackTo('/(tabs)');
   const slug = useSession((s) => s.destinationSlug);
   const { data, isLoading } = useDestination(slug);
 
@@ -50,7 +50,12 @@ export default function Essentials() {
     <Screen>
       <Gutter style={{ paddingTop: space.sm }}>
         <Row gap={space.xs}>
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
+          <Pressable
+            accessibilityRole="button"
+            onPress={goBack}
+            hitSlop={12}
+            accessibilityLabel="Back"
+          >
             <Icon name="back" size={24} color={colors.text.primary} />
           </Pressable>
         </Row>

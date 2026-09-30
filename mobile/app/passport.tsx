@@ -7,6 +7,7 @@ import { Icon } from '../src/components/Icon';
 import { Card, CardPress, Divider, EmptyState, Gutter, Loading, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { titleCase } from '../src/lib/format';
 import { radius, space, useTheme } from '../src/theme';
+import { useBackTo } from '../src/lib/navigation';
 
 /**
  * Experience Passport (Figma: 37).
@@ -17,6 +18,7 @@ import { radius, space, useTheme } from '../src/theme';
 export default function PassportScreen() {
   const colors = useTheme();
   const router = useRouter();
+  const goBack = useBackTo('/(tabs)/you');
   const { data, isLoading } = usePassport();
 
   if (isLoading || !data) {
@@ -30,7 +32,12 @@ export default function PassportScreen() {
   return (
     <Screen>
       <Gutter style={{ paddingTop: space.sm }}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
+        <Pressable
+          accessibilityRole="button"
+          onPress={goBack}
+          hitSlop={12}
+          accessibilityLabel="Back"
+        >
           <Icon name="back" size={24} color={colors.text.primary} />
         </Pressable>
         <T variant="displayL" style={{ marginTop: space.sm }}>

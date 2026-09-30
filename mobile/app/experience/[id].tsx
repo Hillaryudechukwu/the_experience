@@ -25,6 +25,7 @@ import {
 import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
 import { clock, minutesLabel, titleCase } from '../../src/lib/format';
 import { elevation, radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
+import { useBackTo } from '../../src/lib/navigation';
 
 /**
  * Experience detail (Figma: 20).
@@ -38,6 +39,7 @@ export default function ExperienceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
   const router = useRouter();
+  const goBack = useBackTo('/(tabs)');
   const insets = useSafeAreaInsets();
 
   const { data, isLoading, isError, error } = useExperience(id!);
@@ -60,7 +62,7 @@ export default function ExperienceScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.base }}>
         <Gutter style={{ paddingTop: space.lg }}>
           <Note tone="warning">{error instanceof Error ? error.message : 'Could not load this experience.'}</Note>
-          <Button label="Back" tone="secondary" onPress={() => router.back()} style={{ marginTop: space.md }} />
+          <Button label="Back" tone="secondary" onPress={goBack} style={{ marginTop: space.md }} />
         </Gutter>
       </SafeAreaView>
     );
@@ -88,7 +90,7 @@ export default function ExperienceScreen() {
         >
           <View style={{ flex: 1, justifyContent: 'space-between', paddingTop: insets.top + space.xs }}>
             <Row justify="space-between" style={{ paddingHorizontal: space.md }}>
-              <CircleButton icon="back" onPress={() => router.back()} label="Back" />
+              <CircleButton icon="back" onPress={goBack} label="Back" />
               <Row gap={space.xs}>
                 <CircleButton
                   icon={data.is_saved ? 'saved' : 'save'}

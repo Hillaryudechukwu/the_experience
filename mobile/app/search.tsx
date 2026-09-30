@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
 
 import { useSearch } from '../src/api/hooks';
 import { ExperienceCardView } from '../src/components/ExperienceCard';
@@ -17,6 +16,7 @@ import {
   T,
 } from '../src/components/primitives';
 import { radius, space, useTheme } from '../src/theme';
+import { useBackTo } from '../src/lib/navigation';
 
 const EXAMPLES = [
   'Something romantic tonight',
@@ -37,7 +37,7 @@ const EXAMPLES = [
  */
 export default function Search() {
   const colors = useTheme();
-  const router = useRouter();
+  const goBack = useBackTo('/(tabs)');
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
 
@@ -54,7 +54,12 @@ export default function Search() {
     <Screen>
       <Gutter style={{ paddingTop: space.sm }}>
         <Row gap={space.xs}>
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
+          <Pressable
+            accessibilityRole="button"
+            onPress={goBack}
+            hitSlop={12}
+            accessibilityLabel="Back"
+          >
             <Icon name="back" size={24} color={colors.text.primary} />
           </Pressable>
           <T variant="h2" style={{ flex: 1 }}>

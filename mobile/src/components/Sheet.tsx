@@ -32,7 +32,12 @@ export function Sheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' }}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable
+          accessibilityRole="button"
+          style={{ flex: 1 }}
+          onPress={onClose}
+          accessibilityLabel="Close"
+        />
 
         <SafeAreaView edges={['bottom']} style={{ backgroundColor: colors.background.elevated }}>
           <View

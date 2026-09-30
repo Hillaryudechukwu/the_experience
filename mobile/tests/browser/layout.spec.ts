@@ -169,3 +169,45 @@ test.describe('the detectors can fail', () => {
     expect(found).toContain('outer on purpose');
   });
 });
+
+/**
+ * Back controls on a screen with nothing behind it.
+ *
+ * Every back control called router.back() unconditionally, which does nothing
+ * when the screen is the first entry in the stack — React Navigation warns
+ * "the action GO_BACK was not handled by any navigator" and the button
+ * silently fails.
+ *
+ * Opening a route directly is exactly that situation, and it stopped being
+ * hypothetical when the app began claiming /experience/... as an Android App
+ * Link: a traveller following a shared link arrives with no history, and the
+ * only control in the corner does not work.
+ */
+test.describe('back works on a directly opened screen', () => {
+  const ENTRY_POINTS = [
+    { path: '/search', label: 'Back' },
+    { path: '/essentials', label: 'Back' },
+    { path: '/passport', label: 'Back' },
+    { path: '/anchors', label: 'Back' },
+    { path: '/guide', label: 'Close' },
+    { path: '/account/delete', label: 'Keep my account' },
+  ];
+
+  for (const { path, label } of ENTRY_POINTS) {
+    test(path, async ({ seeded: page }) => {
+      const warnings: string[] = [];
+      page.on('console', (message) => {
+        if (/GO_BACK was not handled/i.test(message.text())) warnings.push(message.text());
+      });
+
+      await settle(page, path);
+
+      await page.getByRole('button', { name: label }).first().click();
+      await page.waitForTimeout(900);
+
+      /* It must actually leave, and it must not complain on the way. */
+      expect(new URL(page.url()).pathname, `${path} did not navigate`).not.toBe(path);
+      expect(warnings, `${path} warned about an unhandled GO_BACK`).toEqual([]);
+    });
+  }
+});

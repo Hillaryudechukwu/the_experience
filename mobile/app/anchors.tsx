@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Alert, Pressable, TextInput, View } from 'react-native';
 
 import { useAddAnchor, useJourney } from '../src/api/hooks';
 import { Icon } from '../src/components/Icon';
-import { Button, Card, Chip, Divider, Gutter, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
+import { Button, Card, Chip, Divider, EmptyState, Gutter, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { clock, dayLabel } from '../src/lib/format';
 import { ANCHOR_TYPES } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
+import { useBackTo } from '../src/lib/navigation';
 
 /**
  * Journey anchors (Figma: 25).
@@ -19,6 +20,7 @@ import { radius, space, useTheme } from '../src/theme';
  */
 export default function Anchors() {
   const colors = useTheme();
+  const goBack = useBackTo('/(tabs)/trip');
   const router = useRouter();
   const journeyId = useSession((s) => s.journeyId);
 
@@ -33,10 +35,49 @@ export default function Anchors() {
   const [end, setEnd] = useState('22:00');
   const [buffer, setBuffer] = useState('20');
 
-  if (isLoading || !journey) {
+  /*
+   * A spinner is only honest while something is actually loading.
+   *
+   * This screen showed one whenever `journey` was falsy, and with no journey
+   * selected that is permanent: no content, no explanation, and — because the
+   * back control lived further down the same return — no way off the screen
+   * either. Reachable directly by URL, and now by deep link.
+   */
+  const header = (
+    <Gutter style={{ paddingTop: space.sm }}>
+      <Row justify="space-between">
+        <Pressable
+          accessibilityRole="button"
+          onPress={goBack}
+          hitSlop={12}
+          accessibilityLabel="Back"
+        >
+          <Icon name="back" size={24} color={colors.text.primary} />
+        </Pressable>
+      </Row>
+    </Gutter>
+  );
+
+  if (isLoading && journeyId) {
     return (
       <Screen>
+        {header}
         <Loading />
+      </Screen>
+    );
+  }
+
+  if (!journey) {
+    return (
+      <Screen>
+        {header}
+        <Gutter>
+          <EmptyState
+            title="No trip to plan around yet"
+            body="Anchors are the fixed points of a trip — a meeting, a dinner, a train. Start a trip and they will have something to hold onto."
+            action={<Button label="Start a trip" onPress={() => router.replace('/onboarding')} />}
+          />
+        </Gutter>
       </Screen>
     );
   }
@@ -66,12 +107,8 @@ export default function Anchors() {
 
   return (
     <Screen>
-      <Gutter style={{ paddingTop: space.sm }}>
-        <Row justify="space-between">
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
-            <Icon name="back" size={24} color={colors.text.primary} />
-          </Pressable>
-        </Row>
+      {header}
+      <Gutter>
         <T variant="displayL" style={{ marginTop: space.sm }}>
           Fixed commitments
         </T>

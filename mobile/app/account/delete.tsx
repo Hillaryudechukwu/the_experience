@@ -7,6 +7,7 @@ import { Icon } from '../../src/components/Icon';
 import { Button, Card, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { useSession } from '../../src/store/session';
 import { radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
+import { useBackTo } from '../../src/lib/navigation';
 
 /**
  * Account deletion (Apple App Store guideline 5.1.1(v)).
@@ -25,6 +26,7 @@ import { radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
 export default function DeleteAccount() {
   const colors = useTheme();
   const router = useRouter();
+  const goBack = useBackTo('/(tabs)/you');
   const session = useSession();
 
   const { data: profile } = useProfile();
@@ -145,7 +147,7 @@ export default function DeleteAccount() {
             disabled={!canSubmit || remove.isPending}
             loading={remove.isPending}
           />
-          <Button label="Keep my account" tone="tertiary" onPress={() => router.back()} />
+          <Button label="Keep my account" tone="tertiary" onPress={goBack} />
         </View>
       </Gutter>
     </Screen>

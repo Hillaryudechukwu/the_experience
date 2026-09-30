@@ -1,10 +1,10 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
-import { useRouter } from 'expo-router';
 
 import { space, useTheme } from '../theme';
 import { Icon } from './Icon';
 import { Gutter, Row, T } from './primitives';
+import { useBackTo } from '../lib/navigation';
 
 /** Shared onboarding header: progress, back, and an always-available skip. */
 export function OnboardingChrome({
@@ -17,13 +17,14 @@ export function OnboardingChrome({
   onSkip?: () => void;
 }) {
   const colors = useTheme();
-  const router = useRouter();
+  const goBack = useBackTo('/onboarding');
 
   return (
     <Gutter style={{ paddingTop: space.xs }}>
       <Row justify="space-between">
         <Pressable
-          onPress={() => router.back()}
+          accessibilityRole="button"
+          onPress={goBack}
           hitSlop={12}
           accessibilityLabel="Back"
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, width: 32 })}
