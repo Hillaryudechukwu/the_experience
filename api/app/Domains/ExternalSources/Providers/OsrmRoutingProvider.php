@@ -10,6 +10,7 @@ use App\Domains\ExternalSources\Services\OutboundHttp;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Real walking routes from OSRM.
@@ -41,20 +42,20 @@ class OsrmRoutingProvider implements RoutingProvider
         return 'Routing © OpenStreetMap contributors (ODbL)';
     }
 
-    public function estimate(GeoPoint $from, GeoPoint $to, string $walkingTolerance = 'medium'): TravelEstimate
+    /**
+     * The routed leg, cached.
+     *
+     * Separated so the caller can catch a refusal without wrapping half the
+     * method in a try block. Returns null when OSRM answers but cannot route
+     * it; throws when we could not ask at all — two different things, and the
+     * caller treats them the same only because the traveller-facing answer is
+     * the same.
+     *
+     * @return array{duration: float, distance: float}|null
+     */
+    private function lookup(string $cacheKey, GeoPoint $from, GeoPoint $to): ?array
     {
-        $straightLine = $from->distanceTo($to);
-
-        /* Far enough that nobody is walking it. The public OSRM instance has
-           no transit graph, so the estimator's transit model is the honest
-           answer out here — and it is labelled as an estimate. */
-        if ($straightLine > (float) config('experience.routing.max_route_metres', 5000)) {
-            return $this->fallback->estimate($from, $to, $walkingTolerance);
-        }
-
-        $cacheKey = sprintf('osrm:foot:%.4f,%.4f:%.4f,%.4f', $from->lat, $from->lng, $to->lat, $to->lng);
-
-        $route = Cache::remember(
+        return Cache::remember(
             $cacheKey,
             (int) config('experience.routing.cache_seconds', 86400),
             function () use ($from, $to) {
@@ -79,6 +80,46 @@ class OsrmRoutingProvider implements RoutingProvider
                 ];
             },
         );
+    }
+
+    public function estimate(GeoPoint $from, GeoPoint $to, string $walkingTolerance = 'medium'): TravelEstimate
+    {
+        $straightLine = $from->distanceTo($to);
+
+        /* Far enough that nobody is walking it. The public OSRM instance has
+           no transit graph, so the estimator's transit model is the honest
+           answer out here — and it is labelled as an estimate. */
+        if ($straightLine > (float) config('experience.routing.max_route_metres', 5000)) {
+            return $this->fallback->estimate($from, $to, $walkingTolerance);
+        }
+
+        $cacheKey = sprintf('osrm:foot:%.4f,%.4f:%.4f,%.4f', $from->lat, $from->lng, $to->lat, $to->lng);
+
+        try {
+            $route = $this->lookup($cacheKey, $from, $to);
+        } catch (Throwable $e) {
+            /*
+             * Backing off must mean degrading, not failing.
+             *
+             * OutboundHttp refuses a call that would breach the per-provider
+             * rate limit by throwing, which is right — a ban is worse than a
+             * slow answer. But nothing caught it here, so the refusal
+             * travelled all the way out of the discovery request as a 500.
+             *
+             * One request routes every candidate inside the search radius,
+             * which is around forty-five in London, so a traveller sharing
+             * their location exhausted a sixty-a-minute budget on their second
+             * pull-to-refresh and the screen simply broke. The estimator needs
+             * no network at all and is labelled `estimate`, so the honest
+             * degradation was available the whole time.
+             */
+            Log::info('routing.osrm_unavailable', [
+                'reason' => $e->getMessage(),
+                'fallback' => 'estimator',
+            ]);
+
+            return $this->fallback->estimate($from, $to, $walkingTolerance);
+        }
 
         if ($route === null) {
             Log::info('routing.osrm_unavailable', ['fallback' => 'estimator']);

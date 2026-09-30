@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { create } from 'zustand';
 
 export type Coords = { lat: number; lng: number } | null;
@@ -12,6 +13,8 @@ type SessionState = {
   journeyId: string | null;
   tripId: string | null;
   coords: Coords;
+  /** When `coords` was captured, so a stale position can be discarded. */
+  coordsAt: number | null;
   locationPrecision: 'precise' | 'approximate' | 'off';
   onboarded: boolean;
 
@@ -20,6 +23,7 @@ type SessionState = {
   setJourney: (journeyId: string | null) => Promise<void>;
   setTrip: (tripId: string | null) => Promise<void>;
   setCoords: (coords: Coords, precision?: 'precise' | 'approximate') => Promise<void>;
+  refreshLocation: () => Promise<void>;
   setLocationPrecision: (p: 'precise' | 'approximate' | 'off') => Promise<void>;
   completeOnboarding: () => Promise<void>;
   reset: () => Promise<void>;
@@ -30,7 +34,23 @@ const KEY = 'experience.session';
 type Persisted = Pick<
   SessionState,
   'destinationSlug' | 'destinationId' | 'destinationName' | 'destinationTimezone' | 'journeyId' | 'tripId' | 'locationPrecision' | 'onboarded'
->;
+> & { coords: Coords; coordsAt: number | null };
+
+/**
+ * How long a stored position is worth reusing.
+ *
+ * Coordinates were not persisted at all, so a traveller granted location once
+ * during onboarding and the app forgot it the moment they closed it — and
+ * nothing outside onboarding ever asks again, so every later session ran at
+ * city-centre precision no matter what they had agreed to.
+ *
+ * Persisting them forever is the opposite mistake: this product answers "what
+ * is near me now", and yesterday's coordinate is confidently wrong in a way no
+ * coordinate at all is not. Thirty minutes is long enough to survive closing
+ * the app over lunch and short enough that it cannot follow someone to another
+ * city.
+ */
+const COORDS_TTL_MS = 30 * 60 * 1000;
 
 export const useSession = create<SessionState>((set, get) => {
   const persist = async () => {
@@ -44,6 +64,8 @@ export const useSession = create<SessionState>((set, get) => {
       tripId: s.tripId,
       locationPrecision: s.locationPrecision,
       onboarded: s.onboarded,
+      coords: s.coords,
+      coordsAt: s.coordsAt,
     };
     await AsyncStorage.setItem(KEY, JSON.stringify(payload));
   };
@@ -57,6 +79,7 @@ export const useSession = create<SessionState>((set, get) => {
     journeyId: null,
     tripId: null,
     coords: null,
+    coordsAt: null,
     locationPrecision: 'precise',
     onboarded: false,
 
@@ -64,7 +87,23 @@ export const useSession = create<SessionState>((set, get) => {
       const raw = await AsyncStorage.getItem(KEY);
       if (raw) {
         try {
-          set({ ...(JSON.parse(raw) as Persisted), ready: true });
+          const stored = JSON.parse(raw) as Persisted;
+          /* typeof, not a null check: a session written before this field
+             existed has no coordsAt at all, and undefined would pass !== null
+             and then poison the arithmetic. */
+          const fresh =
+            typeof stored.coordsAt === 'number' && Date.now() - stored.coordsAt < COORDS_TTL_MS;
+
+          set({
+            ...stored,
+            /* A stale position is discarded rather than trusted. Falling back
+               to the city centre is a known approximation; a coordinate from
+               another city is a wrong answer delivered with confidence. */
+            coords: fresh ? stored.coords : null,
+            coordsAt: fresh ? stored.coordsAt : null,
+            ready: true,
+          });
+
           return;
         } catch {
           /* fall through to a clean session */
@@ -86,11 +125,53 @@ export const useSession = create<SessionState>((set, get) => {
       await persist();
     },
     setCoords: async (coords, precision) => {
-      set({ coords, ...(precision ? { locationPrecision: precision } : {}) });
+      set({
+        coords,
+        coordsAt: coords === null ? null : Date.now(),
+        ...(precision ? { locationPrecision: precision } : {}),
+      });
       await persist();
     },
+    /**
+     * Re-reads the device position, but only if that can be done silently.
+     *
+     * Location was asked for exactly once, on the onboarding screen, and never
+     * again — so a traveller who agreed on Monday ran on a Monday coordinate
+     * all week, and once it expired, on none at all. No other control in the
+     * app offers to look again.
+     *
+     * It never prompts. getForegroundPermissionsAsync reads the existing grant
+     * rather than requesting one, so a traveller who declined is left alone and
+     * one who agreed is kept current without being asked twice. A failure is
+     * silent on purpose: the city centre is a working fallback, and an error
+     * about it would be noise.
+     */
+    refreshLocation: async () => {
+      if (get().locationPrecision === 'off') return;
+
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        await get().setCoords({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      } catch {
+        /* Keep whatever we had. The fallback already works. */
+      }
+    },
     setLocationPrecision: async (locationPrecision) => {
-      set({ locationPrecision, ...(locationPrecision === 'off' ? { coords: null } : {}) });
+      set({
+        locationPrecision,
+        /* The timestamp goes with the coordinate. Leaving it behind would let
+           a later hydrate treat a null position as freshly captured. */
+        ...(locationPrecision === 'off' ? { coords: null, coordsAt: null } : {}),
+      });
       await persist();
     },
     completeOnboarding: async () => {
@@ -100,6 +181,7 @@ export const useSession = create<SessionState>((set, get) => {
     reset: async () => {
       await AsyncStorage.removeItem(KEY);
       set({
+        coordsAt: null,
         destinationSlug: null,
         destinationId: null,
         destinationName: null,

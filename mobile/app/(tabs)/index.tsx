@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -51,6 +51,18 @@ export default function Discover() {
   const router = useRouter();
   const session = useSession();
   const tz = session.destinationTimezone ?? undefined;
+
+  /*
+   * Ask the device where we are, once, when the screen opens.
+   *
+   * Nothing outside onboarding ever did, so a granted permission stopped being
+   * used the moment that screen was left. This never prompts — it reads the
+   * existing grant — so a traveller who declined sees no difference.
+   */
+  const refreshLocation = session.refreshLocation;
+  useEffect(() => {
+    refreshLocation();
+  }, [refreshLocation]);
 
   const [window, setWindow] = useState<number | null>(null);
   const [mood, setMood] = useState<string | null>(null);
