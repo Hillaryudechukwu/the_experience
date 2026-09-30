@@ -10,13 +10,16 @@ use App\Domains\Bookings\Models\Booking;
 use App\Domains\ExternalSources\Contracts\ProviderCapability;
 use App\Domains\ExternalSources\DTO\Availability;
 use App\Domains\ExternalSources\DTO\BookingRequest;
+use App\Domains\ExternalSources\DTO\BookingResult;
 use App\Domains\ExternalSources\DTO\DateRange;
 use App\Domains\ExternalSources\Models\ProviderProduct;
 use App\Domains\ExternalSources\Services\ProviderRegistry;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Booking orchestration (spec s9).
@@ -150,14 +153,40 @@ class BookingService
                 $this->machine->transition($booking, BookingState::AvailabilityConfirmed, 'provider');
                 $this->machine->transition($booking, BookingState::AwaitingPayment, 'system');
 
-                $providerResult = $provider->createBooking(new BookingRequest(
-                    providerProductId: $product->provider_product_id,
-                    idempotencyKey: $key,
-                    quantity: $quantity,
-                    startsAt: $startsAt,
-                    travellers: $input['travellers'] ?? [],
-                    contact: $input['contact'] ?? [],
-                ));
+                /*
+                 * A supplier that throws must not abandon the booking.
+                 *
+                 * The row is written before the supplier is called and nothing
+                 * wraps the two in a transaction, so an escaping exception
+                 * left the booking sitting in AwaitingPayment — which is not
+                 * terminal, so it stayed in the traveller's list as pending
+                 * forever with nothing left that would ever move it. A timeout
+                 * or a rate limit was enough to do it.
+                 *
+                 * The state machine records the failure instead, which is both
+                 * true and terminal enough to be retried.
+                 */
+                try {
+                    $providerResult = $provider->createBooking(new BookingRequest(
+                        providerProductId: $product->provider_product_id,
+                        idempotencyKey: $key,
+                        quantity: $quantity,
+                        startsAt: $startsAt,
+                        travellers: $input['travellers'] ?? [],
+                        contact: $input['contact'] ?? [],
+                    ));
+                } catch (Throwable $e) {
+                    Log::warning('booking.provider_unreachable', [
+                        'booking' => $booking->id,
+                        'provider' => $product->provider,
+                        'message' => $e->getMessage(),
+                    ]);
+
+                    $providerResult = BookingResult::failed(
+                        'We could not reach ' . $product->provider . ' to complete this booking. '
+                            . 'Nothing has been charged — please try again.',
+                    );
+                }
 
                 if (! $providerResult->success) {
                     $this->machine->transition($booking, BookingState::Failed, 'provider', $providerResult->failureReason);
@@ -181,6 +210,12 @@ class BookingService
 
                 return $this->payload($booking->fresh(['items']));
             },
+            /* A booking that failed took no money and reserved nothing, so the
+               same key may be used to try again. If it failed because the date
+               is genuinely sold out, the supplier simply refuses a second
+               time — which costs a request and tells the traveller the truth,
+               where replaying a cached failure tells them nothing new. */
+            fn (array $response) => ($response['state'] ?? null) === BookingState::Failed->value,
         );
 
         if (! $result['replayed']) {
@@ -215,7 +250,40 @@ class BookingService
             ]);
         }
 
-        $result = $provider->cancelBooking($booking->provider_booking_id);
+        /*
+         * Asking has to happen before claiming.
+         *
+         * A confirmed booking is moved to CancelRequested above, because the
+         * state machine offers no other route out of Confirmed. If the
+         * supplier call then throws, the booking is left claiming a
+         * cancellation is under way when nothing was ever requested — and
+         * CancelRequested leads only to Cancelled or Confirmed, neither of
+         * which anything would do. The traveller stops watching a reservation
+         * that is still live, and turns up to nothing or is charged for a
+         * no-show.
+         *
+         * So the request is rolled back to Confirmed, which is exactly what
+         * that transition exists for.
+         */
+        try {
+            $result = $provider->cancelBooking($booking->provider_booking_id);
+        } catch (Throwable $e) {
+            Log::warning('booking.cancel_unreachable', [
+                'booking' => $booking->id,
+                'provider' => $booking->provider,
+                'message' => $e->getMessage(),
+            ]);
+
+            if ($booking->fresh()->state === BookingState::CancelRequested) {
+                $this->machine->transition($booking, BookingState::Confirmed, 'system', 'Supplier unreachable');
+            }
+
+            return array_merge($this->payload($booking->fresh(['items'])), [
+                'cancellable_here' => false,
+                'message' => 'We could not reach the supplier, so nothing was cancelled and your booking still stands. '
+                    . 'Please try again shortly.',
+            ]);
+        }
 
         if (! $result->success) {
             return array_merge($this->payload($booking->fresh(['items'])), [
