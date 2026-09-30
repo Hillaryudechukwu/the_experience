@@ -52,6 +52,17 @@ type Persisted = Pick<
  */
 const COORDS_TTL_MS = 30 * 60 * 1000;
 
+/**
+ * The shortest gap between two reads of the device position.
+ *
+ * refreshLocation now runs whenever the app returns to the foreground as well
+ * as when Discover opens, and those overlap constantly — switching to the map
+ * and back, answering a message mid-trip. Without a floor, each of those is a
+ * GPS fix, which costs battery to learn something that has not changed. Two
+ * minutes is shorter than any walk that would alter what is recommended.
+ */
+const COORDS_MIN_INTERVAL_MS = 2 * 60 * 1000;
+
 export const useSession = create<SessionState>((set, get) => {
   const persist = async () => {
     const s = get();
@@ -147,7 +158,17 @@ export const useSession = create<SessionState>((set, get) => {
      * about it would be noise.
      */
     refreshLocation: async () => {
-      if (get().locationPrecision === 'off') return;
+      const state = get();
+
+      if (state.locationPrecision === 'off') return;
+
+      /* Recent enough to still be true. */
+      if (
+        typeof state.coordsAt === 'number' &&
+        Date.now() - state.coordsAt < COORDS_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
 
       try {
         const { status } = await Location.getForegroundPermissionsAsync();

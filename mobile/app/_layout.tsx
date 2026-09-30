@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -25,6 +25,7 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const hydrate = useSession((s) => s.hydrate);
+  const refreshLocation = useSession((s) => s.refreshLocation);
   const scheme = useColorScheme();
   const colors = colorModes[scheme === 'dark' ? 'dark' : 'light'];
 
@@ -43,6 +44,23 @@ export default function RootLayout() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  /*
+   * Re-read the position whenever the app comes back to the foreground.
+   *
+   * Refreshing only when Discover mounts left a traveller who keeps the app
+   * open — the normal way to use it while walking — on the coordinate they
+   * arrived with. This is the app-wide answer because location belongs to the
+   * session rather than to a screen, and it is cheap: the store declines to
+   * take a fix taken in the last couple of minutes, and never prompts.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') refreshLocation();
+    });
+
+    return () => subscription.remove();
+  }, [refreshLocation]);
 
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: colors.background.base }} />;
