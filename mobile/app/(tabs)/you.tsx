@@ -254,7 +254,22 @@ export default function You() {
           <LinkRow
             icon="lock"
             label="Privacy policy"
-            onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => {})}
+            onPress={async () => {
+              /*
+               * Not swallowed. This was `.catch(() => {})`, so a device that
+               * cannot open the URL — no browser, offline, a malformed host
+               * from a misconfigured build — answered the tap by doing
+               * absolutely nothing.
+               *
+               * Both stores require this control and a reviewer will press it.
+               * A dead button is a rejection; an address they can read is not.
+               */
+              try {
+                await Linking.openURL(PRIVACY_POLICY_URL);
+              } catch {
+                Alert.alert('Could not open the policy', PRIVACY_POLICY_URL);
+              }
+            }}
           />
           <Divider />
           <LinkRow

@@ -50,5 +50,10 @@
         <env name="VIATOR_API_KEY" value="" force="true"/>
         <env name="GETYOURGUIDE_API_KEY" value="" force="true"/>
         <env name="ANTHROPIC_API_KEY" value="" force="true"/>
+        <!-- The redirect supplier needs real configuration to be offered at
+             all, so the suite configures it deliberately rather than relying
+             on a placeholder default that hid an unconfigured deployment. -->
+        <env name="DEEPLINK_AFFILIATE_ID" value="test-partner" force="true"/>
+        <env name="DEEPLINK_BASE_URL" value="https://partner.test/checkout" force="true"/>
     </php>
 </phpunit>

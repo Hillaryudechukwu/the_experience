@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { Alert } from 'react-native';
+
 import { clearIdentity, http } from './client';
 import type {
   AssistantReply,
@@ -60,6 +62,28 @@ export function useDestination(slug: string | null) {
   });
 }
 
+/**
+ * Tells the traveller when a write did not land.
+ *
+ * These mutations were fired and forgotten: no onError anywhere, and no
+ * optimistic update either, so a failed request meant the tap simply did
+ * nothing. Tapping an interest and watching the chip not move is
+ * indistinguishable from the control being broken — and quietly losing a
+ * stated preference matters more here than in most apps, because the whole
+ * product is built on them.
+ *
+ * It lives on the hooks rather than at each call site so that a new screen
+ * cannot forget it.
+ */
+function reportFailure(what: string) {
+  return (cause: unknown) => {
+    Alert.alert(
+      `Could not ${what}`,
+      cause instanceof Error ? cause.message : 'The connection dropped. Please try again.',
+    );
+  };
+}
+
 export function useProfile() {
   return useQuery({
     queryKey: keys.profile(),
@@ -85,6 +109,7 @@ export function useUpdateProfile() {
       client.invalidateQueries({ queryKey: keys.dna() });
       client.invalidateQueries({ queryKey: ['discovery'] });
     },
+    onError: reportFailure('save that change'),
   });
 }
 
@@ -146,6 +171,7 @@ export function useToggleSave(id: string) {
       client.invalidateQueries({ queryKey: keys.experience(id) });
       client.invalidateQueries({ queryKey: keys.saved() });
     },
+    onError: reportFailure('update your saved list'),
   });
 }
 
@@ -181,6 +207,7 @@ export function useMarkComplete(id: string) {
       client.invalidateQueries({ queryKey: keys.experience(id) });
       client.invalidateQueries({ queryKey: keys.passport() });
     },
+    onError: reportFailure('mark that as done'),
   });
 }
 

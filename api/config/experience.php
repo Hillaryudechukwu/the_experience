@@ -409,9 +409,20 @@ return [
             'failure_threshold' => 5,
             'open_seconds' => 120,
         ],
+        /*
+         * No defaults, deliberately.
+         *
+         * These used to fall back to 'demo-partner' and partner.example.com,
+         * and isConfigured() only checked the affiliate id — which the default
+         * made truthy. So an unconfigured deployment advertised the provider
+         * as ready, offered it alongside the real suppliers, and sent
+         * travellers to a checkout on a domain that does not exist. A
+         * placeholder that satisfies a readiness check is worse than no value
+         * at all, because nothing ever reports it missing.
+         */
         'deeplink' => [
-            'affiliate_id' => env('DEEPLINK_AFFILIATE_ID', 'demo-partner'),
-            'base_url' => env('DEEPLINK_BASE_URL', 'https://partner.example.com/checkout'),
+            'affiliate_id' => env('DEEPLINK_AFFILIATE_ID'),
+            'base_url' => env('DEEPLINK_BASE_URL'),
         ],
         'viator' => ['api_key' => env('VIATOR_API_KEY')],
         'getyourguide' => [

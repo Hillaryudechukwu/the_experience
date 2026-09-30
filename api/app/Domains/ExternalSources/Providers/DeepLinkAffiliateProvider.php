@@ -42,9 +42,19 @@ class DeepLinkAffiliateProvider implements ExperienceProvider
         ];
     }
 
+    /**
+     * Both halves, or it cannot do its one job.
+     *
+     * This checked only the affiliate id, and the id had a placeholder
+     * default — so an unconfigured deployment reported itself ready and
+     * redirected travellers to a checkout URL that was also a placeholder.
+     * Without somewhere to send them there is no redirect booking, and the
+     * registry should not be offering one.
+     */
     public function isConfigured(): bool
     {
-        return (bool) config('experience.providers.deeplink.affiliate_id');
+        return filled(config('experience.providers.deeplink.affiliate_id'))
+            && filled(config('experience.providers.deeplink.base_url'));
     }
 
     public function search(SearchCriteria $criteria): Collection
