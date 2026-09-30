@@ -182,6 +182,22 @@ class ViatorProvider implements ExperienceProvider
                 'Accept' => 'application/json;version=2.0',
             ])
             ->timeout(8)
-            ->retry(2, 200);
+            /*
+             * throw: false, because every failure branch below depends on it.
+             *
+             * Laravel's retry() raises a RequestException once the attempts are
+             * exhausted unless told otherwise, which made the checks in this
+             * class unreachable: the 404 test in getProduct(), the failed()
+             * check in createBooking(), and the one in cancelBooking() were all
+             * dead code. A missing product threw instead of returning null, and
+             * a supplier answering "sold out" threw instead of returning a
+             * BookingResult the state machine could record. OutboundHttp, which
+             * every keyless provider goes through, has always passed it.
+             *
+             * Retrying a POST to /bookings is only safe because of the
+             * idempotency key sent with it — without that this would risk
+             * booking a traveller twice.
+             */
+            ->retry(2, 200, throw: false);
     }
 }
