@@ -98,3 +98,44 @@ when a route exists to receive it.
 the package name at first upload and the App Store fixes the bundle id at first
 submission. Neither can be changed afterwards — only abandoned for a new
 listing with no installs, reviews or ranking.
+
+## 4. Building the Android bundle
+
+Play Console wants an `.aab` (Android App Bundle). EAS produces one from the
+`production` profile in `mobile/eas.json`.
+
+```bash
+cd mobile
+npx eas-cli@latest login
+npx eas-cli@latest init
+npx eas-cli@latest build --platform android --profile production
+```
+
+The build runs on Expo's servers and prints a URL. When it finishes, that page
+has a **Download** button — the file it gives you is the `.aab` to drag onto
+the Play Console release page.
+
+EAS generates and holds the Android keystore on the first build. Do not lose
+access to that Expo account: the upload key is how Google identifies your app
+for the rest of its life, and a bundle signed with a different key is rejected.
+Back it up with `eas credentials -p android`.
+
+`appVersionSource` is `remote` and `autoIncrement` is on, so EAS owns the
+`versionCode` and raises it on every build. That is why `app.json` has none —
+two sources for one number is how you end up uploading a duplicate.
+
+### Before you build: the API URL
+
+`EXPO_PUBLIC_API_URL` in `eas.json` is `https://REPLACE-ME/api`. A build
+carrying that placeholder compiles, uploads and installs perfectly, and then
+fails on every screen for every user — including the reviewer.
+
+Left unset it is no better: `resolveApiUrl()` falls back to
+`http://127.0.0.1:8099`, which on a phone is the phone.
+
+So the API has to be hosted on a public HTTPS domain before a production build
+is worth making. REPLACE-ME is deliberately a hostname that cannot resolve, so
+a mistake here fails loudly and immediately rather than looking like an
+intermittent network problem.
+
+Set both `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_PRIVACY_URL`, then build.
