@@ -26,6 +26,8 @@ use Illuminate\Support\Facades\DB;
  */
 class PlaceResolver
 {
+    public function __construct(private readonly GeospatialRepository $geo) {}
+
     public function resolve(PlaceCandidate $candidate, Destination $destination): PlaceResolution
     {
         /* 1. We have already mapped this exact provider record. */
@@ -110,20 +112,36 @@ class PlaceResolver
         $radius = (int) config('experience.resolution.match_radius_metres', 250);
         $point = $candidate->point;
 
-        $rows = Place::query()
-            ->where('destination_id', $destination->id)
-            ->when(
-                DB::getDriverName() === 'pgsql',
-                fn ($q) => $q
-                    ->selectRaw('places.*, similarity(normalised_name, ?) as name_similarity', [$candidate->normalisedName()])
-                    ->whereRaw(
-                        'earth_box(ll_to_earth(?, ?), ?) @> ll_to_earth(places.lat::float8, places.lng::float8)',
-                        [$point->lat, $point->lng, $radius],
-                    ),
-                fn ($q) => $q->selectRaw('places.*, 0 as name_similarity'),
-            )
-            ->limit(25)
-            ->get();
+        $query = Place::query()->where('destination_id', $destination->id);
+
+        /*
+         * The radius always applies, on every driver.
+         *
+         * It used to live inside the PostgreSQL branch, so on any other
+         * database the query had no spatial filter at all — it took an
+         * arbitrary twenty-five places from the whole destination and hoped
+         * the right one was among them. London holds seven hundred. The PHP
+         * distance check below then discarded almost all of what did come
+         * back, so resolution quietly failed and every ingested place became a
+         * new duplicate, which is the one thing the canonical place model
+         * exists to prevent.
+         *
+         * GeospatialRepository already knows how to express this both ways:
+         * a GiST earth_box on PostgreSQL, a bounding box everywhere else.
+         */
+        $this->geo->withinRadius($query, 'places', $point, $radius);
+
+        /* Trigram similarity is a PostgreSQL extension. Where it exists it is
+           better than anything we can do in PHP, and where it does not the
+           loop below falls back to similar_text() over a candidate set the
+           radius has already made small. */
+        $query->when(
+            DB::getDriverName() === 'pgsql',
+            fn ($q) => $q->selectRaw('places.*, similarity(normalised_name, ?) as name_similarity', [$candidate->normalisedName()]),
+            fn ($q) => $q->select('places.*'),
+        );
+
+        $rows = $query->limit(25)->get();
 
         $best = null;
 
@@ -136,7 +154,7 @@ class PlaceResolver
 
             /* Trust PostgreSQL's trigram similarity where available, and fall
                back to a string comparison elsewhere so the logic still works. */
-            $similarity = $place->name_similarity !== null && $place->name_similarity > 0
+            $similarity = ($place->name_similarity ?? null) !== null && $place->name_similarity > 0
                 ? (float) $place->name_similarity
                 : $this->stringSimilarity($candidate->normalisedName(), (string) $place->normalised_name);
 

@@ -19,6 +19,12 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Pinned, and forced, because the suite must not inherit a
+             deployment value. A local APP_URL of "experience.synteric.co.uk"
+             with no scheme is a relative path to Laravel, so every URL the
+             test client built became http://localhost/experience.synteric.co.uk/...
+             and 76 tests failed with 404s that looked like missing routes. -->
+        <env name="APP_URL" value="http://localhost" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
