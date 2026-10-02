@@ -19,16 +19,16 @@ return new class extends Migration
             $table->date('ends_on')->nullable();
             $table->smallInteger('adults')->default(1);
             $table->smallInteger('children')->default(0);
-            $table->jsonb('child_ages')->default('[]');
+            $table->jsonbDefault('child_ages', '[]');
             $table->string('familiarity', 16)->default('never'); // never|once|few|well
             $table->integer('budget_total_minor')->nullable();
             $table->integer('daily_budget_minor')->nullable();
             $table->char('currency', 3)->default('GBP');
             $table->text('mission_text')->nullable();
-            $table->jsonb('mission_goals')->default('[]');  // interpreted soft goals
+            $table->jsonbDefault('mission_goals', '[]');  // interpreted soft goals
             $table->string('mission_interpreted_by', 32)->nullable();
-            $table->jsonb('must_do')->default('[]');
-            $table->jsonb('avoid')->default('[]');
+            $table->jsonbDefault('must_do', '[]');
+            $table->jsonbDefault('avoid', '[]');
             $table->boolean('accessibility_mode')->default(false);
             $table->string('pace_override', 16)->nullable();
             $table->string('status', 24)->default('active');
@@ -77,12 +77,12 @@ return new class extends Migration
             $table->string('location_precision', 16)->nullable(); // precise|approximate|none
             $table->jsonb('weather')->nullable();
             $table->integer('budget_remaining_minor')->nullable();
-            $table->jsonb('companions')->default('{}');
+            $table->jsonbDefault('companions', '{}');
             $table->foreignUuid('active_anchor_id')->nullable()->constrained('journey_anchors')->nullOnDelete();
             $table->integer('window_minutes')->nullable();
             $table->string('surface', 32);
             $table->string('engine_version', 24);
-            $table->jsonb('weights')->default('{}');
+            $table->jsonbDefault('weights', '{}');
             $table->timestampsTz();
             $table->index('captured_at');
         });

@@ -34,8 +34,8 @@ return new class extends Migration
             $table->boolean('prefers_private_tours')->default(false);
             $table->smallInteger('spontaneity')->default(50);
             $table->smallInteger('food_adventurousness')->default(60);
-            $table->jsonb('accessibility')->default('{}');
-            $table->jsonb('languages')->default('["en"]');
+            $table->jsonbDefault('accessibility', '{}');
+            $table->jsonbDefault('languages', '["en"]');
             $table->string('travel_style_label')->nullable();             // "Curious Explorer"
             $table->timestampTz('recomputed_at')->nullable();
             $table->timestampsTz();

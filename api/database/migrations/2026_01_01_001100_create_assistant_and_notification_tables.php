@@ -22,9 +22,9 @@ return new class extends Migration
             $table->foreignUuid('assistant_conversation_id')->constrained()->cascadeOnDelete();
             $table->string('role', 16);  // user|assistant
             $table->text('content');
-            $table->jsonb('tool_calls')->default('[]');
-            $table->jsonb('grounding')->default('{}');   // facts + sources + retrieved_at
-            $table->jsonb('suggestions')->default('[]');
+            $table->jsonbDefault('tool_calls', '[]');
+            $table->jsonbDefault('grounding', '{}');   // facts + sources + retrieved_at
+            $table->jsonbDefault('suggestions', '[]');
             $table->string('driver', 24)->nullable();
             $table->timestampsTz();
         });
@@ -36,7 +36,7 @@ return new class extends Migration
             $table->string('kind', 48);
             $table->string('title');
             $table->text('body');
-            $table->jsonb('payload')->default('{}');
+            $table->jsonbDefault('payload', '{}');
             $table->timestampTz('scheduled_for');
             $table->timestampTz('sent_at')->nullable();
             $table->string('status', 24)->default('scheduled');

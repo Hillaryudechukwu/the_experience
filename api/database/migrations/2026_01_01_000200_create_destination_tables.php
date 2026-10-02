@@ -18,7 +18,7 @@ return new class extends Migration
             $table->decimal('lat', 10, 7);
             $table->decimal('lng', 10, 7);
             $table->char('currency', 3);
-            $table->jsonb('languages')->default('["en"]');
+            $table->jsonbDefault('languages', '["en"]');
             $table->integer('default_radius_m')->default(8000);
             $table->text('summary')->nullable();
             $table->string('hero_image_url')->nullable();
@@ -31,7 +31,7 @@ return new class extends Migration
             $table->string('slug');
             $table->string('name');
             $table->text('character')->nullable();
-            $table->jsonb('best_for')->default('[]');
+            $table->jsonbDefault('best_for', '[]');
             $table->integer('ideal_duration_minutes')->default(120);
             $table->decimal('lat', 10, 7);
             $table->decimal('lng', 10, 7);

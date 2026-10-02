@@ -44,7 +44,7 @@ return new class extends Migration
             $table->timestampTz('generated_at');
             $table->string('engine_version', 24);
             $table->decimal('objective_value', 10, 3)->default(0);
-            $table->jsonb('diagnostics')->default('{}');
+            $table->jsonbDefault('diagnostics', '{}');
             $table->boolean('is_current')->default(true);
             $table->timestampsTz();
             $table->unique(['trip_id', 'version']);

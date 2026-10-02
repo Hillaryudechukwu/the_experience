@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignUuid('journey_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignUuid('traveller_profile_id')->nullable()->constrained()->nullOnDelete();
             $table->string('surface', 32);
-            $table->jsonb('request')->default('{}');
+            $table->jsonbDefault('request', '{}');
             $table->integer('candidates_considered')->default(0);
             $table->integer('generation_ms')->nullable();
             $table->timestampsTz();

@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('provider', 48);
             $table->string('provider_id');
             $table->string('external_url')->nullable();
-            $table->jsonb('metadata')->default('{}');
+            $table->jsonbDefault('metadata', '{}');
             $table->decimal('confidence', 4, 3)->default(1.000);
             $table->timestampTz('last_synced_at')->nullable();
             $table->timestampsTz();
@@ -32,7 +32,7 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('product_url')->nullable();
-            $table->jsonb('capabilities')->default('[]');
+            $table->jsonbDefault('capabilities', '[]');
             $table->text('cancellation_policy')->nullable();
             $table->char('currency', 3)->nullable();
             $table->integer('price_from_minor')->nullable();
@@ -67,7 +67,7 @@ return new class extends Migration
             $table->integer('consecutive_failures')->default(0);
             $table->decimal('failure_rate', 5, 4)->default(0);
             $table->integer('avg_latency_ms')->nullable();
-            $table->jsonb('rate_limit_state')->default('{}');
+            $table->jsonbDefault('rate_limit_state', '{}');
             $table->timestampTz('circuit_open_until')->nullable();
             $table->timestampsTz();
         });
@@ -92,7 +92,7 @@ return new class extends Migration
             $table->string('provider_id')->nullable();
             $table->string('stage', 40);
             $table->text('message');
-            $table->jsonb('context')->default('{}');
+            $table->jsonbDefault('context', '{}');
             $table->boolean('resolved')->default(false);
             $table->timestampsTz();
             $table->index(['provider', 'resolved']);

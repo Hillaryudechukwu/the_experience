@@ -39,7 +39,7 @@ return new class extends Migration
             $table->timestampTz('confirmed_at')->nullable();
             $table->timestampTz('cancelled_at')->nullable();
             $table->text('failure_reason')->nullable();
-            $table->jsonb('meta')->default('{}');
+            $table->jsonbDefault('meta', '{}');
             $table->timestampsTz();
             $table->index(['user_id', 'state']);
         });
@@ -55,7 +55,7 @@ return new class extends Migration
             $table->char('currency', 3)->nullable();
             $table->timestampTz('starts_at')->nullable();
             $table->string('state', 32)->default('draft');
-            $table->jsonb('meta')->default('{}');
+            $table->jsonbDefault('meta', '{}');
             $table->timestampsTz();
         });
 
@@ -88,7 +88,7 @@ return new class extends Migration
             $table->char('currency', 3);
             $table->string('status', 24)->default('pending');
             $table->string('idempotency_key', 128)->nullable()->unique();
-            $table->jsonb('meta')->default('{}');
+            $table->jsonbDefault('meta', '{}');
             $table->timestampsTz();
         });
 

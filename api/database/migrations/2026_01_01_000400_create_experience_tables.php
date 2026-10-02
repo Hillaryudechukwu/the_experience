@@ -59,12 +59,12 @@ return new class extends Migration
             $table->boolean('has_toilets')->default(true);
             $table->boolean('food_on_site')->default(false);
 
-            $table->jsonb('interest_affinity')->default('{}');   // {"history":90,"food":20}
-            $table->jsonb('mood_affinity')->default('{}');       // {"romantic":80,"relaxed":40}
-            $table->jsonb('accessibility')->default('{}');
-            $table->jsonb('best_time_of_day')->default('[]');    // ["morning","golden_hour"]
+            $table->jsonbDefault('interest_affinity', '{}');   // {"history":90,"food":20}
+            $table->jsonbDefault('mood_affinity', '{}');       // {"romantic":80,"relaxed":40}
+            $table->jsonbDefault('accessibility', '{}');
+            $table->jsonbDefault('best_time_of_day', '[]');    // ["morning","golden_hour"]
             $table->jsonb('busy_periods')->nullable();
-            $table->jsonb('know_before_you_go')->default('[]');
+            $table->jsonbDefault('know_before_you_go', '[]');
 
             $table->string('image_url')->nullable();
             $table->string('data_source', 48)->default('seed_demo');

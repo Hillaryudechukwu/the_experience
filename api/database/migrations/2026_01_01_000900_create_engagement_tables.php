@@ -40,7 +40,7 @@ return new class extends Migration
             $table->boolean('would_recommend')->nullable();
             $table->text('best_part')->nullable();
             $table->text('private_note')->nullable();       // private by default (spec s23.2)
-            $table->jsonb('photos')->default('[]');
+            $table->jsonbDefault('photos', '[]');
             $table->boolean('is_public')->default(false);
             $table->timestampsTz();
         });
@@ -54,7 +54,7 @@ return new class extends Migration
             $table->string('kind', 32);   // experience|city|country|milestone
             $table->string('label');
             $table->timestampTz('earned_at');
-            $table->jsonb('meta')->default('{}');
+            $table->jsonbDefault('meta', '{}');
             $table->timestampsTz();
         });
 
@@ -67,7 +67,7 @@ return new class extends Migration
             $table->uuid('subject_id')->nullable();
             $table->foreignUuid('recommendation_set_id')->nullable()->constrained()->nullOnDelete();
             $table->string('surface', 32)->nullable();
-            $table->jsonb('properties')->default('{}');
+            $table->jsonbDefault('properties', '{}');
             $table->timestampTz('occurred_at');
             $table->timestampsTz();
             $table->index(['type', 'occurred_at']);

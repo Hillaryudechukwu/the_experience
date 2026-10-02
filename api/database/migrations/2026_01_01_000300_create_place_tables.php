@@ -33,7 +33,7 @@ return new class extends Migration
             $table->string('rating_source', 48)->nullable();
             $table->timestampTz('rating_verified_at')->nullable();
 
-            $table->jsonb('accessibility')->default('{}');
+            $table->jsonbDefault('accessibility', '{}');
             $table->string('accessibility_source', 48)->nullable();
 
             $table->smallInteger('canonical_confidence')->default(100);
@@ -52,7 +52,7 @@ return new class extends Migration
             $table->decimal('candidate_lat', 10, 7)->nullable();
             $table->decimal('candidate_lng', 10, 7)->nullable();
             $table->decimal('confidence', 4, 3);
-            $table->jsonb('signals')->default('{}');
+            $table->jsonbDefault('signals', '{}');
             $table->string('status', 24)->default('pending'); // pending|merged|rejected
             $table->timestampsTz();
             $table->unique(['provider', 'provider_id', 'place_id']);
