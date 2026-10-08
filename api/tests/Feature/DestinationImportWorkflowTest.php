@@ -122,6 +122,28 @@ class DestinationImportWorkflowTest extends TestCase
         $this->assertNull($import->fresh()->active_destination_id);
     }
 
+    public function test_queued_imports_that_never_start_are_failed_by_recovery(): void
+    {
+        $destination = $this->destination(['coverage_status' => DestinationCoverageStatus::Queued]);
+        $import = DestinationImport::create([
+            'destination_id' => $destination->id,
+            'status' => DestinationImportStatus::Queued,
+            'stage' => DestinationImportStage::Queued,
+            'provider_key' => 'osm',
+        ]);
+        $import->forceFill([
+            'created_at' => now()->subMinutes(16),
+            'updated_at' => now()->subMinutes(16),
+        ])->save();
+
+        $this->artisan('destinations:recover-stale-imports')->assertSuccessful();
+
+        $this->assertSame('queue_stalled', $import->fresh()->error_code);
+        $this->assertSame(DestinationImportStatus::Failed, $import->fresh()->status);
+        $this->assertSame(DestinationCoverageStatus::Failed, $destination->fresh()->coverage_status);
+        $this->assertTrue($import->fresh()->retryable);
+    }
+
     public function test_queue_heartbeat_is_visible_to_health_checks(): void
     {
         Cache::forget('health:queue-worker-heartbeat');

@@ -399,18 +399,18 @@ POST   /bookings/{booking}/cancel
 
 ### P5 — Destination activation GA
 
-**Objective.** Complete the programme in [`DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md`](DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md) and [`DYNAMIC_DESTINATION_RUNBOOK.md`](DYNAMIC_DESTINATION_RUNBOOK.md). Do not build a second pipeline.
+**Objective.** Complete the programme in [`DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md`](DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md) and [`DYNAMIC_DESTINATION_RUNBOOK.md`](DYNAMIC_DESTINATION_RUNBOOK.md). Do not build a second pipeline. Operator steps: [`DESTINATION_ACTIVATION_GA_RUNBOOK.md`](DESTINATION_ACTIVATION_GA_RUNBOOK.md).
 
 **Done when.** Allowlisted city proven end-to-end; progressive rollout to 100% under budget; kill switch verified.
 
 #### Work (execute checklist — summary)
 
-1. Add controlled city to `DESTINATION_ACTIVATION_ALLOWED_CITIES`.
+1. Add controlled city to `DESTINATION_ACTIVATION_ALLOWED_CITIES` (or candidate to `DESTINATION_ACTIVATION_ALLOWED_CANDIDATES`).
 2. Activate → import queued → running → ready/limited; app resume polls same import.
 3. Admin: `/api/admin/destination-imports`, destination-quality, retry.
 4. Rollout 5% → 25% → 100% with 30+ minute observation windows.
 5. Keep `DESTINATION_PREWARM_ENABLED=false` until aggregate-demand retention is approved.
-6. Confirm scheduler recovery for stale imports.
+6. Confirm scheduler recovery for stale **queued** and **running** imports (`queue_stalled` / `worker_stalled`).
 
 #### Exit criteria / go-no-go
 
@@ -423,6 +423,8 @@ POST   /bookings/{booking}/cancel
 | Rollout percentage recorded in release notes | GO |
 
 **Rollback.** `DESTINATION_ACTIVATION_ENABLED=false`; retain ready destinations (see checklist rollback triggers).
+
+**Status (2026-10-08).** Product code + recovery + GA runbook ready. Production still at rollout **0%** (dark deploy). Phase exits GO only after ops completes the controlled city proof and rollout ladder under approved spend.
 
 ---
 
@@ -790,7 +792,7 @@ Schema rollbacks are last resort; prefer flags.
 | P2 | Auth and cross-device continuity | GO — register/login/logout wired; deployed 2026-10-08 |
 | P3 | Memory, share, privacy | GO — journal/export/share/privacy; merged + deployed 2026-10-08 |
 | P4 | Live commercial providers | GO — keys live; runbook + provider-status; queue heartbeat green (2026-10-08) |
-| P5 | Destination activation GA | Not started (dark deploy done separately) |
+| P5 | Destination activation GA | In progress — recovery + GA runbook; prod rollout still 0% pending ops proof |
 | P6 | Store release | Not started |
 | P7 | Notifications outbox | Not started |
 | P8 | Group trip votes | Not started |

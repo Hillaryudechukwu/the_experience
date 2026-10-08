@@ -61,6 +61,23 @@ class DestinationImportAdminTest extends TestCase
         $this->getJson('/api/admin/destination-imports')->assertUnauthorized();
     }
 
+    public function test_an_admin_can_read_destination_quality(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $admin = User::create([
+            'name' => 'Ops',
+            'email' => 'quality@example.com',
+            'password' => bcrypt('secret-secret'),
+        ]);
+        $token = $admin->createToken('ops', ['admin'])->plainTextToken;
+
+        $this->getJson('/api/admin/destination-quality', [
+            'Authorization' => 'Bearer '.$token,
+        ])
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+    }
+
     public function test_an_admin_can_retry_a_failed_import_without_creating_parallel_work(): void
     {
         Queue::fake([ImportDestination::class]);

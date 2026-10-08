@@ -24,6 +24,8 @@ cannot create the host-level cron entry.
   rollout bucket.
 - `DESTINATION_ACTIVATION_ALLOWED_CITIES=Reykjavík,Oslo` bypasses percentage
   rollout for controlled city validation.
+- `DESTINATION_ACTIVATION_ALLOWED_CANDIDATES=nominatim:relation/12345` bypasses
+  percentage rollout for a specific signed search candidate (provider + id).
 - Actor, IP and global daily ceilings are configured with
   `DESTINATION_ACTIVATION_DAILY_*_LIMIT`. Set a limit to `0` to disable that
   individual ceiling.
@@ -44,8 +46,9 @@ After changing environment values, run `php artisan config:clear` followed by
 2. Confirm the scheduler is executing with `php artisan schedule:list` and
    inspect `storage/logs/laravel.log` by `import_id`.
 3. Run `php artisan destinations:recover-stale-imports` if the scheduled check
-   has not run. Imports running longer than 15 minutes become failed with
-   `worker_stalled`.
+   has not run. Imports **running** with a heartbeat older than 15 minutes fail
+   as `worker_stalled`. Imports **queued** longer than 15 minutes without a
+   worker claim fail as `queue_stalled`. Both are retryable.
 4. Fix the worker/provider issue, then call
    `POST /api/admin/destination-imports/{id}/retry`. Retry creates or reuses one
    active import; it does not duplicate the old row's provider data.

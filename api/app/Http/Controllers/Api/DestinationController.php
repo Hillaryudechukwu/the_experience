@@ -242,7 +242,9 @@ class DestinationController extends ApiController
                 'coverage_status' => $destination->coverage_status->value,
                 'import_id' => $import?->id,
                 'stage' => $import?->stage->value,
-                'poll_after_seconds' => $import === null ? null : 3,
+                'poll_after_seconds' => $import === null
+                    ? null
+                    : (int) config('experience.destination_activation.poll_after_seconds', 3),
             ],
         ], $import === null ? 200 : 202);
     }

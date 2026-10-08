@@ -37,6 +37,7 @@ DELETE /journeys/{journey}/anchors/{anchor}
 GET    /destinations?q=&lat=&lng=
 POST   /destinations/activate             signed candidate; returns 202 + import id
 GET    /destination-imports/{import}      resumable, sanitized import progress
+POST   /destination-imports/{import}/retry  traveller retry of a failed/retryable import
 GET    /destinations/{slug}               neighbourhoods, city essentials, "don't leave without"
 ```
 
@@ -44,7 +45,9 @@ Destination search keeps the legacy `data` and `elsewhere` fields and also
 returns a discriminated `results` list. An uncovered city carries a short-lived
 `candidate_token`; clients submit that token to `destinations/activate` and poll
 the returned import. Activation is controlled by a kill switch, deterministic
-rollout percentage, optional city allowlist, and actor/IP/global daily limits.
+rollout percentage, optional city allowlist / candidate allowlist
+(`DESTINATION_ACTIVATION_ALLOWED_CANDIDATES` as `provider:externalId`), and
+actor/IP/global daily limits.
 
 ## Discovery
 
