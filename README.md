@@ -179,3 +179,4 @@ content. Ingestion fills their gaps and never overwrites them.
 - [`docs/DYNAMIC_DESTINATION_COVERAGE_JEM.md`](docs/DYNAMIC_DESTINATION_COVERAGE_JEM.md) — implementation JEM for discovering, activating, and safely ingesting unseeded destinations on demand.
 - [`docs/DYNAMIC_DESTINATION_RUNBOOK.md`](docs/DYNAMIC_DESTINATION_RUNBOOK.md) — production rollout, queue, retry, outage, and budget operations.
 - [`docs/DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md`](docs/DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md) — dark-deploy gates, smoke tests, rollout steps, and rollback triggers.
+- [`docs/PROVIDER_SMOKE_RUNBOOK.md`](docs/PROVIDER_SMOKE_RUNBOOK.md) — live provider status, staging/prod smoke, key rotation, queue heartbeat.

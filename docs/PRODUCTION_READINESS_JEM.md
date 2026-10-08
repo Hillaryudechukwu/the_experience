@@ -371,13 +371,15 @@ POST   /bookings/{booking}/cancel
 #### Ops
 
 - Approve daily spend ceilings (Google per-activation limit already referenced in deploy checklist).
-- Staging smoke runbook: one city ingest, one offer fetch, one sandbox/live booking dry-run, one guide question with tool provenance.
-- Never commit keys; document rotation.
+- Staging/prod smoke: [`PROVIDER_SMOKE_RUNBOOK.md`](PROVIDER_SMOKE_RUNBOOK.md) — health, `experience:provider-status`, offers, sandbox booking dry-run, grounded guide question.
+- Never commit keys; rotation steps are in that runbook.
+- Queue: durable `database` driver + minute cron `schedule:run` so `queue_worker_alive` stays true.
 
 #### Tests
 
 - Existing provider feature tests with fixtures stay green.
-- Staging smoke checklist signed off (not CI-live).
+- [`ProviderStatusCommandTest`](../api/tests/Feature/ProviderStatusCommandTest.php) covers no-secrets status + queue gate.
+- Staging smoke checklist signed off via runbook (not CI-live).
 
 #### Exit criteria / go-no-go
 
@@ -387,8 +389,11 @@ POST   /bookings/{booking}/cancel
 | At least one non-sandbox fulfilment path configured for prod **or** sandbox clearly labelled for review | GO |
 | Assistant driver documented; grounding tests green | GO |
 | Provider outage still isolates discovery ([`ProviderResilienceTest`](../api/tests/Feature/ProviderResilienceTest.php)) | GO |
+| Queue healthy (`queue_worker_alive` on durable driver) | GO |
 
 **Rollback.** Remove/blank keys; registry falls back. Keep sandbox for store demo accounts if needed.
+
+**Status (2026-10-08).** Production keys live: Google Places, Viator, Anthropic. Deeplink optional while Viator covers commercial fulfilment. Runbook + `experience:provider-status` shipped. Prod health `ok` with `queue_worker_alive: true`. `deploy.sh` clears the heartbeat, runs `schedule:run`, then foreground `queue:work --stop-when-empty` so the health gate cannot pass on a pre-restart cache entry.
 
 ---
 
@@ -783,8 +788,8 @@ Schema rollbacks are last resort; prefer flags.
 | P0 | Production infrastructure gates | GO (health ok, durable queue, workers alive; 2026-10-08) |
 | P1 | Close booking | GO — mobile create/cancel/availability wired; deployed 2026-10-08 |
 | P2 | Auth and cross-device continuity | GO — register/login/logout wired; deployed 2026-10-08 |
-| P3 | Memory, share, privacy | In progress on cursor/p3-memory-share-privacy |
-| P4 | Live commercial providers | Not started |
+| P3 | Memory, share, privacy | GO — journal/export/share/privacy; merged + deployed 2026-10-08 |
+| P4 | Live commercial providers | GO — keys live; runbook + provider-status; queue heartbeat green (2026-10-08) |
 | P5 | Destination activation GA | Not started (dark deploy done separately) |
 | P6 | Store release | Not started |
 | P7 | Notifications outbox | Not started |
