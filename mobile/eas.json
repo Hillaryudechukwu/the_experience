@@ -12,7 +12,7 @@
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-ME/api"
+        "EXPO_PUBLIC_API_URL": "https://api.experience.synteric.co.uk/api"
       }
     },
     "production": {
@@ -21,8 +21,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-ME/api",
-        "EXPO_PUBLIC_PRIVACY_URL": "https://REPLACE-ME/privacy"
+        "EXPO_PUBLIC_API_URL": "https://api.experience.synteric.co.uk/api",
+        "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy"
       }
     }
   },

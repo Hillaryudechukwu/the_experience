@@ -29,7 +29,7 @@ const QUICK_ACTIONS = [
 ];
 
 /**
- * AI Experience Guide (Figma: 49, 50).
+ * AI Interlude Guide (Figma: 49, 50).
  *
  * Presented as a sheet over the trip rather than a tab, because it is a tool
  * you reach for in context, not a destination. Trust markers are part of the
