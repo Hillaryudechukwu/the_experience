@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useExperience, useMarkComplete, useToggleSave } from '../../src/api/hooks';
-import type { Freshness, Offer } from '../../src/api/types';
+import {
+  newIdempotencyKey,
+  recordEvents,
+  useAvailability,
+  useCreateBooking,
+  useExperience,
+  useMarkComplete,
+  useToggleSave,
+} from '../../src/api/hooks';
+import type { AvailabilitySlot, Freshness, Offer } from '../../src/api/types';
 import { ScoreBadge, ScoreExplanation } from '../../src/components/ExperienceScore';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { Photo } from '../../src/components/Photo';
@@ -318,7 +326,11 @@ export default function ExperienceScreen() {
           <Gutter>
             <SectionHeader title="Tickets" caption="Provider-neutral — differences shown plainly" />
             {dynamic.offers.map((offer) => (
-              <OfferCard key={`${offer.provider}-${offer.provider_product_id}`} offer={offer} />
+              <OfferCard
+                key={`${offer.provider}-${offer.provider_product_id}`}
+                offer={offer}
+                experienceId={data.id}
+              />
             ))}
           </Gutter>
         ) : null}
@@ -448,7 +460,11 @@ export default function ExperienceScreen() {
       <Sheet visible={expanded === 'offers'} onClose={() => setExpanded(null)} title="Ticket options">
         <View style={{ gap: space.sm }}>
           {dynamic.offers.map((offer) => (
-            <OfferCard key={`sheet-${offer.provider}-${offer.provider_product_id}`} offer={offer} />
+            <OfferCard
+              key={`sheet-${offer.provider}-${offer.provider_product_id}`}
+              offer={offer}
+              experienceId={data.id}
+            />
           ))}
           {!data.is_completed ? (
             <Button
@@ -577,8 +593,97 @@ function FactTile({ icon, label, value }: { icon: IconName; label: string; value
   );
 }
 
-function OfferCard({ offer }: { offer: Offer }) {
+function slotStartsAt(slot: AvailabilitySlot): string {
+  const time = slot.start_time && /^\d{2}:\d{2}/.test(slot.start_time)
+    ? slot.start_time.slice(0, 5)
+    : '11:30';
+
+  return `${slot.date}T${time}:00`;
+}
+
+function OfferCard({ offer, experienceId }: { offer: Offer; experienceId: string }) {
   const colors = useTheme();
+  const router = useRouter();
+  const createBooking = useCreateBooking();
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const availability = useAvailability(experienceId, picking && offer.fulfilment === 'native');
+  const slots = useMemo(() => {
+    const row = availability.data?.find(
+      (item) =>
+        item.provider === offer.provider && item.provider_product_id === offer.provider_product_id,
+    );
+
+    return row?.slots ?? [];
+  }, [availability.data, offer.provider, offer.provider_product_id]);
+
+  const book = async (startsAt?: string | null) => {
+    const key = newIdempotencyKey();
+    setBusy(true);
+    recordEvents([{ type: 'booking_started', subject_type: 'experience', subject_id: experienceId, properties: { provider: offer.provider } }]);
+
+    try {
+      const booking = await createBooking.mutateAsync({
+        provider: offer.provider,
+        provider_product_id: offer.provider_product_id,
+        quantity: 1,
+        starts_at: startsAt ?? undefined,
+        idempotency_key: key,
+      });
+
+      recordEvents([
+        {
+          type: 'booking_confirmed',
+          subject_type: 'experience',
+          subject_id: experienceId,
+          properties: { provider: offer.provider, state: booking.state, reference: booking.reference },
+        },
+      ]);
+
+      setPicking(false);
+
+      if (booking.redirect_url) {
+        await Linking.openURL(booking.redirect_url);
+      }
+
+      Alert.alert(
+        booking.state === 'confirmed' ? 'Booked' : 'Continue with the supplier',
+        booking.state === 'confirmed'
+          ? `Reference ${booking.reference}. Your tickets are in Bookings.`
+          : `Reference ${booking.reference}. Finish payment with ${offer.provider}, then return to Bookings.`,
+        [
+          { text: 'Stay here', style: 'cancel' },
+          { text: 'Open Bookings', onPress: () => router.push('/(tabs)/bookings') },
+        ],
+      );
+    } catch (cause) {
+      recordEvents([
+        {
+          type: 'booking_failed',
+          subject_type: 'experience',
+          subject_id: experienceId,
+          properties: { provider: offer.provider, message: cause instanceof Error ? cause.message : 'unknown' },
+        },
+      ]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onPress = async () => {
+    if (offer.degraded) {
+      Alert.alert('Supplier unavailable', 'This supplier is not responding right now. Try another option or come back shortly.');
+      return;
+    }
+
+    if (offer.fulfilment === 'redirect') {
+      await book(null);
+      return;
+    }
+
+    setPicking(true);
+  };
 
   return (
     <Card style={{ marginBottom: space.sm }}>
@@ -613,20 +718,61 @@ function OfferCard({ offer }: { offer: Offer }) {
         ) : null}
 
         <Button
-          label={offer.fulfilment === 'native' ? 'Check availability' : 'Continue to supplier'}
+          label={
+            busy
+              ? 'Working…'
+              : offer.fulfilment === 'native'
+                ? 'Check availability'
+                : 'Continue to supplier'
+          }
           tone="secondary"
           size="small"
-          onPress={() =>
-            Alert.alert(
-              'Booking',
-              offer.fulfilment === 'native'
-                ? `Live availability comes from ${offer.provider}. Native checkout is wired end to end in the API.`
-                : `You would be handed to ${offer.provider} to complete payment. Their cancellation terms apply.`,
-            )
-          }
+          onPress={onPress}
+          disabled={busy}
           style={{ alignSelf: 'flex-start' }}
         />
       </View>
+
+      <Sheet
+        visible={picking}
+        onClose={() => !busy && setPicking(false)}
+        title="Choose a time"
+      >
+        <View style={{ gap: space.sm }}>
+          {availability.isLoading ? (
+            <ActivityIndicator color={colors.action.primary} />
+          ) : null}
+
+          {availability.isError ? (
+            <Note tone="warning">
+              {availability.error instanceof Error
+                ? availability.error.message
+                : 'Could not load availability.'}
+            </Note>
+          ) : null}
+
+          {!availability.isLoading && !availability.isError && slots.length === 0 ? (
+            <Note tone="warning">
+              No live slots from {offer.provider} in the next few days. Nothing was booked.
+            </Note>
+          ) : null}
+
+          {slots.map((slot) => {
+            const startsAt = slotStartsAt(slot);
+            const label = `${slot.date}${slot.start_time ? ` · ${slot.start_time.slice(0, 5)}` : ''}`;
+
+            return (
+              <Button
+                key={`${slot.date}-${slot.start_time ?? 'any'}`}
+                label={slot.price ? `${label} · ${slot.price.formatted}` : label}
+                tone="secondary"
+                onPress={() => book(startsAt)}
+                disabled={busy}
+              />
+            );
+          })}
+        </View>
+      </Sheet>
     </Card>
   );
 }

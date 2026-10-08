@@ -119,6 +119,22 @@ export type Offer = {
   degraded: boolean;
 };
 
+export type AvailabilitySlot = {
+  date: string;
+  start_time: string | null;
+  slots_remaining: number | null;
+  price: Money | null;
+};
+
+export type ProviderAvailability = {
+  provider: string;
+  provider_product_id: string;
+  slots: AvailabilitySlot[];
+  freshness: Freshness;
+  is_live: boolean;
+  unavailable_reason: string | null;
+};
+
 export type DiscoveryContext = {
   local_time: string;
   location_precision: string;

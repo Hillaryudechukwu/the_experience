@@ -17,6 +17,8 @@ export const ROUTES = [
   '/essentials',
   '/anchors',
   '/account/delete',
+  '/account/login',
+  '/account/register',
   '/onboarding',
   '/onboarding/destination',
   '/onboarding/purpose',

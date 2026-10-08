@@ -172,6 +172,9 @@ content. Ingestion fills their gaps and never overwrites them.
   environment differed from the spec.
 - [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) — every V1 acceptance criterion from §35
   mapped to the test that proves it.
+- [`docs/PRODUCTION_READINESS_JEM.md`](docs/PRODUCTION_READINESS_JEM.md) — Full V1+
+  phased plan from booking close through store GA, notifications, group votes,
+  admin UI, and hardening.
 - [`docs/API.md`](docs/API.md) — the endpoint surface from §21.
 - [`docs/DYNAMIC_DESTINATION_COVERAGE_JEM.md`](docs/DYNAMIC_DESTINATION_COVERAGE_JEM.md) — implementation JEM for discovering, activating, and safely ingesting unseeded destinations on demand.
 - [`docs/DYNAMIC_DESTINATION_RUNBOOK.md`](docs/DYNAMIC_DESTINATION_RUNBOOK.md) — production rollout, queue, retry, outage, and budget operations.

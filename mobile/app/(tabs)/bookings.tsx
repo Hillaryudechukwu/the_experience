@@ -1,8 +1,8 @@
 import React from 'react';
-import { Linking, View } from 'react-native';
+import { Alert, Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useBookings, type BookingSummary } from '../../src/api/hooks';
+import { useBookings, useCancelBooking, type BookingSummary } from '../../src/api/hooks';
 import { Icon } from '../../src/components/Icon';
 import { StatusPill, type StatusKind } from '../../src/components/StatusPill';
 import {
@@ -42,8 +42,11 @@ function pillFor(state: string): { kind: StatusKind; label: string } {
   }
 }
 
+function canAttemptCancel(state: string): boolean {
+  return !['cancelled', 'refunded', 'partially_refunded', 'failed'].includes(state);
+}
+
 export default function Bookings() {
-  const colors = useTheme();
   const router = useRouter();
   const { data: bookings, isLoading } = useBookings();
 
@@ -102,8 +105,36 @@ export default function Bookings() {
 
 function BookingCard({ booking }: { booking: BookingSummary }) {
   const colors = useTheme();
+  const cancel = useCancelBooking();
   const pill = pillFor(booking.state);
   const first = booking.items[0];
+
+  const onCancel = () => {
+    Alert.alert('Cancel this booking?', 'We will ask the supplier to cancel if they support it here.', [
+      { text: 'Keep it', style: 'cancel' },
+      {
+        text: 'Cancel booking',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const result = await cancel.mutateAsync(booking.id);
+            if (result.cancellable_here === false) {
+              Alert.alert('Could not cancel here', result.message ?? 'Please cancel with the supplier.');
+              return;
+            }
+            Alert.alert(
+              'Cancelled',
+              result.refund_expected
+                ? 'The supplier has cancelled it. Any refund follows their policy.'
+                : 'This booking is cancelled.',
+            );
+          } catch {
+            /* useCancelBooking already alerts */
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <Card style={{ marginBottom: space.sm }}>
@@ -160,15 +191,26 @@ function BookingCard({ booking }: { booking: BookingSummary }) {
           </>
         ) : null}
 
-        {booking.redirect_url && booking.state === 'awaiting_payment' ? (
-          <Button
-            label="Continue on supplier site"
-            tone="secondary"
-            size="small"
-            onPress={() => Linking.openURL(booking.redirect_url!)}
-            style={{ alignSelf: 'flex-start' }}
-          />
-        ) : null}
+        <Row gap={space.sm} wrap>
+          {booking.redirect_url && booking.state === 'awaiting_payment' ? (
+            <Button
+              label="Continue on supplier site"
+              tone="secondary"
+              size="small"
+              onPress={() => Linking.openURL(booking.redirect_url!)}
+            />
+          ) : null}
+
+          {canAttemptCancel(booking.state) ? (
+            <Button
+              label={cancel.isPending ? 'Cancelling…' : 'Cancel'}
+              tone="secondary"
+              size="small"
+              onPress={onCancel}
+              disabled={cancel.isPending}
+            />
+          ) : null}
+        </Row>
       </View>
     </Card>
   );

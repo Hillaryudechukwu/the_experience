@@ -3,7 +3,13 @@ import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { API_URL, http } from '../../src/api/client';
-import { useExperienceDna, usePassport, useProfile, useUpdateProfile } from '../../src/api/hooks';
+import {
+  useExperienceDna,
+  useLogout,
+  usePassport,
+  useProfile,
+  useUpdateProfile,
+} from '../../src/api/hooks';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { Button, Card, CardPress, Chip, Divider, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
 import { titleCase } from '../../src/lib/format';
@@ -45,6 +51,7 @@ export default function You() {
   const { data: dna } = useExperienceDna();
   const { data: passport } = usePassport();
   const update = useUpdateProfile();
+  const logout = useLogout();
 
   /* Loading and "did not load" are different states. Collapsing them into one
      spinner meant a failed request turned forever. */
@@ -82,13 +89,24 @@ export default function You() {
       <Gutter style={{ paddingTop: space.sm }}>
         <T variant="displayL">You</T>
         {profile.is_guest ? (
-          <View style={{ marginTop: space.md }}>
+          <View style={{ marginTop: space.md, gap: space.sm }}>
             <Note tone="info" icon={<Icon name="info" size={16} color={colors.action.onSoft} />}>
               Browsing as a guest. Saving, planning and booking all work. Create an account only when you want
               this across devices.
             </Note>
+            <Row gap={space.sm} wrap>
+              <Button label="Create an account" onPress={() => router.push('/account/register')} />
+              <Button label="Sign in" tone="secondary" onPress={() => router.push('/account/login')} />
+            </Row>
           </View>
-        ) : null}
+        ) : (
+          <View style={{ marginTop: space.md }}>
+            <Note>
+              Signed in{profile.display_name ? ` as ${profile.display_name}` : ''}. Your trip follows this
+              account across devices.
+            </Note>
+          </View>
+        )}
       </Gutter>
 
       {/* ── Experience DNA ─────────────────────────────────────────────── */}
@@ -251,6 +269,32 @@ export default function You() {
           buried behind a support email. */}
       <Gutter style={{ marginTop: space.lg }}>
         <Card>
+          {!profile.is_guest ? (
+            <>
+              <LinkRow
+                icon="close"
+                label="Sign out"
+                onPress={() =>
+                  Alert.alert('Sign out?', 'This device goes back to browsing as a guest.', [
+                    { text: 'Stay signed in', style: 'cancel' },
+                    {
+                      text: 'Sign out',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          await logout.mutateAsync();
+                          router.replace('/(tabs)/you');
+                        } catch {
+                          /* hook alerts */
+                        }
+                      },
+                    },
+                  ])
+                }
+              />
+              <Divider />
+            </>
+          ) : null}
           <LinkRow
             icon="lock"
             label="Privacy policy"

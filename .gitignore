@@ -18,3 +18,4 @@ api/.phpunit.result.cache
 mobile/.expo/
 mobile/dist/
 mobile/web-build/
+mobile/credentials.json

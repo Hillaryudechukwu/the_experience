@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from 'react-native';
 
-import { clearIdentity, http } from './client';
+import { clearIdentity, http, setAuthToken } from './client';
 import type {
   AssistantReply,
   Destination,
@@ -16,11 +16,21 @@ import type {
   Itinerary,
   Journey,
   Passport,
+  ProviderAvailability,
   TravellerProfile,
   UncoveredPlace,
   Trip,
 } from './types';
 import { discoveryPayload, useSession } from '../store/session';
+
+/** Stable per-intent key so a retried tap cannot create a second booking. */
+export function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
 
 const wrapped = <T>(p: Promise<{ data: T }>) => p.then((r) => r.data);
 
@@ -339,13 +349,134 @@ export type BookingSummary = {
   total: { minor: number; currency: string; formatted: string } | null;
   cancellation_policy: string | null;
   failure_reason: string | null;
+  replayed?: boolean;
   items: { id: string; title: string; experience_id: string | null; quantity: number; starts_at: string | null }[];
+};
+
+export type CreateBookingInput = {
+  provider: string;
+  provider_product_id: string;
+  quantity?: number;
+  starts_at?: string | null;
+  journey_id?: string | null;
+  trip_id?: string | null;
+  idempotency_key?: string;
+};
+
+export type CancelBookingResult = BookingSummary & {
+  cancellable_here?: boolean;
+  message?: string;
+  refund_expected?: boolean;
 };
 
 export function useBookings() {
   return useQuery({
     queryKey: ['bookings'],
     queryFn: () => wrapped(http.get<{ data: BookingSummary[] }>('/bookings')),
+  });
+}
+
+export function useAvailability(experienceId: string, enabled = false) {
+  return useQuery({
+    enabled: enabled && !!experienceId,
+    queryKey: ['availability', experienceId],
+    queryFn: () =>
+      wrapped(http.get<{ data: ProviderAvailability[] }>(`/experiences/${experienceId}/availability`)),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateBooking() {
+  const client = useQueryClient();
+  const session = useSession();
+
+  return useMutation({
+    mutationFn: (input: CreateBookingInput) => {
+      const key = input.idempotency_key ?? newIdempotencyKey();
+      const { idempotency_key: _omit, ...body } = input;
+
+      return wrapped(
+        http.post<{ data: BookingSummary }>(
+          '/bookings',
+          {
+            ...body,
+            quantity: body.quantity ?? 1,
+            journey_id: body.journey_id ?? session.journeyId,
+            trip_id: body.trip_id ?? session.tripId,
+          },
+          { 'Idempotency-Key': key },
+        ),
+      );
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['bookings'] });
+    },
+    onError: reportFailure('complete that booking'),
+  });
+}
+
+export function useCancelBooking() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (bookingId: string) =>
+      wrapped(http.post<{ data: CancelBookingResult }>(`/bookings/${bookingId}/cancel`, {})),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['bookings'] });
+    },
+    onError: reportFailure('cancel that booking'),
+  });
+}
+
+export type AuthUser = { id: number; name: string; email: string };
+
+export function useRegister() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { name: string; email: string; password: string }) => {
+      const result = await http.post<{ token: string; user: AuthUser }>('/auth/register', body);
+      await setAuthToken(result.token);
+      return result.user;
+    },
+    onSuccess: () => {
+      client.invalidateQueries();
+    },
+    onError: reportFailure('create your account'),
+  });
+}
+
+export function useLogin() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { email: string; password: string }) => {
+      const result = await http.post<{ token: string; user: AuthUser }>('/auth/login', body);
+      await setAuthToken(result.token);
+      return result.user;
+    },
+    onSuccess: () => {
+      client.invalidateQueries();
+    },
+    onError: reportFailure('sign in'),
+  });
+}
+
+export function useLogout() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      try {
+        await http.post('/auth/logout');
+      } finally {
+        await clearIdentity();
+      }
+    },
+    onSuccess: () => {
+      client.clear();
+    },
+    onError: reportFailure('sign out'),
   });
 }
 
