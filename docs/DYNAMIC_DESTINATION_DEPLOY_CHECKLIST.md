@@ -6,8 +6,11 @@
 
 **Dark deployment completed; NO-GO for general availability.** Production is
 healthy with rollout at 0%, prewarming disabled, and the scheduler installed.
-Provider budgets, code review/CI evidence, and a controlled allowlisted import
-remain required before enabling any traveller cohort.
+Provider budgets and a controlled allowlisted import remain required before
+enabling any traveller cohort. Operator ladder:
+[`DESTINATION_ACTIVATION_GA_RUNBOOK.md`](DESTINATION_ACTIVATION_GA_RUNBOOK.md).
+Stale recovery covers both queued (`queue_stalled`) and running (`worker_stalled`)
+imports older than 15 minutes.
 
 ## Pre-deploy
 

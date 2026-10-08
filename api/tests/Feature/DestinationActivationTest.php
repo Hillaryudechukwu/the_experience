@@ -241,6 +241,33 @@ class DestinationActivationTest extends TestCase
             ->assertJsonPath('code', 'destination_activation_not_in_rollout');
     }
 
+    public function test_an_allowed_candidate_bypasses_a_closed_rollout(): void
+    {
+        config()->set('experience.destination_activation.rollout_percentage', 0);
+        config()->set('experience.destination_activation.allowed_cities', []);
+        config()->set('experience.destination_activation.allowed_candidates', [
+            'nominatim:relation/67890',
+        ]);
+
+        $this->postJson('/api/destinations/activate', [
+            'candidate_token' => $this->candidateToken('relation/67890', 'Oslo', 'NO'),
+        ])->assertAccepted();
+
+        $this->postJson('/api/destinations/activate', [
+            'candidate_token' => $this->candidateToken(),
+        ])->assertForbidden()
+            ->assertJsonPath('code', 'destination_activation_not_in_rollout');
+    }
+
+    public function test_the_kill_switch_returns_service_unavailable(): void
+    {
+        config()->set('experience.destination_activation.enabled', false);
+
+        $this->postJson('/api/destinations/activate', [
+            'candidate_token' => $this->candidateToken(),
+        ])->assertStatus(503);
+    }
+
     public function test_global_daily_limit_applies_across_different_guests(): void
     {
         config()->set('experience.destination_activation.daily_global_limit', 1);
