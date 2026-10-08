@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\AI\Services\IntentParser;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
+use App\Domains\Destinations\Services\EnsureDestinationReadyForDiscovery;
 use App\Domains\Discovery\Services\NameRelevance;
 use App\Domains\Experiences\Services\ExperiencePresenter;
 use App\Domains\Recommendations\DTO\ScoredExperience;
@@ -26,6 +27,7 @@ class DiscoveryController extends ApiController
         private readonly IntentParser $intents,
         private readonly RecordBehaviouralEvent $events,
         private readonly NameRelevance $relevance,
+        private readonly EnsureDestinationReadyForDiscovery $destinationReadiness,
     ) {}
 
     /** Spec s4.1 — "I'm Here Now". */
@@ -177,6 +179,7 @@ class DiscoveryController extends ApiController
             'lng' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'location_precision' => ['sometimes', Rule::in(['precise', 'approximate'])],
             'destination' => ['sometimes', 'nullable', 'string'],
+            'destination_id' => ['sometimes', 'nullable', 'uuid'],
             'journey_id' => ['sometimes', 'nullable', 'uuid'],
             'categories' => ['sometimes', 'array'],
             'exclude_categories' => ['sometimes', 'array'],
@@ -185,7 +188,7 @@ class DiscoveryController extends ApiController
             'radius_metres' => ['sometimes', 'integer', 'min:200', 'max:50000'],
         ]);
 
-        return array_filter([
+        $input = array_filter([
             'surface' => $surface,
             'lat' => $request->input('lat'),
             'lng' => $request->input('lng'),
@@ -201,5 +204,9 @@ class DiscoveryController extends ApiController
             'radius_metres' => $request->input('radius_metres'),
             'query' => $request->input('query'),
         ], fn ($v) => $v !== null);
+
+        $this->destinationReadiness->handle($this->actor($request), $input);
+
+        return $input;
     }
 }

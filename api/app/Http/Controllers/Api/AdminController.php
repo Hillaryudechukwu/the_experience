@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domains\Destinations\Actions\RetryDestinationImport;
+use App\Domains\Destinations\Models\DestinationImport;
+use App\Domains\Destinations\Services\DestinationQualityReporter;
 use App\Domains\ExternalSources\Models\ExternalEntity;
 use App\Domains\ExternalSources\Models\ProviderHealth;
 use App\Domains\ExternalSources\Models\ProviderSyncFailure;
 use App\Domains\ExternalSources\Services\ProviderRegistry;
+use App\Domains\Journeys\Models\JourneyContextSnapshot;
 use App\Domains\Places\Models\PlaceMergeCandidate;
 use App\Domains\Recommendations\Models\RecommendationSet;
 use Illuminate\Http\JsonResponse;
@@ -43,6 +47,38 @@ class AdminController extends ApiController
                 ]);
             })->values()->all(),
         ]);
+    }
+
+    public function destinationImports(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['sometimes', 'string', 'max:24'],
+            'provider' => ['sometimes', 'string', 'max:48'],
+            'destination_id' => ['sometimes', 'uuid'],
+        ]);
+
+        $imports = DestinationImport::query()
+            ->with('destination:id,name,slug,country,coverage_status')
+            ->when($data['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($data['provider'] ?? null, fn ($query, $provider) => $query->where('provider_key', $provider))
+            ->when($data['destination_id'] ?? null, fn ($query, $destinationId) => $query->where('destination_id', $destinationId))
+            ->latest()
+            ->limit(100)
+            ->get();
+
+        return response()->json(['data' => $imports]);
+    }
+
+    public function retryDestinationImport(string $import, RetryDestinationImport $retry): JsonResponse
+    {
+        $next = $retry->handle(DestinationImport::findOrFail($import));
+
+        return response()->json(['data' => $next], 202);
+    }
+
+    public function destinationQuality(DestinationQualityReporter $reporter): JsonResponse
+    {
+        return response()->json(['data' => $reporter->report()]);
     }
 
     public function syncFailures(Request $request): JsonResponse
@@ -94,7 +130,7 @@ class AdminController extends ApiController
         $model = RecommendationSet::with(['recommendations.reasons', 'recommendations.experience'])
             ->findOrFail($set);
 
-        $snapshot = \App\Domains\Journeys\Models\JourneyContextSnapshot::find($model->journey_context_snapshot_id);
+        $snapshot = JourneyContextSnapshot::find($model->journey_context_snapshot_id);
 
         return response()->json([
             'data' => [

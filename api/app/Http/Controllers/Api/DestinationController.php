@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
+use App\Domains\Destinations\Actions\ActivateDestination;
+use App\Domains\Destinations\Actions\RecordDestinationDemand;
 use App\Domains\Destinations\Models\Destination;
+use App\Domains\Destinations\Services\DestinationActivationGate;
+use App\Domains\Destinations\Services\DestinationCandidateToken;
+use App\Domains\Destinations\ValueObjects\DestinationCandidate;
 use App\Domains\ExternalSources\Providers\NominatimGeocoder;
+use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,16 +28,22 @@ class DestinationController extends ApiController
      * country — never a building, a road or a shop, all of which Nominatim
      * will return for a short query.
      */
-    private const TRAVELLABLE = ['city', 'town', 'village', 'municipality', 'state', 'province', 'country', 'island'];
+    private const TRAVELLABLE = ['city', 'town', 'village', 'municipality'];
 
-    public function __construct(private readonly NominatimGeocoder $geocoder) {}
+    public function __construct(
+        private readonly NominatimGeocoder $geocoder,
+        private readonly DestinationCandidateToken $candidateTokens,
+        private readonly DestinationActivationGate $activationGate,
+        private readonly RecordBehaviouralEvent $events,
+        private readonly RecordDestinationDemand $demand,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
         $query = Destination::query();
 
         if ($term = $request->query('q')) {
-            $like = '%' . mb_strtolower($term) . '%';
+            $like = '%'.mb_strtolower($term).'%';
 
             /*
              * Country as well as city.
@@ -56,28 +69,53 @@ class DestinationController extends ApiController
             $destinations = $destinations->sortBy(fn (Destination $d) => $point->distanceTo($d->point()))->values();
         }
 
+        $catalogue = $destinations->map(fn (Destination $d) => [
+            'id' => $d->id,
+            'slug' => $d->slug,
+            'name' => $d->name,
+            'country' => $d->country,
+            'timezone' => $d->timezone,
+            'currency' => $d->currency,
+            'lat' => $d->lat,
+            'lng' => $d->lng,
+            'hero_image_url' => $d->hero_image_url,
+            'hero_image_attribution' => $d->hero_image_attribution,
+            'summary' => $d->summary,
+            'kind' => 'destination',
+            'source' => 'catalogue',
+            'coverage_status' => $d->coverage_status->value,
+        ])->all();
+
+        $demandActor = $request->hasHeader('X-Guest-Token') || $request->user() !== null
+            ? $this->actor($request)
+            : new Actor(guestSessionId: 'anonymous:'.hash('sha256', (string) $request->ip()));
+        $elsewhere = $this->elsewhere($request, $destinations->count(), $demandActor);
+
+        $term = trim((string) $request->query('q'));
+        /* Do not create an event under a guest identity the caller has not yet
+           received and persisted. Such an orphan cannot be included in a
+           later export or deletion request from that traveller. */
+        if ($term !== '' && ($request->hasHeader('X-Guest-Token') || $request->user() !== null)) {
+            $this->events->record($this->actor($request), 'destination_search_submitted', [
+                'surface' => 'destination_onboarding',
+                'properties' => [
+                    'query_length' => mb_strlen($term),
+                    'catalogue_results' => count($catalogue),
+                    'candidate_results' => count($elsewhere),
+                    'remote_search_used' => $elsewhere !== [],
+                ],
+            ]);
+        }
+
         return response()->json([
-            'data' => $destinations->map(fn (Destination $d) => [
-                'id' => $d->id,
-                'slug' => $d->slug,
-                'name' => $d->name,
-                'country' => $d->country,
-                'timezone' => $d->timezone,
-                'currency' => $d->currency,
-                'lat' => $d->lat,
-                'lng' => $d->lng,
-                'hero_image_url' => $d->hero_image_url,
-                'hero_image_attribution' => $d->hero_image_attribution,
-                'summary' => $d->summary,
-            ])->all(),
+            'data' => $catalogue,
 
             /*
              * Anywhere else on earth, deliberately in its own key.
              *
-             * The catalogue is four cities, so a traveller typing "Paris" used
-             * to get an empty list and no idea whether the place or the app was
-             * at fault. Geocoding answers that: the city exists, we simply do
-             * not cover it.
+             * The catalogue covers major tourism cities, but a traveller can
+             * still search for somewhere outside it. Geocoding distinguishes
+             * an uncovered city from a place that cannot be found at all.
              *
              * These are NOT in `data`, and that separation is the whole point.
              * A geocoded city has no experiences behind it, so returning it
@@ -86,7 +124,12 @@ class DestinationController extends ApiController
              * which is a worse answer than "not yet". A distinct key makes that
              * impossible to do by accident.
              */
-            'elsewhere' => $this->elsewhere($request, $destinations->count()),
+            'elsewhere' => $elsewhere,
+            'results' => array_merge($catalogue, $elsewhere),
+            'meta' => [
+                'query' => $term,
+                'remote_search_used' => $elsewhere !== [],
+            ],
         ]);
     }
 
@@ -100,11 +143,11 @@ class DestinationController extends ApiController
      *
      * @return list<array<string, mixed>>
      */
-    private function elsewhere(Request $request, int $covered): array
+    private function elsewhere(Request $request, int $covered, ?Actor $demandActor): array
     {
         $term = trim((string) $request->query('q'));
 
-        if ($covered > 0 || mb_strlen($term) < 3) {
+        if (($covered > 0 && ! $request->boolean('worldwide')) || mb_strlen($term) < 3) {
             return [];
         }
 
@@ -125,25 +168,83 @@ class DestinationController extends ApiController
                postboxes. */
             ->filter(fn (array $row) => $row['name'] !== ''
                 && $row['country'] !== null
+                && $row['country_code'] !== null
                 && in_array($row['kind'] ?? '', self::TRAVELLABLE, true))
             /* Nominatim returns the same city more than once — the settlement
                and the administrative area that shares its name — and three
                identical rows reads as a broken list. */
-            ->unique(fn (array $row) => mb_strtolower($row['name'] . '|' . $row['country']))
+            ->unique(fn (array $row) => mb_strtolower($row['name'].'|'.$row['country']))
             ->take(4)
-            ->map(fn (array $row) => [
-                'name' => $row['name'],
-                'display_name' => $row['display_name'],
-                'country' => $row['country'],
-                'country_code' => $row['country_code'],
-                'lat' => $row['lat'],
-                'lng' => $row['lng'],
-                /* Stated rather than implied, so nothing downstream has to
+            ->map(function (array $row) use ($demandActor) {
+                $candidate = new DestinationCandidate(
+                    provider: 'nominatim',
+                    externalId: $row['osm_id'],
+                    name: $row['name'],
+                    region: $row['region'] ?? null,
+                    country: $row['country'],
+                    countryCode: $row['country_code'],
+                    lat: $row['lat'],
+                    lng: $row['lng'],
+                    kind: $row['kind'],
+                );
+                if ($demandActor !== null) {
+                    $this->demand->record($candidate, $demandActor);
+                }
+
+                return [
+                    'name' => $row['name'],
+                    'display_name' => $row['display_name'],
+                    'country' => $row['country'],
+                    'country_code' => $row['country_code'],
+                    'region' => $row['region'] ?? null,
+                    'lat' => $row['lat'],
+                    'lng' => $row['lng'],
+                    /* Stated rather than implied, so nothing downstream has to
                    infer it from a missing id. */
-                'covered' => false,
-            ])
+                    'covered' => false,
+                    'kind' => 'destination_candidate',
+                    'source' => 'nominatim',
+                    'coverage_status' => 'discoverable',
+                    'candidate_token' => $this->candidateTokens->issue($candidate),
+                ];
+            })
             ->values()
             ->all();
+    }
+
+    public function activate(Request $request, ActivateDestination $activate): JsonResponse
+    {
+        abort_unless((bool) config('experience.destination_activation.enabled'), 503, 'Destination activation is temporarily unavailable.');
+
+        $data = $request->validate(['candidate_token' => ['required', 'string', 'max:4096']]);
+        $actor = $this->actor($request);
+        $candidate = $this->candidateTokens->verify($data['candidate_token']);
+        $this->activationGate->assertAllowed($actor, (string) $request->ip(), $candidate);
+
+        $result = $activate->handle($data['candidate_token'], $actor);
+        $destination = $result['destination'];
+        $import = $result['import'];
+
+        if ($result['import_created']) {
+            $this->activationGate->record($actor, (string) $request->ip());
+            $this->events->record($actor, 'destination_activation_requested', [
+                'subject_type' => 'destination',
+                'subject_id' => $destination->id,
+                'surface' => 'destination_onboarding',
+                'properties' => ['import_id' => $import?->id, 'provider' => $candidate->provider],
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'destination_id' => $destination->id,
+                'destination_slug' => $destination->slug,
+                'coverage_status' => $destination->coverage_status->value,
+                'import_id' => $import?->id,
+                'stage' => $import?->stage->value,
+                'poll_after_seconds' => $import === null ? null : 3,
+            ],
+        ], $import === null ? 200 : 202);
     }
 
     public function show(string $destination): JsonResponse

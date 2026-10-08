@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domains\AI\Services;
 
 use App\Domains\AI\Models\AssistantConversation;
-use App\Domains\AI\Models\AssistantMessage;
 use App\Domains\AI\Tools\AssistantToolbox;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
@@ -13,7 +12,7 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The AI Experience Guide (spec s15).
+ * The AI Interlude Guide (spec s15).
  *
  * The orchestrator reasons *over* trusted services; it is never the factual
  * database. Two drivers share the same toolbox and the same grounding guard:
@@ -242,7 +241,7 @@ class AssistantOrchestrator
     private function systemPrompt(): string
     {
         return <<<'PROMPT'
-        You are the Experience Guide inside a travel app.
+        You are the Interlude Guide inside a travel app.
 
         Rules you must follow:
         - Every price, opening time, duration, travel time and availability you state must come
@@ -283,10 +282,10 @@ class AssistantOrchestrator
 
             $line = implode(' · ', $parts);
             if ($why !== null) {
-                $line .= '. ' . $why . '.';
+                $line .= '. '.$why.'.';
             }
             if (($result['caveats'][0] ?? null) !== null) {
-                $line .= ' One thing to know: ' . lcfirst($result['caveats'][0]) . '.';
+                $line .= ' One thing to know: '.lcfirst($result['caveats'][0]).'.';
             }
 
             $lines[] = $line;
@@ -342,7 +341,7 @@ class AssistantOrchestrator
         $lines = ['Here is how your plan looks.'];
 
         foreach ($facts['days'] as $day) {
-            $lines[] = $day['date'] . ':';
+            $lines[] = $day['date'].':';
             foreach ($day['items'] as $item) {
                 $lines[] = sprintf(
                     '- %s %s%s',

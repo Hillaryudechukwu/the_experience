@@ -30,7 +30,7 @@ class NominatimGeocoder
         return 'Geocoding © OpenStreetMap contributors (ODbL)';
     }
 
-    /** @return list<array{name:string,display_name:string,lat:float,lng:float,country:?string,country_code:?string,osm_id:string,kind:?string}> */
+    /** @return list<array{name:string,display_name:string,lat:float,lng:float,country:?string,country_code:?string,region:?string,osm_id:string,kind:?string}> */
     public function search(string $query, int $limit = 5): array
     {
         $query = trim($query);
@@ -40,12 +40,12 @@ class NominatimGeocoder
         }
 
         return Cache::remember(
-            'nominatim:search:v2:' . config('app.locale', 'en') . ':' . mb_strtolower($query) . ":{$limit}",
+            'nominatim:search:v2:'.config('app.locale', 'en').':'.mb_strtolower($query).":{$limit}",
             (int) config('experience.place_data.osm.geocode_cache_seconds', 604800),
             function () use ($query, $limit) {
                 $response = $this->http
                     ->for($this->key())
-                    ->get(rtrim((string) config('experience.place_data.osm.nominatim_url'), '/') . '/search', [
+                    ->get(rtrim((string) config('experience.place_data.osm.nominatim_url'), '/').'/search', [
                         'q' => $query,
                         'format' => 'jsonv2',
                         'addressdetails' => 1,
@@ -69,10 +69,11 @@ class NominatimGeocoder
                         'lat' => (float) $row['lat'],
                         'lng' => (float) $row['lon'],
                         'country' => $row['address']['country'] ?? null,
+                        'region' => $row['address']['state'] ?? $row['address']['region'] ?? $row['address']['county'] ?? null,
                         'country_code' => isset($row['address']['country_code'])
                             ? mb_strtoupper($row['address']['country_code'])
                             : null,
-                        'osm_id' => ($row['osm_type'] ?? 'node') . '/' . ($row['osm_id'] ?? ''),
+                        'osm_id' => ($row['osm_type'] ?? 'node').'/'.($row['osm_id'] ?? ''),
                         /* What sort of thing this is — "city", "town",
                            "country", but also "shop" or "postbox", because
                            Nominatim answers a vague query with anything it can
@@ -95,7 +96,7 @@ class NominatimGeocoder
             function () use ($point) {
                 $response = $this->http
                     ->for($this->key())
-                    ->get(rtrim((string) config('experience.place_data.osm.nominatim_url'), '/') . '/reverse', [
+                    ->get(rtrim((string) config('experience.place_data.osm.nominatim_url'), '/').'/reverse', [
                         'lat' => $point->lat,
                         'lon' => $point->lng,
                         'format' => 'jsonv2',

@@ -9,6 +9,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,6 +21,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        /* Shared-host MySQL/MariaDB installations can retain the legacy
+           1000-byte index limit. At four bytes per utf8mb4 character, the
+           framework's default varchar(255) exceeds it; 191 remains indexable. */
+        Schema::defaultStringLength(191);
+
         /*
          * A JSON column with a default, on both databases.
          *
@@ -49,8 +55,8 @@ class AppServiceProvider extends ServiceProvider
            a hotel or conference wifi puts hundreds of travellers behind one address. */
         RateLimiter::for('api', function (Request $request) {
             $key = $request->user()?->id
-                ? 'user:' . $request->user()->id
-                : 'guest:' . ($request->header('X-Guest-Token') ?: $request->ip());
+                ? 'user:'.$request->user()->id
+                : 'guest:'.($request->header('X-Guest-Token') ?: $request->ip());
 
             return [
                 Limit::perMinute(120)->by($key),

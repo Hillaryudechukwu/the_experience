@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Domains\ExternalSources\Contracts\PlaceDataProvider;
+use App\Domains\ExternalSources\Contracts\PlaceEnricher;
+use App\Domains\ExternalSources\Services\ProviderRegistry;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
+use App\Http\Controllers\Api\DestinationImportController;
 use App\Http\Controllers\Api\DiscoveryController;
 use App\Http\Controllers\Api\ExperienceController;
 use App\Http\Controllers\Api\ItineraryItemController;
@@ -16,7 +20,8 @@ use App\Http\Controllers\Api\PassportController;
 use App\Http\Controllers\Api\PrivacyController;
 use App\Http\Controllers\Api\TravellerProfileController;
 use App\Http\Controllers\Api\TripController;
-use App\Domains\ExternalSources\Services\ProviderRegistry;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -47,6 +52,9 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::delete('journeys/{journey}/anchors/{anchor}', [JourneyController::class, 'destroyAnchor']);
 
     Route::get('destinations', [DestinationController::class, 'index']);
+    Route::post('destinations/activate', [DestinationController::class, 'activate'])->middleware('throttle:6,1');
+    Route::get('destination-imports/{import}', [DestinationImportController::class, 'show'])->middleware('throttle:30,1');
+    Route::post('destination-imports/{import}/retry', [DestinationImportController::class, 'retry'])->middleware('throttle:10,1');
     Route::get('destinations/{destination}', [DestinationController::class, 'show']);
 
     Route::post('discovery/now', [DiscoveryController::class, 'now']);
@@ -95,6 +103,9 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
 /* Operations. Sanctum-authenticated and gated by the admin ability. */
 Route::middleware(['guest.actor', 'auth:sanctum', 'ability:admin'])->prefix('admin')->group(function () {
     Route::get('providers', [AdminController::class, 'providers']);
+    Route::get('destination-imports', [AdminController::class, 'destinationImports']);
+    Route::post('destination-imports/{import}/retry', [AdminController::class, 'retryDestinationImport']);
+    Route::get('destination-quality', [AdminController::class, 'destinationQuality']);
     Route::get('sync-failures', [AdminController::class, 'syncFailures']);
     Route::post('sync-failures/{failure}/resolve', [AdminController::class, 'resolveSyncFailure']);
     Route::get('merge-candidates', [AdminController::class, 'mergeCandidates']);
@@ -103,12 +114,34 @@ Route::middleware(['guest.actor', 'auth:sanctum', 'ability:admin'])->prefix('adm
 });
 
 /* Liveness plus provider capability, so the app can degrade knowingly. */
-Route::get('health', function (ProviderRegistry $registry) {
+Route::get('health', function (
+    ProviderRegistry $registry,
+    PlaceDataProvider $placeData,
+    PlaceEnricher $placeEnricher,
+) {
+    $heartbeat = (int) Cache::get('health:queue-worker-heartbeat', 0);
+    $queueLagSeconds = DB::table('jobs')
+        ->whereNull('reserved_at')
+        ->min('available_at');
+    $queueLagSeconds = $queueLagSeconds === null ? 0 : max(0, now()->timestamp - (int) $queueLagSeconds);
+
     return response()->json([
-        'status' => 'ok',
+        'status' => $heartbeat > now()->subMinutes(3)->timestamp ? 'ok' : 'degraded',
         'engine_version' => config('experience.engine_version'),
         'providers' => $registry->status(),
         'weather_driver' => config('experience.weather.driver'),
         'assistant_driver' => config('experience.assistant.driver'),
+        'queue_driver' => config('queue.default'),
+        'destination_pipeline' => [
+            'activation_enabled' => (bool) config('experience.destination_activation.enabled'),
+            'rollout_percentage' => (int) config('experience.destination_activation.rollout_percentage'),
+            'place_provider' => $placeData->key(),
+            'place_provider_configured' => $placeData->isConfigured(),
+            'content_enricher' => $placeEnricher->key(),
+            'geocoder_configured' => filled(config('experience.place_data.osm.nominatim_url')),
+            'queue_worker_alive' => $heartbeat > now()->subMinutes(3)->timestamp,
+            'queue_lag_seconds' => $queueLagSeconds,
+            'failed_jobs' => DB::table('failed_jobs')->count(),
+        ],
     ]);
 });

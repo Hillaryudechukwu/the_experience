@@ -18,27 +18,27 @@ return [
          */
         'weights' => [
             'personal_interest_fit' => 0.20,
-            'journey_purpose_fit'   => 0.20,
-            'quality_confidence'    => 0.15,
-            'uniqueness'            => 0.10,
-            'current_time_fit'      => 0.10,
-            'location_convenience'  => 0.10,
-            'value'                 => 0.05,
-            'weather_fit'           => 0.05,
-            'companion_fit'         => 0.05,
+            'journey_purpose_fit' => 0.20,
+            'quality_confidence' => 0.15,
+            'uniqueness' => 0.10,
+            'current_time_fit' => 0.10,
+            'location_convenience' => 0.10,
+            'value' => 0.05,
+            'weather_fit' => 0.05,
+            'companion_fit' => 0.05,
         ],
 
         /* Hard filters are applied before scoring — they are never traded off. */
         'hard_filters' => [
-            'respect_opening_hours'   => true,
-            'respect_time_window'     => true,
-            'respect_accessibility'   => true,
-            'respect_avoid_list'      => true,
-            'exclude_completed'       => true,
+            'respect_opening_hours' => true,
+            'respect_time_window' => true,
+            'respect_accessibility' => true,
+            'respect_avoid_list' => true,
+            'exclude_completed' => true,
         ],
 
         'cache_ttl_seconds' => 300,
-        'max_candidates'    => 400,
+        'max_candidates' => 400,
     ],
 
     'interests' => [
@@ -282,8 +282,8 @@ return [
      * the client as stale rather than presented as current truth.
      */
     'freshness' => [
-        'static'         => ['ttl_seconds' => 2592000, 'label' => 'Rarely changes'],
-        'semi_dynamic'   => ['ttl_seconds' => 86400,   'label' => 'Checked daily'],
+        'static' => ['ttl_seconds' => 2592000, 'label' => 'Rarely changes'],
+        'semi_dynamic' => ['ttl_seconds' => 86400,   'label' => 'Checked daily'],
         'highly_dynamic' => ['ttl_seconds' => 900,     'label' => 'Checked live'],
     ],
 
@@ -293,7 +293,7 @@ return [
      * identifying agent string and restrained request rates.
      */
     'http' => [
-        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'TheExperience/1.0'),
+        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'Interlude/1.0'),
         'contact_email' => env('CONTACT_EMAIL'),
         'rate_limits' => [
             'default' => 60,
@@ -445,6 +445,33 @@ return [
     'privacy' => [
         'store_location_history' => false,
         'context_snapshot_retention_days' => 30,
+    ],
+
+    'destination_activation' => [
+        'enabled' => env('DESTINATION_ACTIVATION_ENABLED', true),
+        'rollout_percentage' => (int) env('DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE', 100),
+        'allowed_cities' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('DESTINATION_ACTIVATION_ALLOWED_CITIES', '')),
+        ))),
+        'allowed_candidates' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('DESTINATION_ACTIVATION_ALLOWED_CANDIDATES', '')),
+        ))),
+        'daily_actor_limit' => (int) env('DESTINATION_ACTIVATION_DAILY_ACTOR_LIMIT', 5),
+        'daily_ip_limit' => (int) env('DESTINATION_ACTIVATION_DAILY_IP_LIMIT', 10),
+        'daily_global_limit' => (int) env('DESTINATION_ACTIVATION_DAILY_GLOBAL_LIMIT', 100),
+        'place_limit' => (int) env('DESTINATION_ACTIVATION_PLACE_LIMIT', 20),
+        'ready_minimum_published' => (int) env('DESTINATION_READY_MINIMUM_PUBLISHED', 5),
+        'ready_minimum_kinds' => (int) env('DESTINATION_READY_MINIMUM_KINDS', 3),
+        'poll_after_seconds' => 3,
+        'enrichment_retry_limit' => (int) env('DESTINATION_ENRICHMENT_RETRY_LIMIT', 50),
+        'prewarm' => [
+            'enabled' => env('DESTINATION_PREWARM_ENABLED', false),
+            'minimum_demand' => (int) env('DESTINATION_PREWARM_MINIMUM_DEMAND', 10),
+            'daily_limit' => (int) env('DESTINATION_PREWARM_DAILY_LIMIT', 3),
+            'per_run_limit' => (int) env('DESTINATION_PREWARM_PER_RUN_LIMIT', 3),
+        ],
     ],
 
     /*

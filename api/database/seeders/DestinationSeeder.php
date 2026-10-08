@@ -63,7 +63,7 @@ class DestinationSeeder extends Seeder
 
     private function cities(): array
     {
-        return [
+        return array_merge([
             [
                 'slug' => 'london',
                 'name' => 'London',
@@ -206,6 +206,74 @@ class DestinationSeeder extends Seeder
                     ['Follow a basement food hall', 'Department store depachika are among the best food halls anywhere.', 'food'],
                 ],
             ],
+        ], $this->tourismCities());
+    }
+
+    /**
+     * High-demand tourism destinations that are populated by the place sync.
+     *
+     * The four featured cities above retain their handcrafted editorial data.
+     * These catalogue entries intentionally contain only stable destination
+     * metadata; `experience:sync-places` supplies grounded place content.
+     */
+    private function tourismCities(): array
+    {
+        $cities = [
+            ['paris', 'Paris', 'France', 'FR', 'Europe/Paris', 48.8566, 2.3522, 'EUR', ['fr', 'en'], 9000],
+            ['barcelona', 'Barcelona', 'Spain', 'ES', 'Europe/Madrid', 41.3874, 2.1686, 'EUR', ['ca', 'es', 'en'], 8000],
+            ['madrid', 'Madrid', 'Spain', 'ES', 'Europe/Madrid', 40.4168, -3.7038, 'EUR', ['es', 'en'], 9000],
+            ['lisbon', 'Lisbon', 'Portugal', 'PT', 'Europe/Lisbon', 38.7223, -9.1393, 'EUR', ['pt', 'en'], 8000],
+            ['amsterdam', 'Amsterdam', 'Netherlands', 'NL', 'Europe/Amsterdam', 52.3676, 4.9041, 'EUR', ['nl', 'en'], 7000],
+            ['berlin', 'Berlin', 'Germany', 'DE', 'Europe/Berlin', 52.5200, 13.4050, 'EUR', ['de', 'en'], 11000],
+            ['vienna', 'Vienna', 'Austria', 'AT', 'Europe/Vienna', 48.2082, 16.3738, 'EUR', ['de', 'en'], 9000],
+            ['prague', 'Prague', 'Czechia', 'CZ', 'Europe/Prague', 50.0755, 14.4378, 'CZK', ['cs', 'en'], 8000],
+            ['budapest', 'Budapest', 'Hungary', 'HU', 'Europe/Budapest', 47.4979, 19.0402, 'HUF', ['hu', 'en'], 9000],
+            ['athens', 'Athens', 'Greece', 'GR', 'Europe/Athens', 37.9838, 23.7275, 'EUR', ['el', 'en'], 9000],
+            ['venice', 'Venice', 'Italy', 'IT', 'Europe/Rome', 45.4408, 12.3155, 'EUR', ['it', 'en'], 6000],
+            ['florence', 'Florence', 'Italy', 'IT', 'Europe/Rome', 43.7696, 11.2558, 'EUR', ['it', 'en'], 6000],
+            ['milan', 'Milan', 'Italy', 'IT', 'Europe/Rome', 45.4642, 9.1900, 'EUR', ['it', 'en'], 9000],
+            ['istanbul', 'Istanbul', 'Türkiye', 'TR', 'Europe/Istanbul', 41.0082, 28.9784, 'TRY', ['tr', 'en'], 13000],
+            ['dubai', 'Dubai', 'United Arab Emirates', 'AE', 'Asia/Dubai', 25.2048, 55.2708, 'AED', ['ar', 'en'], 18000],
+            ['bangkok', 'Bangkok', 'Thailand', 'TH', 'Asia/Bangkok', 13.7563, 100.5018, 'THB', ['th', 'en'], 14000],
+            ['singapore', 'Singapore', 'Singapore', 'SG', 'Asia/Singapore', 1.3521, 103.8198, 'SGD', ['en', 'ms', 'zh', 'ta'], 15000],
+            ['hong-kong', 'Hong Kong', 'Hong Kong', 'HK', 'Asia/Hong_Kong', 22.3193, 114.1694, 'HKD', ['zh', 'en'], 14000],
+            ['seoul', 'Seoul', 'South Korea', 'KR', 'Asia/Seoul', 37.5665, 126.9780, 'KRW', ['ko', 'en'], 14000],
+            ['kyoto', 'Kyoto', 'Japan', 'JP', 'Asia/Tokyo', 35.0116, 135.7681, 'JPY', ['ja', 'en'], 10000],
+            ['osaka', 'Osaka', 'Japan', 'JP', 'Asia/Tokyo', 34.6937, 135.5023, 'JPY', ['ja', 'en'], 11000],
+            ['sydney', 'Sydney', 'Australia', 'AU', 'Australia/Sydney', -33.8688, 151.2093, 'AUD', ['en'], 16000],
+            ['melbourne', 'Melbourne', 'Australia', 'AU', 'Australia/Melbourne', -37.8136, 144.9631, 'AUD', ['en'], 14000],
+            ['toronto', 'Toronto', 'Canada', 'CA', 'America/Toronto', 43.6532, -79.3832, 'CAD', ['en', 'fr'], 14000],
+            ['vancouver', 'Vancouver', 'Canada', 'CA', 'America/Vancouver', 49.2827, -123.1207, 'CAD', ['en', 'fr'], 12000],
+            ['mexico-city', 'Mexico City', 'Mexico', 'MX', 'America/Mexico_City', 19.4326, -99.1332, 'MXN', ['es', 'en'], 16000],
+            ['cancun', 'Cancún', 'Mexico', 'MX', 'America/Cancun', 21.1619, -86.8515, 'MXN', ['es', 'en'], 16000],
+            ['rio-de-janeiro', 'Rio de Janeiro', 'Brazil', 'BR', 'America/Sao_Paulo', -22.9068, -43.1729, 'BRL', ['pt', 'en'], 16000],
+            ['buenos-aires', 'Buenos Aires', 'Argentina', 'AR', 'America/Argentina/Buenos_Aires', -34.6037, -58.3816, 'ARS', ['es', 'en'], 14000],
+            ['marrakech', 'Marrakech', 'Morocco', 'MA', 'Africa/Casablanca', 31.6295, -7.9811, 'MAD', ['ar', 'fr', 'en'], 10000],
+            ['cape-town', 'Cape Town', 'South Africa', 'ZA', 'Africa/Johannesburg', -33.9249, 18.4241, 'ZAR', ['en', 'af'], 18000],
+            ['cairo', 'Cairo', 'Egypt', 'EG', 'Africa/Cairo', 30.0444, 31.2357, 'EGP', ['ar', 'en'], 16000],
+            ['dublin', 'Dublin', 'Ireland', 'IE', 'Europe/Dublin', 53.3498, -6.2603, 'EUR', ['en', 'ga'], 8000],
+            ['edinburgh', 'Edinburgh', 'United Kingdom', 'GB', 'Europe/London', 55.9533, -3.1883, 'GBP', ['en'], 8000],
         ];
+
+        return array_map(
+            fn (array $city): array => [
+                'slug' => $city[0],
+                'name' => $city[1],
+                'country' => $city[2],
+                'country_code' => $city[3],
+                'timezone' => $city[4],
+                'lat' => $city[5],
+                'lng' => $city[6],
+                'currency' => $city[7],
+                'languages' => $city[8],
+                'default_radius_m' => $city[9],
+                'summary' => null,
+                'hero_image_url' => null,
+                'neighbourhoods' => [],
+                'essentials' => [],
+                'signature' => [],
+            ],
+            $cities,
+        );
     }
 }
