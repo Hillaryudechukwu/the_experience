@@ -783,7 +783,7 @@ Schema rollbacks are last resort; prefer flags.
 | P0 | Production infrastructure gates | GO (health ok, durable queue, workers alive; 2026-10-08) |
 | P1 | Close booking | GO — mobile create/cancel/availability wired; deployed 2026-10-08 |
 | P2 | Auth and cross-device continuity | GO — register/login/logout wired; deployed 2026-10-08 |
-| P3 | Memory, share, privacy | Not started |
+| P3 | Memory, share, privacy | In progress on cursor/p3-memory-share-privacy |
 | P4 | Live commercial providers | Not started |
 | P5 | Destination activation GA | Not started (dark deploy done separately) |
 | P6 | Store release | Not started |

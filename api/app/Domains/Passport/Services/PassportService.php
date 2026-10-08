@@ -90,6 +90,33 @@ class PassportService
         ];
     }
 
+    /**
+     * Owner read of a journal entry, including the private note.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function journalEntry(Actor $actor, string $experienceId): ?array
+    {
+        $review = UserExperienceReview::ownedBy($actor)
+            ->where('experience_id', $experienceId)
+            ->first();
+
+        if ($review === null) {
+            return null;
+        }
+
+        return [
+            'id' => $review->id,
+            'experience_id' => $review->experience_id,
+            'rating' => $review->rating,
+            'would_recommend' => $review->would_recommend,
+            'best_part' => $review->best_part,
+            'private_note' => $review->private_note,
+            'is_public' => $review->is_public,
+            'has_private_note' => $review->private_note !== null,
+        ];
+    }
+
     /** Spec s14.4 — the trip recap. */
     public function recap(Actor $actor, string $journeyId): array
     {

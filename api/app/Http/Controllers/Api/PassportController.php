@@ -17,6 +17,19 @@ class PassportController extends ApiController
         return response()->json(['data' => $this->passport->summary($this->actor($request))]);
     }
 
+    /**
+     * The traveller's own journal for one experience.
+     *
+     * Includes private_note because the caller is the owner. Public list
+     * surfaces never use this endpoint.
+     */
+    public function showJournal(Request $request, string $experience): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->passport->journalEntry($this->actor($request), $experience),
+        ]);
+    }
+
     public function journal(Request $request, string $experience): JsonResponse
     {
         $data = $request->validate([
