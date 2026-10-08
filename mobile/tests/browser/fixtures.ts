@@ -32,7 +32,8 @@ export const test = base.extend<{ seeded: Page }, { destination: Destination | n
         destination = (await response.json())?.data?.[0] ?? null;
         await context.dispose();
       } catch {
-        /* handled by the skip below: unreachable is a skip, not a failure */
+        /* The fixture below fails loudly. A green run with zero exercised
+           screens is more dangerous than a red run with a clear dependency. */
       }
 
       await use(destination);
@@ -41,12 +42,34 @@ export const test = base.extend<{ seeded: Page }, { destination: Destination | n
   ],
 
   seeded: async ({ page, destination }, use) => {
-    test.skip(
-      !destination,
-      `The API at ${API} is not answering. These tests drive the real app against real ` +
-        'data — a hero with no photograph has no photo credit to crush — so start it with ' +
-        '"php artisan serve --port=8099" and run them again.',
-    );
+    expect(
+      destination,
+      `The API at ${API} is not answering. Start it with "php artisan serve --port=8099"; ` +
+        'the browser suite is not allowed to turn an unavailable dependency into skipped tests.',
+    ).not.toBeNull();
+
+    /* The exported bundle is served from localhost, while production rightly
+       permits only the production web origin through CORS. Proxy requests
+       through Playwright instead of weakening the deployed CORS policy. */
+    await page.route(`${API}/**`, async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({
+          status: 204,
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-headers': '*',
+            'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+          },
+        });
+        return;
+      }
+
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        headers: { ...response.headers(), 'access-control-allow-origin': '*' },
+      });
+    });
 
     await page.addInitScript(
       ([key, value]) => window.localStorage.setItem(key, value),
@@ -66,6 +89,7 @@ export const test = base.extend<{ seeded: Page }, { destination: Destination | n
     );
 
     await use(page);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
   },
 });
 
