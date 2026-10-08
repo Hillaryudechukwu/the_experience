@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Domains\Analytics\Models\BehaviouralEvent;
+use App\Domains\Destinations\Models\Destination;
 use App\Domains\Experiences\Models\Experience;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -83,6 +84,45 @@ class AnalyticsAndPassportTest extends TestCase
         $this->assertFalse($response->json('data.is_public'));
         $this->assertTrue($response->json('data.has_private_note'));
         $this->assertStringNotContainsString('Do not tell anyone', $response->getContent());
+    }
+
+    public function test_the_owner_can_read_their_own_journal_including_the_private_note(): void
+    {
+        $experience = Experience::where('slug', 'london-borough-market')->firstOrFail();
+        $this->postJson("/api/experiences/{$experience->id}/complete", [], ['X-Guest-Token' => $this->token]);
+        $this->postJson("/api/passport/journal/{$experience->id}", [
+            'rating' => 4,
+            'best_part' => 'The cheese stall.',
+            'private_note' => 'Do not tell anyone about this.',
+        ], ['X-Guest-Token' => $this->token])->assertCreated();
+
+        $read = $this->getJson("/api/passport/journal/{$experience->id}", ['X-Guest-Token' => $this->token]);
+
+        $read->assertOk();
+        $this->assertSame(4, $read->json('data.rating'));
+        $this->assertSame('The cheese stall.', $read->json('data.best_part'));
+        $this->assertSame('Do not tell anyone about this.', $read->json('data.private_note'));
+    }
+
+    public function test_a_completion_tied_to_a_journey_appears_in_the_trip_recap(): void
+    {
+        $destination = Destination::where('slug', 'london')->firstOrFail();
+        $experience = Experience::where('slug', 'london-borough-market')->firstOrFail();
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destination->id,
+            'reason' => 'holiday',
+        ], ['X-Guest-Token' => $this->token])->json('data.id');
+
+        $this->postJson("/api/experiences/{$experience->id}/complete", [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $this->token])->assertCreated();
+
+        $recap = $this->getJson("/api/passport/recap/{$journeyId}", ['X-Guest-Token' => $this->token]);
+
+        $recap->assertOk();
+        $this->assertSame(1, $recap->json('data.experiences'));
+        $this->assertSame('London', $recap->json('data.destination'));
     }
 
     public function test_the_client_can_post_a_batch_of_events(): void

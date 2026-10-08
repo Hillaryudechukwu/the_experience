@@ -100,6 +100,7 @@ POST   /bookings/{booking}/cancel
 
 ```
 GET    /passport
+GET    /passport/journal/{experience}     owner read, includes private_note
 POST   /passport/journal/{experience}
 GET    /passport/recap/{journey}
 ```

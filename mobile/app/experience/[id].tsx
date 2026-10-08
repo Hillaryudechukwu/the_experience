@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import {
   useAvailability,
   useCreateBooking,
   useExperience,
+  useJournal,
   useMarkComplete,
   useToggleSave,
   useWriteJournal,
@@ -63,6 +64,33 @@ export default function ExperienceScreen() {
   const [rating, setRating] = useState(5);
   const [bestPart, setBestPart] = useState('');
   const [privateNote, setPrivateNote] = useState('');
+  const [journalHydratedFor, setJournalHydratedFor] = useState<string | null>(null);
+
+  const journal = useJournal(id!, journalOpen);
+
+  /* Reload the sheet from the server whenever it opens, so a second edit
+     cannot overwrite a prior note with empty defaults. */
+  useEffect(() => {
+    if (!journalOpen) {
+      setJournalHydratedFor(null);
+      return;
+    }
+
+    if (journal.isLoading || journal.isFetching) return;
+    if (journalHydratedFor === id) return;
+
+    if (journal.data) {
+      setRating(journal.data.rating);
+      setBestPart(journal.data.best_part ?? '');
+      setPrivateNote(journal.data.private_note ?? '');
+    } else {
+      setRating(5);
+      setBestPart('');
+      setPrivateNote('');
+    }
+
+    setJournalHydratedFor(id ?? null);
+  }, [journalOpen, journal.isLoading, journal.isFetching, journal.data, journalHydratedFor, id]);
 
   if (isLoading) {
     return (
@@ -537,85 +565,89 @@ export default function ExperienceScreen() {
           <T variant="small" color={colors.text.secondary}>
             Private unless you choose otherwise. Your note stays on your passport.
           </T>
-          <View style={{ gap: space.xs }}>
-            <T variant="label" color={colors.text.tertiary}>
-              Rating
-            </T>
-            <Row gap={space.xs}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <Chip
-                  key={value}
-                  label={String(value)}
-                  selected={rating === value}
-                  onPress={() => setRating(value)}
+          {journal.isLoading || journal.isFetching || journalHydratedFor !== id ? (
+            <ActivityIndicator color={colors.action.primary} />
+          ) : (
+            <>
+              <View style={{ gap: space.xs }}>
+                <T variant="label" color={colors.text.tertiary}>
+                  Rating
+                </T>
+                <Row gap={space.xs}>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <Chip
+                      key={value}
+                      label={String(value)}
+                      selected={rating === value}
+                      onPress={() => setRating(value)}
+                    />
+                  ))}
+                </Row>
+              </View>
+              <View style={{ gap: 6 }}>
+                <T variant="label" color={colors.text.tertiary}>
+                  Best part
+                </T>
+                <TextInput
+                  value={bestPart}
+                  onChangeText={setBestPart}
+                  placeholder="What should you remember?"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border.strong,
+                    borderRadius: radius.control,
+                    paddingHorizontal: space.md,
+                    paddingVertical: 12,
+                    color: colors.text.primary,
+                    backgroundColor: colors.background.elevated,
+                    minHeight: 48,
+                  }}
                 />
-              ))}
-            </Row>
-          </View>
-          <View style={{ gap: 6 }}>
-            <T variant="label" color={colors.text.tertiary}>
-              Best part
-            </T>
-            <TextInput
-              value={bestPart}
-              onChangeText={setBestPart}
-              placeholder="What should you remember?"
-              placeholderTextColor={colors.text.tertiary}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border.strong,
-                borderRadius: radius.control,
-                paddingHorizontal: space.md,
-                paddingVertical: 12,
-                color: colors.text.primary,
-                backgroundColor: colors.background.elevated,
-                minHeight: 48,
-              }}
-            />
-          </View>
-          <View style={{ gap: 6 }}>
-            <T variant="label" color={colors.text.tertiary}>
-              Private note
-            </T>
-            <TextInput
-              value={privateNote}
-              onChangeText={setPrivateNote}
-              placeholder="Only you will see this"
-              placeholderTextColor={colors.text.tertiary}
-              multiline
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border.strong,
-                borderRadius: radius.control,
-                paddingHorizontal: space.md,
-                paddingVertical: 12,
-                color: colors.text.primary,
-                backgroundColor: colors.background.elevated,
-                minHeight: 96,
-                textAlignVertical: 'top',
-              }}
-            />
-          </View>
-          <Button
-            label={writeJournal.isPending ? 'Saving…' : 'Save journal note'}
-            disabled={writeJournal.isPending}
-            onPress={async () => {
-              try {
-                await writeJournal.mutateAsync({
-                  rating,
-                  best_part: bestPart.trim() || null,
-                  private_note: privateNote.trim() || null,
-                  is_public: false,
-                });
-                setJournalOpen(false);
-                setBestPart('');
-                setPrivateNote('');
-                Alert.alert('Saved', 'Your private journal note is on your passport.');
-              } catch {
-                /* hook alerts */
-              }
-            }}
-          />
+              </View>
+              <View style={{ gap: 6 }}>
+                <T variant="label" color={colors.text.tertiary}>
+                  Private note
+                </T>
+                <TextInput
+                  value={privateNote}
+                  onChangeText={setPrivateNote}
+                  placeholder="Only you will see this"
+                  placeholderTextColor={colors.text.tertiary}
+                  multiline
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border.strong,
+                    borderRadius: radius.control,
+                    paddingHorizontal: space.md,
+                    paddingVertical: 12,
+                    color: colors.text.primary,
+                    backgroundColor: colors.background.elevated,
+                    minHeight: 96,
+                    textAlignVertical: 'top',
+                  }}
+                />
+              </View>
+              <Button
+                label={writeJournal.isPending ? 'Saving…' : 'Save journal note'}
+                disabled={writeJournal.isPending}
+                onPress={async () => {
+                  try {
+                    await writeJournal.mutateAsync({
+                      rating,
+                      best_part: bestPart.trim() || null,
+                      private_note: privateNote.trim() || null,
+                      is_public: false,
+                    });
+                    setJournalOpen(false);
+                    Alert.alert('Saved', 'Your private journal note is on your passport.');
+                  } catch {
+                    /* hook alerts */
+                  }
+                }}
+              />
+            </>
+          )}
         </View>
       </Sheet>
     </View>

@@ -45,6 +45,8 @@ export const keys = {
   experience: (id: string) => ['experience', id] as const,
   saved: () => ['saved'] as const,
   passport: () => ['passport'] as const,
+  journal: (id: string) => ['journal', id] as const,
+  recap: (journeyId: string) => ['recap', journeyId] as const,
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
 };
 
@@ -250,12 +252,19 @@ export function useDeleteAccount() {
 
 export function useMarkComplete(id: string) {
   const client = useQueryClient();
+  const journeyId = useSession((s) => s.journeyId);
 
   return useMutation({
-    mutationFn: () => http.post(`/experiences/${id}/complete`),
+    mutationFn: () =>
+      http.post(`/experiences/${id}/complete`, {
+        ...(journeyId ? { journey_id: journeyId } : {}),
+      }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: keys.experience(id) });
       client.invalidateQueries({ queryKey: keys.passport() });
+      if (journeyId) {
+        client.invalidateQueries({ queryKey: keys.recap(journeyId) });
+      }
     },
     onError: reportFailure('mark that as done'),
   });
@@ -275,12 +284,22 @@ export type JournalEntry = {
   rating: number;
   would_recommend: boolean | null;
   best_part: string | null;
+  private_note: string | null;
   is_public: boolean;
   has_private_note: boolean;
 };
 
+export function useJournal(experienceId: string, enabled = false) {
+  return useQuery({
+    enabled: enabled && !!experienceId,
+    queryKey: keys.journal(experienceId),
+    queryFn: () => wrapped(http.get<{ data: JournalEntry | null }>(`/passport/journal/${experienceId}`)),
+  });
+}
+
 export function useWriteJournal(experienceId: string) {
   const client = useQueryClient();
+  const journeyId = useSession((s) => s.journeyId);
 
   return useMutation({
     mutationFn: (body: JournalInput) =>
@@ -288,6 +307,10 @@ export function useWriteJournal(experienceId: string) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: keys.passport() });
       client.invalidateQueries({ queryKey: keys.experience(experienceId) });
+      client.invalidateQueries({ queryKey: keys.journal(experienceId) });
+      if (journeyId) {
+        client.invalidateQueries({ queryKey: keys.recap(journeyId) });
+      }
     },
     onError: reportFailure('save that journal note'),
   });
@@ -307,7 +330,7 @@ export type JourneyRecap = {
 export function useJourneyRecap(journeyId: string | null) {
   return useQuery({
     enabled: !!journeyId,
-    queryKey: ['recap', journeyId ?? ''],
+    queryKey: keys.recap(journeyId ?? ''),
     queryFn: () => wrapped(http.get<{ data: JourneyRecap }>(`/passport/recap/${journeyId}`)),
   });
 }

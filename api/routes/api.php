@@ -87,6 +87,7 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel']);
 
     Route::get('passport', [PassportController::class, 'index']);
+    Route::get('passport/journal/{experience}', [PassportController::class, 'showJournal']);
     Route::post('passport/journal/{experience}', [PassportController::class, 'journal']);
     Route::get('passport/recap/{journey}', [PassportController::class, 'recap']);
 
