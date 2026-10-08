@@ -14,17 +14,32 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends ApiController
 {
     public function register(Request $request): JsonResponse
     {
+        /* Fold email case before validation so unique:users,email cannot be
+           bypassed by Sam@Example.com vs sam@example.com on Postgres. */
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email', ''))),
+        ]);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
         ]);
+
+        /* unique: above is exact-match. A legacy mixed-case row would still
+           collide at the mailbox level — reject those explicitly. */
+        if (User::query()->whereRaw('LOWER(email) = ?', [$data['email']])->exists()) {
+            throw ValidationException::withMessages([
+                'email' => 'The email has already been taken.',
+            ]);
+        }
 
         $user = User::create([
             'name' => $data['name'],
@@ -47,7 +62,14 @@ class AuthController extends ApiController
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $data['email'])->first();
+        $email = Str::lower(trim($data['email']));
+
+        /* Case-insensitive match so a client that lowercases (or a traveller
+           who capitalises the first letter) still finds accounts stored with
+           mixed case from older clients or direct inserts. */
+        $user = User::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
 
         if ($user === null || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages(['email' => 'Those details do not match our records.']);
