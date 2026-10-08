@@ -27,6 +27,11 @@ and `pg_trgm`, so the database user needs permission to create extensions.
 | `VIATOR_API_KEY` | — | activates the Viator adapter when present |
 | `DEEPLINK_AFFILIATE_ID` | `demo-partner` | partner id in generated redirect URLs |
 | `CORS_ALLOWED_ORIGINS` | `*` | comma-separated; tighten before production |
+| `DESTINATION_ACTIVATION_ENABLED` | `true` | global kill switch for on-demand city preparation |
+| `DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE` | `100` | stable actor rollout bucket from 0 to 100 |
+| `DESTINATION_ACTIVATION_ALLOWED_CITIES` | — | comma-separated cities that bypass percentage rollout |
+| `DESTINATION_ACTIVATION_DAILY_*_LIMIT` | varies | actor, IP, and global daily activation ceilings |
+| `DESTINATION_PREWARM_ENABLED` | `false` | opt-in aggregate-demand predictive warming |
 
 ## Tests
 
@@ -47,3 +52,6 @@ ability:
 php artisan tinker
 >>> App\Models\User::find(1)->createToken('ops', ['admin'])->plainTextToken
 ```
+
+Dynamic destination imports require the host to invoke `php artisan schedule:run`
+once per minute. See [`../docs/DYNAMIC_DESTINATION_RUNBOOK.md`](../docs/DYNAMIC_DESTINATION_RUNBOOK.md).

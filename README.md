@@ -105,7 +105,7 @@ glance.
 ### Tests
 
 ```bash
-cd api && php artisan test          # 139 tests, 412 assertions
+cd api && php artisan test          # 246 tests, 797 assertions
 cd mobile && npm run typecheck
 ```
 
@@ -127,11 +127,10 @@ The catalogue is populated from live sources, not fixtures.
 | Places with ratings | Google Places (New) | `GOOGLE_PLACES_API_KEY` |
 | Tickets | Viator | `VIATOR_API_KEY` |
 
-```bash
-php artisan experience:sync-places all --radius=6000
-```
-
-That ingests real places, resolves them against the canonical catalogue, and
+The `experience:sync-places` command remains available for explicit editorial
+maintenance. Production deployment does not run a global sync; an uncovered
+city is activated on demand and imported through the durable queue. The pipeline
+ingests real places, resolves them against the canonical catalogue, and
 pulls descriptions and photographs for anything with a Wikidata or Wikipedia
 identity. Re-running is idempotent. Pass `--refresh-derived` after changing a
 derivation heuristic to recompute the values this pipeline generated — it never
@@ -174,3 +173,6 @@ content. Ingestion fills their gaps and never overwrites them.
 - [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) — every V1 acceptance criterion from §35
   mapped to the test that proves it.
 - [`docs/API.md`](docs/API.md) — the endpoint surface from §21.
+- [`docs/DYNAMIC_DESTINATION_COVERAGE_JEM.md`](docs/DYNAMIC_DESTINATION_COVERAGE_JEM.md) — implementation JEM for discovering, activating, and safely ingesting unseeded destinations on demand.
+- [`docs/DYNAMIC_DESTINATION_RUNBOOK.md`](docs/DYNAMIC_DESTINATION_RUNBOOK.md) — production rollout, queue, retry, outage, and budget operations.
+- [`docs/DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md`](docs/DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md) — dark-deploy gates, smoke tests, rollout steps, and rollback triggers.

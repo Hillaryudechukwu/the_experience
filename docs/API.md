@@ -35,8 +35,16 @@ DELETE /journeys/{journey}/anchors/{anchor}
 
 ```
 GET    /destinations?q=&lat=&lng=
+POST   /destinations/activate             signed candidate; returns 202 + import id
+GET    /destination-imports/{import}      resumable, sanitized import progress
 GET    /destinations/{slug}               neighbourhoods, city essentials, "don't leave without"
 ```
+
+Destination search keeps the legacy `data` and `elsewhere` fields and also
+returns a discriminated `results` list. An uncovered city carries a short-lived
+`candidate_token`; clients submit that token to `destinations/activate` and poll
+the returned import. Activation is controlled by a kill switch, deterministic
+rollout percentage, optional city allowlist, and actor/IP/global daily limits.
 
 ## Discovery
 
@@ -116,6 +124,9 @@ DELETE /privacy/data
 
 ```
 GET    /admin/providers                   §22 health and capabilities
+GET    /admin/destination-imports         filterable import inspection
+POST   /admin/destination-imports/{id}/retry
+GET    /admin/destination-quality         quality score and curation issues
 GET    /admin/sync-failures
 POST   /admin/sync-failures/{failure}/resolve
 GET    /admin/merge-candidates
@@ -128,3 +139,6 @@ GET    /admin/recommendation-sets/{set}   explain a past ranking
 ```
 GET    /health                            engine version, provider status, active drivers
 ```
+
+`queue_driver` is included so deployment checks can distinguish a durable queue
+from synchronous request execution.
