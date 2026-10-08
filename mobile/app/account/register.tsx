@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, TextInput, View } from 'react-native';
+import { Platform, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { ApiError } from '../../src/api/client';
 import { useRegister } from '../../src/api/hooks';
 import { Button, Gutter, Note, Screen, T } from '../../src/components/primitives';
+import { showAlert } from '../../src/lib/alert';
 import { useBackTo } from '../../src/lib/navigation';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -16,19 +18,36 @@ export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
-    if (name.trim().length < 2 || !email.includes('@') || password.length < 8) {
-      Alert.alert('Check your details', 'Name, a valid email, and a password of at least 8 characters are required.');
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (trimmedName.length < 2 || !trimmedEmail.includes('@') || password.length < 8) {
+      const message = 'Name, a valid email, and a password of at least 8 characters are required.';
+      setError(message);
+      showAlert('Check your details', message);
       return;
     }
 
+    setError(null);
+
     try {
-      await register.mutateAsync({ name: name.trim(), email: email.trim(), password });
-      Alert.alert('Account created', 'Your guest saves, plans and bookings are now on this account.');
+      await register.mutateAsync({ name: trimmedName, email: trimmedEmail, password });
+      /* Navigate first — on native, presenting an alert before replace can leave
+         the stack looking unchanged if the alert is dismissed oddly. */
       router.replace('/(tabs)/you');
-    } catch {
-      /* hook alerts */
+      showAlert('Account created', 'Your guest saves, plans and bookings are now on this account.');
+    } catch (cause) {
+      const message =
+        cause instanceof ApiError
+          ? cause.message
+          : cause instanceof Error
+            ? cause.message
+            : 'Could not create your account.';
+      setError(message);
+      showAlert('Could not create your account', message);
     }
   };
 
@@ -40,24 +59,42 @@ export default function Register() {
           Keep this trip across devices. Everything you already saved as a guest comes with you.
         </T>
 
-        <Field label="Name" value={name} onChange={setName} autoComplete="name" />
+        <Field
+          label="Name"
+          value={name}
+          onChange={setName}
+          autoComplete="name"
+          textContentType="name"
+          autoCapitalize="words"
+        />
         <Field
           label="Email"
           value={email}
           onChange={setEmail}
           autoComplete="email"
+          textContentType="emailAddress"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
         />
         <Field
           label="Password"
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
+          textContentType="newPassword"
           secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
         <Note>Use at least 8 characters. We never see your password in plain text after you submit.</Note>
+
+        {error ? (
+          <Note tone="warning">
+            {error}
+          </Note>
+        ) : null}
 
         <Button label={register.isPending ? 'Creating…' : 'Create account'} onPress={submit} disabled={register.isPending} />
         <Button label="I already have an account" tone="tertiary" onPress={() => router.replace('/account/login')} />
@@ -73,16 +110,20 @@ function Field({
   onChange,
   secureTextEntry,
   autoComplete,
+  textContentType,
   keyboardType,
   autoCapitalize,
+  autoCorrect,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   secureTextEntry?: boolean;
   autoComplete?: 'name' | 'email' | 'new-password' | 'password';
+  textContentType?: 'name' | 'emailAddress' | 'newPassword' | 'password';
   keyboardType?: 'email-address' | 'default';
-  autoCapitalize?: 'none' | 'sentences';
+  autoCapitalize?: 'none' | 'sentences' | 'words';
+  autoCorrect?: boolean;
 }) {
   const colors = useTheme();
 
@@ -96,8 +137,13 @@ function Field({
         onChangeText={onChange}
         secureTextEntry={secureTextEntry}
         autoComplete={autoComplete}
+        textContentType={textContentType}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        /* Stop iOS from uppercasing the first password character. */
+        spellCheck={false}
+        importantForAutofill="yes"
         placeholderTextColor={colors.text.tertiary}
         style={{
           borderWidth: 1,
@@ -108,6 +154,8 @@ function Field({
           color: colors.text.primary,
           backgroundColor: colors.background.elevated,
           minHeight: 48,
+          /* Prevents iOS zoom-on-focus that can leave the submit control off-screen. */
+          fontSize: Platform.OS === 'web' ? 16 : 17,
         }}
       />
     </View>

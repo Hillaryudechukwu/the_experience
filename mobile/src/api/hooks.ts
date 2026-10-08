@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { Alert } from 'react-native';
-
 import { clearIdentity, http, setAuthToken } from './client';
+import { showAlert } from '../lib/alert';
 import type {
   AssistantReply,
   Destination,
@@ -129,7 +128,7 @@ export function useDestination(slug: string | null) {
  */
 function reportFailure(what: string) {
   return (cause: unknown) => {
-    Alert.alert(
+    showAlert(
       `Could not ${what}`,
       cause instanceof Error ? cause.message : 'The connection dropped. Please try again.',
     );
@@ -523,7 +522,8 @@ export function useRegister() {
     onSuccess: () => {
       client.invalidateQueries();
     },
-    onError: reportFailure('create your account'),
+    /* Screens surface field errors inline; a second system alert stacks badly
+       behind the keyboard on small phones. */
   });
 }
 
@@ -539,7 +539,6 @@ export function useLogin() {
     onSuccess: () => {
       client.invalidateQueries();
     },
-    onError: reportFailure('sign in'),
   });
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking, Pressable, Share, View } from 'react-native';
+import { Linking, Pressable, Share, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { API_URL, http } from '../../src/api/client';
@@ -13,6 +13,7 @@ import {
 } from '../../src/api/hooks';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { Button, Card, CardPress, Chip, Divider, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
+import { confirmAction, showAlert } from '../../src/lib/alert';
 import { titleCase } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
@@ -80,9 +81,9 @@ export default function You() {
   const forgetLocation = async () => {
     try {
       const result = await http.delete<{ deleted_snapshots: number }>('/privacy/location-history');
-      Alert.alert('Deleted', `Removed ${result.deleted_snapshots} stored context snapshots.`);
+      showAlert('Deleted', `Removed ${result.deleted_snapshots} stored context snapshots.`);
     } catch (cause) {
-      Alert.alert('Could not delete', cause instanceof Error ? cause.message : 'Try again.');
+      showAlert('Could not delete', cause instanceof Error ? cause.message : 'Try again.');
     }
   };
 
@@ -295,21 +296,19 @@ export default function You() {
                 icon="close"
                 label="Sign out"
                 onPress={() =>
-                  Alert.alert('Sign out?', 'This device goes back to browsing as a guest.', [
-                    { text: 'Stay signed in', style: 'cancel' },
-                    {
-                      text: 'Sign out',
-                      style: 'destructive',
-                      onPress: async () => {
-                        try {
-                          await logout.mutateAsync();
-                          router.replace('/(tabs)/you');
-                        } catch {
-                          /* hook alerts */
-                        }
-                      },
+                  confirmAction('Sign out?', 'This device goes back to browsing as a guest.', {
+                    confirmLabel: 'Sign out',
+                    cancelLabel: 'Stay signed in',
+                    destructive: true,
+                    onConfirm: async () => {
+                      try {
+                        await logout.mutateAsync();
+                        router.replace('/(tabs)/you');
+                      } catch {
+                        /* hook alerts */
+                      }
                     },
-                  ])
+                  })
                 }
               />
               <Divider />
@@ -331,7 +330,7 @@ export default function You() {
               try {
                 await Linking.openURL(PRIVACY_POLICY_URL);
               } catch {
-                Alert.alert('Could not open the policy', PRIVACY_POLICY_URL);
+                showAlert('Could not open the policy', PRIVACY_POLICY_URL);
               }
             }}
           />
@@ -348,17 +347,14 @@ export default function You() {
       <Gutter style={{ marginTop: space.lg }}>
         <Pressable
           onPress={() =>
-            Alert.alert('Reset this device', 'Clears your local session. Saved data stays on the server.', [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Reset',
-                style: 'destructive',
-                onPress: async () => {
-                  await session.reset();
-                  router.replace('/onboarding');
-                },
+            confirmAction('Reset this device', 'Clears your local session. Saved data stays on the server.', {
+              confirmLabel: 'Reset',
+              destructive: true,
+              onConfirm: async () => {
+                await session.reset();
+                router.replace('/onboarding');
               },
-            ])
+            })
           }
           style={{ alignItems: 'center', paddingVertical: space.sm }}
         >
