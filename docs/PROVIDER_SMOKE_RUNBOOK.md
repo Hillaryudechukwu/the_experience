@@ -99,12 +99,17 @@ not running `php artisan schedule:run`, or workers cannot drain `jobs`.
 * * * * * cd /absolute/path/to/api && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Immediate kick (does not replace cron):
+Immediate kick (does not replace cron). Clear first so a stale heartbeat
+cannot look healthy; then enqueue and drain:
 
 ```bash
-cd /absolute/path/to/api && php artisan schedule:run
+cd /absolute/path/to/api
+php artisan cache:forget health:queue-worker-heartbeat
+php artisan schedule:run
 php artisan queue:work database --stop-when-empty --max-time=50 --tries=4
 ```
+
+`deploy.sh` uses the same sequence after `queue:restart`.
 
 See also [`DYNAMIC_DESTINATION_RUNBOOK.md`](DYNAMIC_DESTINATION_RUNBOOK.md).
 

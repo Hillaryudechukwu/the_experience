@@ -393,7 +393,7 @@ POST   /bookings/{booking}/cancel
 
 **Rollback.** Remove/blank keys; registry falls back. Keep sandbox for store demo accounts if needed.
 
-**Status (2026-10-08).** Production keys live: Google Places, Viator, Anthropic. Deeplink optional while Viator covers commercial fulfilment. Runbook + `experience:provider-status` shipped. Prod health `ok` with `queue_worker_alive: true`. `deploy.sh` kicks `schedule:run` after `queue:restart` so the post-deploy health gate is not flaky.
+**Status (2026-10-08).** Production keys live: Google Places, Viator, Anthropic. Deeplink optional while Viator covers commercial fulfilment. Runbook + `experience:provider-status` shipped. Prod health `ok` with `queue_worker_alive: true`. `deploy.sh` clears the heartbeat, runs `schedule:run`, then foreground `queue:work --stop-when-empty` so the health gate cannot pass on a pre-restart cache entry.
 
 ---
 
