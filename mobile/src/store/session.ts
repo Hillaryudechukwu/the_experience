@@ -10,6 +10,7 @@ type SessionState = {
   destinationId: string | null;
   destinationName: string | null;
   destinationTimezone: string | null;
+  destinationImportId: string | null;
   journeyId: string | null;
   tripId: string | null;
   coords: Coords;
@@ -20,6 +21,7 @@ type SessionState = {
 
   hydrate: () => Promise<void>;
   setDestination: (d: { id: string; slug: string; name: string; timezone?: string }) => Promise<void>;
+  setDestinationImport: (id: string | null) => Promise<void>;
   setJourney: (journeyId: string | null) => Promise<void>;
   setTrip: (tripId: string | null) => Promise<void>;
   setCoords: (coords: Coords, precision?: 'precise' | 'approximate') => Promise<void>;
@@ -33,7 +35,7 @@ const KEY = 'experience.session';
 
 type Persisted = Pick<
   SessionState,
-  'destinationSlug' | 'destinationId' | 'destinationName' | 'destinationTimezone' | 'journeyId' | 'tripId' | 'locationPrecision' | 'onboarded'
+  'destinationSlug' | 'destinationId' | 'destinationName' | 'destinationTimezone' | 'destinationImportId' | 'journeyId' | 'tripId' | 'locationPrecision' | 'onboarded'
 > & { coords: Coords; coordsAt: number | null };
 
 /**
@@ -71,6 +73,7 @@ export const useSession = create<SessionState>((set, get) => {
       destinationId: s.destinationId,
       destinationName: s.destinationName,
       destinationTimezone: s.destinationTimezone,
+      destinationImportId: s.destinationImportId,
       journeyId: s.journeyId,
       tripId: s.tripId,
       locationPrecision: s.locationPrecision,
@@ -87,6 +90,7 @@ export const useSession = create<SessionState>((set, get) => {
     destinationId: null,
     destinationName: null,
     destinationTimezone: null,
+    destinationImportId: null,
     journeyId: null,
     tripId: null,
     coords: null,
@@ -107,6 +111,7 @@ export const useSession = create<SessionState>((set, get) => {
 
           set({
             ...stored,
+            destinationImportId: stored.destinationImportId ?? null,
             /* A stale position is discarded rather than trusted. Falling back
                to the city centre is a known approximation; a coordinate from
                another city is a wrong answer delivered with confidence. */
@@ -124,7 +129,11 @@ export const useSession = create<SessionState>((set, get) => {
     },
 
     setDestination: async (d) => {
-      set({ destinationId: d.id, destinationSlug: d.slug, destinationName: d.name, destinationTimezone: d.timezone ?? null });
+      set({ destinationId: d.id, destinationSlug: d.slug, destinationName: d.name, destinationTimezone: d.timezone ?? null, destinationImportId: null });
+      await persist();
+    },
+    setDestinationImport: async (destinationImportId) => {
+      set({ destinationImportId });
       await persist();
     },
     setJourney: async (journeyId) => {
@@ -207,6 +216,7 @@ export const useSession = create<SessionState>((set, get) => {
         destinationId: null,
         destinationName: null,
         destinationTimezone: null,
+        destinationImportId: null,
         journeyId: null,
         tripId: null,
         coords: null,

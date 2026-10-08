@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 
-import { useDestinations } from '../../src/api/hooks';
+import { useActivateDestination, useDestinationImport, useDestinations, useRetryDestinationImport } from '../../src/api/hooks';
+import { http } from '../../src/api/client';
+import type { UncoveredPlace } from '../../src/api/types';
 import { useDebounced } from '../../src/lib/useDebounced';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Card, CardPress, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
+
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const dLat = radians(b.lat - a.lat);
+  const dLng = radians(b.lng - a.lng);
+  const lat1 = radians(a.lat);
+  const lat2 = radians(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 /**
  * Destination (Figma: 14.2).
@@ -24,11 +37,18 @@ export default function Destination() {
   const [query, setQuery] = useState('');
   const [locating, setLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
+  const [worldwide, setWorldwide] = useState(false);
+  const session = useSession();
+  const activate = useActivateDestination();
+  const importProgress = useDestinationImport(session.destinationImportId);
+  const retryImport = useRetryDestinationImport();
+  const viewedCandidates = useRef(new Set<string>());
 
   /* Debounced for the same reason as the search screen: this list already
      updates as you type, but without a pause it issues a request per
      keystroke, and "London" is six. */
-  const { data, isLoading } = useDestinations(useDebounced(query.trim()) || undefined);
+  const debouncedQuery = useDebounced(query.trim());
+  const { data, isLoading, isError } = useDestinations(debouncedQuery || undefined, worldwide);
   const destinations = data?.covered ?? [];
 
   /* Places that exist but that we do not cover. The API only looks these up
@@ -39,7 +59,73 @@ export default function Destination() {
      alongside what we can actually help with. */
   const { data: all } = useDestinations();
   const covered = all?.covered ?? [];
-  const { setDestination, setCoords, setLocationPrecision } = useSession();
+  const { setDestination, setDestinationImport, setCoords, setLocationPrecision } = session;
+
+  useEffect(() => {
+    setWorldwide(false);
+  }, [query]);
+
+  useEffect(() => {
+    const progress = importProgress.data;
+
+    if (!progress || progress.status !== 'succeeded') return;
+
+    void http.post('/events', {
+      events: [{
+        type: 'destination_selected_after_import',
+        subject_type: 'destination',
+        subject_id: progress.destination.id,
+        surface: 'destination_onboarding',
+        properties: { import_id: progress.id, status: progress.status },
+      }],
+    }).catch(() => undefined);
+
+    setDestination(progress.destination).then(() => {
+      router.push('/onboarding/purpose');
+    });
+  }, [importProgress.data, router, setDestination]);
+
+  useEffect(() => {
+    const newlyViewed = elsewhere.filter((place) => {
+      const key = `${place.name}|${place.country}`;
+      if (viewedCandidates.current.has(key)) return false;
+      viewedCandidates.current.add(key);
+      return true;
+    });
+
+    if (newlyViewed.length === 0) return;
+
+    void http.post('/events', {
+      events: newlyViewed.map((place) => ({
+        type: 'destination_candidate_viewed',
+        surface: 'destination_onboarding',
+        properties: { country_code: place.country_code, kind: place.kind, source: place.source },
+      })),
+    }).catch(() => undefined);
+  }, [elsewhere]);
+
+  const abandonImport = async () => {
+    const progress = importProgress.data;
+    if (progress) {
+      void http.post('/events', {
+        events: [{
+          type: 'destination_activation_abandoned',
+          subject_type: 'destination',
+          subject_id: progress.destination.id,
+          surface: 'destination_onboarding',
+          properties: { import_id: progress.id, status: progress.status },
+        }],
+      }).catch(() => undefined);
+    }
+    await setDestinationImport(null);
+  };
+
+  const retryFailedImport = async () => {
+    if (!session.destinationImportId) return;
+
+    const result = await retryImport.mutateAsync(session.destinationImportId);
+    await setDestinationImport(result.import_id);
+  };
 
   const useMyLocation = async () => {
     setLocating(true);
@@ -56,8 +142,21 @@ export default function Destination() {
       }
 
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      await setCoords({ lat: position.coords.latitude, lng: position.coords.longitude }, 'precise');
-      setLocationNote('Got it. Now choose the city you are in or heading to.');
+      const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+      await setCoords(coords, 'precise');
+
+      const nearest = covered
+        .map((destination) => ({ destination, distance: distanceKm(coords, destination) }))
+        .filter(({ distance }) => distance <= 100)
+        .sort((a, b) => a.distance - b.distance)[0]?.destination;
+
+      if (nearest) {
+        await setDestination(nearest);
+        setLocationNote(`Located near ${nearest.name}.`);
+        router.push('/onboarding/purpose');
+      } else {
+        setLocationNote('Location found. We do not cover a nearby city yet, so choose one below.');
+      }
     } catch {
       setLocationNote('Could not read your location. Choose a city below instead.');
     } finally {
@@ -67,6 +166,32 @@ export default function Destination() {
 
   const choose = async (destination: { id: string; slug: string; name: string; timezone: string }) => {
     await setDestination(destination);
+    router.push('/onboarding/purpose');
+  };
+
+  const prepare = async (candidate: UncoveredPlace) => {
+    const result = await activate.mutateAsync(candidate.candidate_token);
+
+    if (result.import_id) {
+      await setDestinationImport(result.import_id);
+    }
+  };
+
+  const continueWithLimitedCoverage = async () => {
+    const progress = importProgress.data;
+    if (!progress || progress.status !== 'partial') return;
+
+    void http.post('/events', {
+      events: [{
+        type: 'destination_selected_after_import',
+        subject_type: 'destination',
+        subject_id: progress.destination.id,
+        surface: 'destination_onboarding',
+        properties: { import_id: progress.id, status: progress.status },
+      }],
+    }).catch(() => undefined);
+
+    await setDestination(progress.destination);
     router.push('/onboarding/purpose');
   };
 
@@ -125,6 +250,60 @@ export default function Destination() {
       <Gutter style={{ marginTop: space.md, gap: space.xs }}>
         {isLoading ? <ActivityIndicator color={colors.action.primary} /> : null}
 
+        {isError ? <Note>Could not load locations. Check your connection and try again.</Note> : null}
+
+        {session.destinationImportId && importProgress.data ? (
+          <Card>
+            <View style={{ padding: space.md, gap: space.xs }}>
+              <Row gap={space.sm} align="center">
+                {['queued', 'running'].includes(importProgress.data.status) ? (
+                  <ActivityIndicator color={colors.action.primary} />
+                ) : (
+                  <Icon name="location" size={18} color={colors.action.primary} />
+                )}
+                <View style={{ flex: 1 }}>
+                  <T variant="h3">Preparing {importProgress.data.destination.name}</T>
+                  <T variant="small" color={colors.text.secondary}>
+                    {importProgress.data.message}
+                  </T>
+                </View>
+              </Row>
+              {importProgress.data.status === 'failed' ? (
+                <View style={{ gap: space.sm }}>
+                  {importProgress.data.retryable ? (
+                    <Button
+                      label={retryImport.isPending ? 'Retrying…' : 'Try preparing again'}
+                      onPress={retryFailedImport}
+                      disabled={retryImport.isPending}
+                    />
+                  ) : null}
+                  <Button
+                    label="Choose another city"
+                    tone="secondary"
+                    onPress={abandonImport}
+                  />
+                </View>
+              ) : null}
+              {importProgress.data.status === 'partial' ? (
+                <View style={{ gap: space.sm }}>
+                  <Note>
+                    Interlude found some grounded recommendations, but coverage is still limited. You can continue now or choose another city.
+                  </Note>
+                  <Button
+                    label="Continue with limited coverage"
+                    onPress={continueWithLimitedCoverage}
+                  />
+                  <Button
+                    label="Choose another city"
+                    tone="secondary"
+                    onPress={abandonImport}
+                  />
+                </View>
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
+
         {destinations.map((destination) => (
           <Card key={destination.id}>
             <CardPress onPress={() => choose(destination)} accessibilityLabel={`Choose ${destination.name}`}>
@@ -148,6 +327,44 @@ export default function Destination() {
           </Card>
         ))}
 
+        {!isLoading && query.trim().length >= 3 && destinations.length > 0 && !worldwide ? (
+          <Button
+            label="Search worldwide for another city with this name"
+            tone="secondary"
+            onPress={() => setWorldwide(true)}
+          />
+        ) : null}
+
+        {worldwide && elsewhere.length > 0 ? (
+          <View style={{ gap: space.xs }}>
+            <T variant="label" color={colors.text.tertiary}>
+              Other cities worldwide
+            </T>
+            {elsewhere.map((place) => (
+              <Card key={place.display_name}>
+                <CardPress
+                  onPress={() => prepare(place)}
+                  accessibilityLabel={`Prepare ${place.name}, ${place.country}`}
+                  disabled={activate.isPending || !!session.destinationImportId}
+                >
+                  <Row justify="space-between" align="center" style={{ padding: space.md }} gap={space.sm}>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <T variant="h3">{place.name}</T>
+                      <T variant="small" color={colors.text.secondary}>
+                        {[place.region, place.country].filter(Boolean).join(', ')}
+                      </T>
+                      <T variant="caption" color={colors.action.primary}>
+                        {activate.isPending ? 'Starting…' : 'Prepare this city'}
+                      </T>
+                    </View>
+                    <Icon name="chevron" size={16} color={colors.text.tertiary} />
+                  </Row>
+                </CardPress>
+              </Card>
+            ))}
+          </View>
+        ) : null}
+
         {/*
           * A dead end, turned into a way forward.
           *
@@ -166,22 +383,36 @@ export default function Destination() {
             {elsewhere.length > 0 ? (
               <View style={{ gap: space.xs }}>
                 <T variant="label" color={colors.text.tertiary}>
-                  Found, but not covered yet
+                  Cities Interlude can prepare
                 </T>
                 {elsewhere.map((place) => (
-                  <Row key={place.display_name} gap={space.xs} align="flex-start">
-                    <Icon name="location" size={15} color={colors.text.tertiary} />
-                    <T variant="small" color={colors.text.secondary} style={{ flex: 1 }}>
-                      {`${place.name}, ${place.country}`}
-                    </T>
-                  </Row>
+                  <Card key={place.display_name}>
+                    <CardPress
+                      onPress={() => prepare(place)}
+                      accessibilityLabel={`Prepare ${place.name}, ${place.country}`}
+                      disabled={activate.isPending || !!session.destinationImportId}
+                    >
+                      <Row justify="space-between" align="center" style={{ padding: space.md }} gap={space.sm}>
+                        <View style={{ flex: 1, gap: 3 }}>
+                          <T variant="h3">{place.name}</T>
+                          <T variant="small" color={colors.text.secondary}>
+                            {[place.region, place.country].filter(Boolean).join(', ')}
+                          </T>
+                          <T variant="caption" color={colors.action.primary}>
+                            {activate.isPending ? 'Starting…' : 'Prepare this city'}
+                          </T>
+                        </View>
+                        <Icon name="chevron" size={16} color={colors.text.tertiary} />
+                      </Row>
+                    </CardPress>
+                  </Card>
                 ))}
               </View>
             ) : null}
 
             <Note>
               {elsewhere.length > 0
-                ? 'We only cover a city once we have researched it properly — opening hours, walking times, what is actually worth your time. Somewhere we had merely geocoded would give you worse answers than a map.'
+                ? 'Choose a city and Interlude will prepare grounded recommendations from live place data. You can leave this screen while it works.'
                 : `We could not find ${query.trim()} at all. Check the spelling, or pick one of these.`}
             </Note>
 

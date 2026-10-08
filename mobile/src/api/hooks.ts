@@ -6,7 +6,9 @@ import { clearIdentity, http } from './client';
 import type {
   AssistantReply,
   Destination,
+  DestinationActivation,
   DestinationDetail,
+  DestinationImport,
   DiscoveryResponse,
   ExperienceCard,
   ExperienceDetail,
@@ -23,8 +25,9 @@ import { discoveryPayload, useSession } from '../store/session';
 const wrapped = <T>(p: Promise<{ data: T }>) => p.then((r) => r.data);
 
 export const keys = {
-  destinations: (q?: string) => ['destinations', q ?? ''] as const,
+  destinations: (q?: string, worldwide = false) => ['destinations', q ?? '', worldwide] as const,
   destination: (slug: string) => ['destination', slug] as const,
+  destinationImport: (id: string) => ['destination-import', id] as const,
   profile: () => ['profile'] as const,
   dna: () => ['dna'] as const,
   journey: (id: string) => ['journey', id] as const,
@@ -42,15 +45,52 @@ export const keys = {
  * city has no experiences behind it, so merging them would let a screen offer
  * one as though it were bookable.
  */
-export function useDestinations(q?: string) {
+export function useDestinations(q?: string, worldwide = false) {
   return useQuery({
-    queryKey: keys.destinations(q),
+    queryKey: keys.destinations(q, worldwide),
     queryFn: async () => {
-      const path = `/destinations${q ? `?q=${encodeURIComponent(q)}` : ''}`;
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (worldwide) params.set('worldwide', '1');
+      const path = `/destinations${params.size > 0 ? `?${params.toString()}` : ''}`;
       const body = await http.get<{ data: Destination[]; elsewhere?: UncoveredPlace[] }>(path);
 
       return { covered: body.data ?? [], elsewhere: body.elsewhere ?? [] };
     },
+  });
+}
+
+export function useActivateDestination() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (candidateToken: string) =>
+      wrapped(http.post<{ data: DestinationActivation }>('/destinations/activate', {
+        candidate_token: candidateToken,
+      })),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['destinations'] }),
+    onError: reportFailure('prepare that city'),
+  });
+}
+
+export function useDestinationImport(id: string | null) {
+  return useQuery({
+    enabled: !!id,
+    queryKey: keys.destinationImport(id ?? ''),
+    queryFn: () => wrapped(http.get<{ data: DestinationImport }>(`/destination-imports/${id}`)),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data && ['queued', 'running'].includes(data.status)
+        ? (data.poll_after_seconds ?? 3) * 1000
+        : false;
+    },
+  });
+}
+
+export function useRetryDestinationImport() {
+  return useMutation({
+    mutationFn: (id: string) => wrapped(http.post<{ data: { import_id: string } }>(`/destination-imports/${id}/retry`)),
+    onError: reportFailure('retry that city'),
   });
 }
 

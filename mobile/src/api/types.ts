@@ -157,6 +157,7 @@ export type Destination = {
   summary: string | null;
   hero_image_url: string | null;
   hero_image_attribution: ImageAttribution;
+  coverage_status?: 'discovered' | 'queued' | 'importing' | 'ready' | 'limited' | 'failed';
 };
 
 /**
@@ -174,6 +175,40 @@ export type UncoveredPlace = {
   lat: number;
   lng: number;
   covered: false;
+  kind: 'destination_candidate';
+  source: 'nominatim';
+  coverage_status: 'discoverable';
+  candidate_token: string;
+  region: string | null;
+};
+
+export type DestinationActivation = {
+  destination_id: string;
+  destination_slug: string;
+  coverage_status: Destination['coverage_status'];
+  import_id: string | null;
+  stage: string | null;
+  poll_after_seconds: number | null;
+};
+
+export type DestinationImport = {
+  id: string;
+  destination_id: string;
+  destination: Pick<Destination, 'id' | 'name' | 'slug' | 'timezone' | 'coverage_status'>;
+  status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed' | 'cancelled';
+  stage: string;
+  records_seen: number;
+  places_created: number;
+  places_matched: number;
+  places_needing_review: number;
+  places_failed: number;
+  experiences_published: number;
+  experiences_pending_content: number;
+  started_at: string | null;
+  finished_at: string | null;
+  retryable: boolean;
+  message: string;
+  poll_after_seconds: number | null;
 };
 
 export type DestinationDetail = Destination & {

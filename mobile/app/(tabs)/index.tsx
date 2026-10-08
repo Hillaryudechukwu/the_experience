@@ -110,7 +110,7 @@ export default function Discover() {
           <EmptyState
             title="Pick a city first"
             body="We need to know where you are before we can be useful."
-            action={<Button label="Choose a city" onPress={() => router.push('/onboarding')} />}
+            action={<Button label="Choose a city" onPress={() => router.push('/onboarding/destination')} />}
           />
         </Gutter>
       </Screen>

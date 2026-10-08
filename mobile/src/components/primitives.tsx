@@ -213,22 +213,26 @@ export function CardPress({
   children,
   onPress,
   accessibilityLabel,
+  disabled,
   style,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   accessibilityLabel?: string;
+  disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         onPress();
       }}
-      style={({ pressed }) => [pressed && { opacity: 0.92 }, style]}
+      style={({ pressed }) => [(pressed || disabled) && { opacity: disabled ? 0.6 : 0.92 }, style]}
     >
       {children}
     </Pressable>

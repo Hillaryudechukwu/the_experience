@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { AppState, View } from 'react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -56,7 +56,9 @@ export default function RootLayout() {
    */
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
-      if (next === 'active') refreshLocation();
+      const active = next === 'active';
+      focusManager.setFocused(active);
+      if (active) refreshLocation();
     });
 
     return () => subscription.remove();
