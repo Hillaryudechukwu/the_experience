@@ -1,10 +1,11 @@
 import React from 'react';
-import { Alert, Linking, Pressable, View } from 'react-native';
+import { Alert, Linking, Pressable, Share, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { API_URL, http } from '../../src/api/client';
 import {
   useExperienceDna,
+  useExportPrivacyData,
   useLogout,
   usePassport,
   useProfile,
@@ -52,6 +53,7 @@ export default function You() {
   const { data: passport } = usePassport();
   const update = useUpdateProfile();
   const logout = useLogout();
+  const exportPrivacy = useExportPrivacyData();
 
   /* Loading and "did not load" are different states. Collapsing them into one
      spinner meant a failed request turned forever. */
@@ -81,6 +83,18 @@ export default function You() {
       Alert.alert('Deleted', `Removed ${result.deleted_snapshots} stored context snapshots.`);
     } catch (cause) {
       Alert.alert('Could not delete', cause instanceof Error ? cause.message : 'Try again.');
+    }
+  };
+
+  const downloadMyData = async () => {
+    try {
+      const payload = await exportPrivacy.mutateAsync();
+      await Share.share({
+        title: 'My Interlude data',
+        message: JSON.stringify(payload, null, 2),
+      });
+    } catch {
+      /* hook or share alerts */
     }
   };
 
@@ -255,6 +269,12 @@ export default function You() {
       {/* ── Links ──────────────────────────────────────────────────────── */}
       <Gutter style={{ marginTop: space.xl }}>
         <Card>
+          <LinkRow
+            icon="lock"
+            label={exportPrivacy.isPending ? 'Preparing export…' : 'Download my data'}
+            onPress={downloadMyData}
+          />
+          <Divider />
           <LinkRow icon="lock" label="Delete my stored location history" onPress={forgetLocation} />
           <Divider />
           <LinkRow icon="compass" label="Start a new journey" onPress={() => router.push('/onboarding')} />

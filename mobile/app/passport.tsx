@@ -2,10 +2,11 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { usePassport } from '../src/api/hooks';
+import { useJourneyRecap, usePassport } from '../src/api/hooks';
 import { Icon } from '../src/components/Icon';
-import { Card, CardPress, Divider, EmptyState, Gutter, LoadFailure, Loading, Row, Screen, SectionHeader, T } from '../src/components/primitives';
+import { Card, CardPress, Divider, EmptyState, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../src/components/primitives';
 import { titleCase } from '../src/lib/format';
+import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
 import { useBackTo } from '../src/lib/navigation';
 
@@ -19,7 +20,9 @@ export default function PassportScreen() {
   const colors = useTheme();
   const router = useRouter();
   const goBack = useBackTo('/(tabs)/you');
+  const journeyId = useSession((s) => s.journeyId);
   const { data, isLoading, isError, refetch } = usePassport();
+  const { data: recap } = useJourneyRecap(journeyId);
 
   /* Drawn in every state, including the ones that fail. A screen whose only
      way out sits below the content is a screen you cannot leave when the
@@ -90,6 +93,43 @@ export default function PassportScreen() {
               </Row>
             </Card>
           </Gutter>
+
+          {recap ? (
+            <Gutter>
+              <SectionHeader title="This trip" caption={recap.destination} />
+              <Card>
+                <View style={{ padding: space.md, gap: space.sm }}>
+                  <Row justify="space-between">
+                    <T variant="small" color={colors.text.secondary}>
+                      Experiences done
+                    </T>
+                    <T variant="bodyStrong">{recap.experiences}</T>
+                  </Row>
+                  {recap.days ? (
+                    <Row justify="space-between">
+                      <T variant="small" color={colors.text.secondary}>
+                        Days
+                      </T>
+                      <T variant="bodyStrong">{recap.days}</T>
+                    </Row>
+                  ) : null}
+                  {recap.average_rating ? (
+                    <Row justify="space-between">
+                      <T variant="small" color={colors.text.secondary}>
+                        Average rating
+                      </T>
+                      <T variant="bodyStrong">{recap.average_rating}</T>
+                    </Row>
+                  ) : null}
+                  {recap.highlights.length > 0 ? (
+                    <Note>
+                      Highlight: {recap.highlights[0]?.best_part ?? 'Your highest-rated stop this trip.'}
+                    </Note>
+                  ) : null}
+                </View>
+              </Card>
+            </Gutter>
+          ) : null}
 
           <Gutter>
             <SectionHeader title="Cities" />

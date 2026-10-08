@@ -261,6 +261,64 @@ export function useMarkComplete(id: string) {
   });
 }
 
+export type JournalInput = {
+  rating: number;
+  would_recommend?: boolean;
+  best_part?: string | null;
+  private_note?: string | null;
+  is_public?: boolean;
+};
+
+export type JournalEntry = {
+  id: string;
+  experience_id: string;
+  rating: number;
+  would_recommend: boolean | null;
+  best_part: string | null;
+  is_public: boolean;
+  has_private_note: boolean;
+};
+
+export function useWriteJournal(experienceId: string) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: JournalInput) =>
+      wrapped(http.post<{ data: JournalEntry }>(`/passport/journal/${experienceId}`, body)),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: keys.passport() });
+      client.invalidateQueries({ queryKey: keys.experience(experienceId) });
+    },
+    onError: reportFailure('save that journal note'),
+  });
+}
+
+export type JourneyRecap = {
+  destination: string;
+  days: number | null;
+  experiences: number;
+  iconic: number;
+  hidden_gems: number;
+  food_experiences: number;
+  average_rating: number | null;
+  highlights: { experience_id: string; rating: number; best_part: string | null }[];
+};
+
+export function useJourneyRecap(journeyId: string | null) {
+  return useQuery({
+    enabled: !!journeyId,
+    queryKey: ['recap', journeyId ?? ''],
+    queryFn: () => wrapped(http.get<{ data: JourneyRecap }>(`/passport/recap/${journeyId}`)),
+  });
+}
+
+export function useExportPrivacyData() {
+  return useMutation({
+    mutationFn: () => wrapped(http.get<{ data: Record<string, unknown> }>('/privacy/export')),
+    onError: reportFailure('export your data'),
+  });
+}
+
 export function useJourney(id: string | null) {
   return useQuery({
     enabled: !!id,

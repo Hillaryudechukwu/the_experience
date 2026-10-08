@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ import {
   useExperience,
   useMarkComplete,
   useToggleSave,
+  useWriteJournal,
 } from '../../src/api/hooks';
 import type { AvailabilitySlot, Freshness, Offer } from '../../src/api/types';
 import { ScoreBadge, ScoreExplanation } from '../../src/components/ExperienceScore';
@@ -32,6 +33,7 @@ import {
 } from '../../src/components/primitives';
 import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
 import { clock, minutesLabel, titleCase } from '../../src/lib/format';
+import { shareExperience } from '../../src/lib/share';
 import { elevation, radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
 import { useBackTo } from '../../src/lib/navigation';
 
@@ -53,9 +55,14 @@ export default function ExperienceScreen() {
   const { data, isLoading, isError, error } = useExperience(id!);
   const toggleSave = useToggleSave(id!);
   const markComplete = useMarkComplete(id!);
+  const writeJournal = useWriteJournal(id!);
 
   const [explaining, setExplaining] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [bestPart, setBestPart] = useState('');
+  const [privateNote, setPrivateNote] = useState('');
 
   if (isLoading) {
     return (
@@ -106,7 +113,20 @@ export default function ExperienceScreen() {
                   label={data.is_saved ? 'Remove from saved' : 'Save'}
                   active={data.is_saved}
                 />
-                <CircleButton icon="share" onPress={() => Alert.alert('Share', 'Sharing is not wired up yet.')} label="Share" />
+                <CircleButton
+                  icon="share"
+                  onPress={async () => {
+                    try {
+                      await shareExperience(data.id, data.title);
+                    } catch (cause) {
+                      Alert.alert(
+                        'Could not share',
+                        cause instanceof Error ? cause.message : 'Try again in a moment.',
+                      );
+                    }
+                  }}
+                  label="Share"
+                />
               </Row>
             </Row>
 
@@ -415,6 +435,20 @@ export default function ExperienceScreen() {
             </View>
           </Card>
         </Gutter>
+
+        {!data.is_completed ? (
+          <Gutter style={{ marginBottom: space.lg }}>
+            <Button
+              label="I did this"
+              tone="secondary"
+              onPress={() =>
+                markComplete.mutate(undefined, {
+                  onSuccess: () => setJournalOpen(true),
+                })
+              }
+            />
+          </Gutter>
+        ) : null}
       </ScrollView>
 
       {/* ── Sticky adaptive CTA ────────────────────────────────────────── */}
@@ -441,7 +475,16 @@ export default function ExperienceScreen() {
             icon={<Icon name={data.is_saved ? 'saved' : 'save'} size={17} color={colors.text.primary} />}
             style={{ flex: 1 }}
           />
-          <Button label={primaryCta.label} onPress={primaryCta.onPress} haptic="medium" style={{ flex: 1.4 }} />
+          {data.is_completed ? (
+            <Button
+              label="Journal"
+              onPress={() => setJournalOpen(true)}
+              haptic="medium"
+              style={{ flex: 1.4 }}
+            />
+          ) : (
+            <Button label={primaryCta.label} onPress={primaryCta.onPress} haptic="medium" style={{ flex: 1.4 }} />
+          )}
         </Row>
       </View>
 
@@ -471,11 +514,108 @@ export default function ExperienceScreen() {
               label="I did this"
               tone="secondary"
               onPress={() => {
-                markComplete.mutate();
-                setExpanded(null);
+                markComplete.mutate(undefined, {
+                  onSuccess: () => {
+                    setExpanded(null);
+                    setJournalOpen(true);
+                  },
+                });
               }}
             />
-          ) : null}
+          ) : (
+            <Button label="Add a journal note" tone="secondary" onPress={() => {
+              setExpanded(null);
+              setJournalOpen(true);
+            }} />
+          )}
+        </View>
+      </Sheet>
+
+      {/* ── Journal (private by default) ──────────────────────────────── */}
+      <Sheet visible={journalOpen} onClose={() => setJournalOpen(false)} title="Journal">
+        <View style={{ gap: space.md }}>
+          <T variant="small" color={colors.text.secondary}>
+            Private unless you choose otherwise. Your note stays on your passport.
+          </T>
+          <View style={{ gap: space.xs }}>
+            <T variant="label" color={colors.text.tertiary}>
+              Rating
+            </T>
+            <Row gap={space.xs}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Chip
+                  key={value}
+                  label={String(value)}
+                  selected={rating === value}
+                  onPress={() => setRating(value)}
+                />
+              ))}
+            </Row>
+          </View>
+          <View style={{ gap: 6 }}>
+            <T variant="label" color={colors.text.tertiary}>
+              Best part
+            </T>
+            <TextInput
+              value={bestPart}
+              onChangeText={setBestPart}
+              placeholder="What should you remember?"
+              placeholderTextColor={colors.text.tertiary}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border.strong,
+                borderRadius: radius.control,
+                paddingHorizontal: space.md,
+                paddingVertical: 12,
+                color: colors.text.primary,
+                backgroundColor: colors.background.elevated,
+                minHeight: 48,
+              }}
+            />
+          </View>
+          <View style={{ gap: 6 }}>
+            <T variant="label" color={colors.text.tertiary}>
+              Private note
+            </T>
+            <TextInput
+              value={privateNote}
+              onChangeText={setPrivateNote}
+              placeholder="Only you will see this"
+              placeholderTextColor={colors.text.tertiary}
+              multiline
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border.strong,
+                borderRadius: radius.control,
+                paddingHorizontal: space.md,
+                paddingVertical: 12,
+                color: colors.text.primary,
+                backgroundColor: colors.background.elevated,
+                minHeight: 96,
+                textAlignVertical: 'top',
+              }}
+            />
+          </View>
+          <Button
+            label={writeJournal.isPending ? 'Saving…' : 'Save journal note'}
+            disabled={writeJournal.isPending}
+            onPress={async () => {
+              try {
+                await writeJournal.mutateAsync({
+                  rating,
+                  best_part: bestPart.trim() || null,
+                  private_note: privateNote.trim() || null,
+                  is_public: false,
+                });
+                setJournalOpen(false);
+                setBestPart('');
+                setPrivateNote('');
+                Alert.alert('Saved', 'Your private journal note is on your passport.');
+              } catch {
+                /* hook alerts */
+              }
+            }}
+          />
         </View>
       </Sheet>
     </View>
