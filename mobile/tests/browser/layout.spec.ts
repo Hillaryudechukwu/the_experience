@@ -190,6 +190,22 @@ test.describe('the detectors can fail', () => {
  * Link: a traveller following a shared link arrives with no history, and the
  * only control in the corner does not work.
  */
+/**
+ * react-native-web's Alert.alert is a no-op. Delete used to put the erase +
+ * redirect inside a button onPress on that alert, so web never left the page.
+ */
+test('delete account confirms and leaves the screen on web', async ({ seeded: page }) => {
+  page.on('dialog', async (dialog) => {
+    await dialog.accept();
+  });
+
+  await settle(page, '/account/delete');
+  await page.getByRole('button', { name: 'Delete my account' }).click();
+
+  await page.waitForURL((url) => url.pathname.startsWith('/onboarding'), { timeout: 20_000 });
+  expect(new URL(page.url()).pathname.startsWith('/onboarding')).toBe(true);
+});
+
 test.describe('back works on a directly opened screen', () => {
   const ENTRY_POINTS = [
     { path: '/search', label: 'Back' },

@@ -144,9 +144,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const payload = text ? safeParse(text) : null;
 
   if (!response.ok) {
-    const message =
-      (payload as { message?: string } | null)?.message ?? `Request failed (${response.status})`;
-    throw new ApiError(message, response.status, payload);
+    throw new ApiError(errorMessage(payload, response.status), response.status, payload);
   }
 
   return payload as T;
@@ -158,6 +156,28 @@ function safeParse(text: string): unknown {
   } catch {
     return { message: text.slice(0, 200) };
   }
+}
+
+/** Prefer the first Laravel field error over a generic 422 envelope. */
+function errorMessage(payload: unknown, status: number): string {
+  const body = payload as {
+    message?: string;
+    errors?: Record<string, string[] | string>;
+  } | null;
+
+  const fields = body?.errors;
+  if (fields && typeof fields === 'object') {
+    for (const value of Object.values(fields)) {
+      const first = Array.isArray(value) ? value[0] : value;
+      if (typeof first === 'string' && first.trim()) return first;
+    }
+  }
+
+  if (typeof body?.message === 'string' && body.message.trim()) {
+    return body.message;
+  }
+
+  return `Request failed (${status})`;
 }
 
 export const http = {

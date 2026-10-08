@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useDeleteAccount, useProfile } from '../../src/api/hooks';
 import { Icon } from '../../src/components/Icon';
 import { Button, Card, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
+import { confirmAction, showAlert } from '../../src/lib/alert';
 import { useSession } from '../../src/store/session';
 import { radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
 import { useBackTo } from '../../src/lib/navigation';
@@ -37,14 +38,12 @@ export default function DeleteAccount() {
   const canSubmit = isGuest || password.length > 0;
 
   const confirm = () => {
-    Alert.alert(
-      'Delete everything?',
-      'This is immediate and cannot be undone.',
-      [
-        { text: 'Keep my account', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: run },
-      ],
-    );
+    confirmAction('Delete everything?', 'This is immediate and cannot be undone.', {
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep my account',
+      destructive: true,
+      onConfirm: run,
+    });
   };
 
   const run = async () => {
@@ -53,17 +52,20 @@ export default function DeleteAccount() {
 
       await session.reset();
 
-      Alert.alert(
+      /* Leave this screen before any dialog — react-native-web's Alert is a
+         no-op, and even on native we must not depend on dismissing a dialog
+         to finish the exit. */
+      router.replace('/onboarding');
+
+      showAlert(
         'Your account has been deleted',
         result.retained_bookings > 0
           ? `Everything is gone. ${result.retained_bookings} paid booking${result.retained_bookings === 1 ? '' : 's'} had to be kept as a financial record, with your name and every link to you removed from ${result.retained_bookings === 1 ? 'it' : 'them'}.`
           : 'Everything held about you has been removed.',
       );
-
-      router.replace('/onboarding');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Something went wrong.';
-      Alert.alert('Could not delete your account', message);
+      showAlert('Could not delete your account', message);
     }
   };
 
@@ -120,6 +122,7 @@ export default function DeleteAccount() {
               onChangeText={setPassword}
               secureTextEntry
               autoCapitalize="none"
+              autoCorrect={false}
               autoComplete="current-password"
               textContentType="password"
               placeholder="Your password"
