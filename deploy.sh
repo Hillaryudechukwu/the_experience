@@ -416,6 +416,9 @@ set_env DESTINATION_ACTIVATION_ENABLED "true"
 "$php_bin" artisan route:cache
 "$php_bin" artisan view:cache
 "$php_bin" artisan queue:restart
+# Kick the scheduler once so RecordQueueHeartbeat lands before the health gate;
+# host cron must still run schedule:run every minute (see PROVIDER_SMOKE_RUNBOOK).
+"$php_bin" artisan schedule:run
 "$php_bin" artisan experience:export-legal
 
 if [[ -n "$restart_command" ]]; then
