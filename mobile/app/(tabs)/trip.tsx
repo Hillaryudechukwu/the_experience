@@ -125,7 +125,7 @@ export default function TripScreen() {
                   ·
                 </T>
                 <T variant="small" color={colors.text.secondary}>
-                  {days} day{days === 1 ? '' : 's'} ({stayRangeLabel(journey.starts_on, journey.ends_on, tz)})
+                  {days} day{days === 1 ? '' : 's'} ({stayRangeLabel(journey.starts_on, journey.ends_on)})
                 </T>
               </>
             ) : null}

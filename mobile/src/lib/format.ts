@@ -82,40 +82,44 @@ export function stayBounds(stayDays: number, from = new Date()): { starts_on: st
   return { starts_on, ends_on };
 }
 
+/** Parse a YYYY-MM-DD journey date as calendar components (no timezone shift). */
+function calendarDate(iso: string): Date {
+  const [year, month, day] = iso.split('-').map(Number);
+
+  return new Date(year, month - 1, day);
+}
+
 /** Inclusive day count from journey dates, or null when dates are missing. */
 export function stayDayCount(startsOn: string | null | undefined, endsOn: string | null | undefined): number | null {
   if (!startsOn || !endsOn) return null;
 
-  const start = new Date(`${startsOn}T12:00:00`);
-  const end = new Date(`${endsOn}T12:00:00`);
+  const start = calendarDate(startsOn);
+  const end = calendarDate(endsOn);
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
 
   return days > 0 ? days : null;
 }
 
-/** Compact stay range, e.g. "9–11 Oct" or "9 Oct – 2 Nov". */
-export function stayRangeLabel(startsOn: string, endsOn: string, timeZone?: string): string {
-  const options: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    ...(timeZone ? { timeZone } : {}),
-  };
-  const start = new Date(`${startsOn}T12:00:00`);
-  const end = new Date(`${endsOn}T12:00:00`);
+/**
+ * Compact stay range, e.g. "9–11 Oct" or "9 Oct – 2 Nov".
+ * Journey dates are calendar days, so format the Y-M-D as written — never
+ * reinterpret through a destination timezone (that can shift the day).
+ */
+export function stayRangeLabel(startsOn: string, endsOn: string): string {
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+  const start = calendarDate(startsOn);
+  const end = calendarDate(endsOn);
 
   if (startsOn === endsOn) {
     return start.toLocaleDateString([], options);
   }
 
   const sameMonth =
-    start.toLocaleDateString([], { month: 'short', ...(timeZone ? { timeZone } : {}) }) ===
-    end.toLocaleDateString([], { month: 'short', ...(timeZone ? { timeZone } : {}) });
+    start.toLocaleDateString([], { month: 'short' }) === end.toLocaleDateString([], { month: 'short' }) &&
+    start.getFullYear() === end.getFullYear();
 
   if (sameMonth) {
-    const day = start.toLocaleDateString([], { day: 'numeric', ...(timeZone ? { timeZone } : {}) });
-    const endLabel = end.toLocaleDateString([], options);
-
-    return `${day}–${endLabel}`;
+    return `${start.toLocaleDateString([], { day: 'numeric' })}–${end.toLocaleDateString([], options)}`;
   }
 
   return `${start.toLocaleDateString([], options)} – ${end.toLocaleDateString([], options)}`;
