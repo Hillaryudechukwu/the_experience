@@ -81,19 +81,28 @@ class TimeBoxedDiscoveryTest extends TestCase
         $this->assertStringContainsString('Loosening the time', $response->json('notice'));
     }
 
-    public function test_an_empty_catalogue_is_not_blamed_on_filters(): void
+    public function test_an_empty_catalogue_queues_import_instead_of_blaming_filters(): void
     {
-        $destination = $this->destination();
+        \Illuminate\Support\Facades\Queue::fake();
+
+        $destination = $this->destination([
+            'coverage_status' => \App\Domains\Destinations\Enums\DestinationCoverageStatus::Ready,
+        ]);
 
         $response = $this->postJson('/api/discovery/now', [
             'destination_id' => $destination->id,
         ]);
 
-        $response->assertOk();
-        $this->assertSame([], $response->json('data'));
-        $this->assertTrue($response->json('catalogue_empty'));
-        $this->assertSame(0, $response->json('candidates_considered'));
-        $this->assertStringContainsString('does not have experiences loaded', $response->json('notice'));
+        $response->assertConflict()
+            ->assertJsonPath('code', 'destination_preparing')
+            ->assertJsonPath('coverage_status', 'queued');
+
+        $this->assertNotNull($response->json('import_id'));
+        $this->assertSame(
+            \App\Domains\Destinations\Enums\DestinationCoverageStatus::Queued,
+            $destination->fresh()->coverage_status,
+        );
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Domains\Destinations\Jobs\ImportDestination::class);
     }
 
     public function test_a_later_anchor_caps_the_window_the_traveller_asked_for(): void
