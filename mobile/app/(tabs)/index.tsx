@@ -2,8 +2,17 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { API_URL } from '../../src/api/client';
-import { useDestination, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
+import { ApiError, API_URL } from '../../src/api/client';
+import {
+  useDestination,
+  useDestinationImport,
+  useDiscovery,
+  useJourney,
+  useProfile,
+  useSaved,
+  useSurpriseMe,
+  useTrip,
+} from '../../src/api/hooks';
 import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
 import { DestinationHero } from '../../src/components/DestinationHero';
 import { QUICK_ACTIONS_OVERLAP, QuickActions } from '../../src/components/QuickActions';
@@ -82,6 +91,32 @@ export default function Discover() {
   const { data: saved } = useSaved();
   const { data: profile } = useProfile();
   const surprise = useSurpriseMe();
+  const importProgress = useDestinationImport(session.destinationImportId);
+
+  const setDestinationImport = session.setDestinationImport;
+  const refetchDiscovery = discovery.refetch;
+
+  /* Empty catalogue cities queue an import on first Discover hit (409 preparing). */
+  useEffect(() => {
+    const err = discovery.error;
+    if (!(err instanceof ApiError) || err.status !== 409) return;
+    const body = err.body as { code?: string; import_id?: string } | null;
+    if (body?.code === 'destination_preparing' && body.import_id) {
+      void setDestinationImport(body.import_id);
+    }
+  }, [discovery.error, setDestinationImport]);
+
+  useEffect(() => {
+    const status = importProgress.data?.status;
+    if (status === 'succeeded' || status === 'partial') {
+      void refetchDiscovery();
+      void setDestinationImport(null);
+    }
+  }, [importProgress.data?.status, refetchDiscovery, setDestinationImport]);
+
+  const preparingCity =
+    !!session.destinationImportId &&
+    (!importProgress.data || ['queued', 'running'].includes(importProgress.data.status));
 
   const context = discovery.data?.context;
   const results = discovery.data?.data ?? [];
@@ -129,8 +164,10 @@ export default function Discover() {
 
   const emptyCatalogue = !discovery.isLoading && results.length === 0 && discovery.data?.catalogue_empty === true;
 
-  const heroDetail = discovery.isLoading
-    ? 'Working out what fits…'
+  const heroDetail = discovery.isLoading || preparingCity
+    ? preparingCity
+      ? 'Preparing this city — finding places worth recommending…'
+      : 'Working out what fits…'
     : results.length > 0
       ? `I found ${results.length} experience${results.length === 1 ? '' : 's'} that fit.`
       : emptyCatalogue
@@ -266,12 +303,17 @@ export default function Discover() {
       </Gutter>
 
       <Gutter>
-        {discovery.isLoading ? (
+        {discovery.isLoading || preparingCity ? (
           <Card level="card">
             <View style={{ padding: space.md, gap: space.sm }}>
               <Skeleton height={140} />
               <Skeleton height={20} width="70%" />
               <Skeleton height={14} width="45%" />
+              {preparingCity ? (
+                <T variant="small" color={colors.text.secondary}>
+                  {importProgress.data?.message ?? 'Loading experiences for this city…'}
+                </T>
+              ) : null}
             </View>
           </Card>
         ) : null}
@@ -282,7 +324,7 @@ export default function Discover() {
           </View>
         ) : null}
 
-        {top ? (
+        {top && !preparingCity ? (
           <ExperienceCardView
             card={top}
             variant="recommendation"
@@ -291,7 +333,7 @@ export default function Discover() {
           />
         ) : null}
 
-        {!discovery.isLoading && results.length === 0 && !discovery.isError ? (
+        {!discovery.isLoading && !preparingCity && results.length === 0 && !discovery.isError ? (
           <EmptyState
             title={emptyCatalogue ? 'Nothing loaded for this city yet' : 'Nothing strong fits all of that'}
             body={
