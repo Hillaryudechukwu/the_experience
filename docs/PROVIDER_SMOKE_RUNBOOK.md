@@ -49,6 +49,17 @@ Expect at soft-launch / commercial readiness:
 - `queue_driver: database`
 - `queue_worker_alive: true` — if false, cron/`schedule:run` is missing or stalled
 
+## Imagery (seeded warm catalogue)
+
+Seeds do **not** include photos. Cards show gradients until:
+
+```bash
+php artisan experience:backfill-imagery all --limit=80
+```
+
+Deploy runs a bounded pass after seed; cron runs another daily at 03:30.
+Activated (non-seeded) cities get imagery during import enrich — no per-city seed.
+
 ## Smoke checklist (staging or production)
 
 Do these with a guest token. Prefer staging; production only for read-only

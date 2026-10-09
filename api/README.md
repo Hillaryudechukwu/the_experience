@@ -10,8 +10,15 @@ cp .env.example .env            # set DB_USERNAME / DB_PASSWORD
 php artisan key:generate
 createdb experience && createdb experience_test
 php artisan migrate --seed
+# Seeded cities ship without photos (editorial text only). Fill licensed imagery:
+php artisan experience:backfill-imagery all --limit=80
 php artisan serve --port=8099
 ```
+
+Seeds are a warm catalogue for a few cities — not how coverage grows. New cities
+go through destination activation + import enrich. Imagery backfill only fills
+null URLs and is scheduled daily in production; deploy also runs a bounded pass
+after seed.
 
 The migration that creates the geospatial indexes installs `cube`, `earthdistance`
 and `pg_trgm`, so the database user needs permission to create extensions.
