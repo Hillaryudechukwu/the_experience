@@ -60,9 +60,12 @@ export function titleCase(value: string): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Local calendar date as YYYY-MM-DD (API journey date fields). */
-export function isoDate(date = new Date()): string {
-  return date.toLocaleDateString('en-CA');
+/**
+ * Calendar date as YYYY-MM-DD for API journey date fields.
+ * Pass the destination timezone so “today” matches itinerary day matching on Home.
+ */
+export function isoDate(date = new Date(), timeZone?: string): string {
+  return date.toLocaleDateString('en-CA', timeZone ? { timeZone } : {});
 }
 
 /** Add whole calendar days to a YYYY-MM-DD string without UTC drift. */
@@ -71,12 +74,17 @@ export function addCalendarDays(iso: string, days: number): string {
   const date = new Date(year, month - 1, day);
   date.setDate(date.getDate() + days);
 
-  return isoDate(date);
+  /* Pure Y-M-D arithmetic — do not re-apply a destination zone here. */
+  return date.toLocaleDateString('en-CA');
 }
 
-/** Inclusive stay bounds for onboarding presets (1 = today only). */
-export function stayBounds(stayDays: number, from = new Date()): { starts_on: string; ends_on: string } {
-  const starts_on = isoDate(from);
+/** Inclusive stay bounds for onboarding presets (1 = destination-today only). */
+export function stayBounds(
+  stayDays: number,
+  from = new Date(),
+  timeZone?: string,
+): { starts_on: string; ends_on: string } {
+  const starts_on = isoDate(from, timeZone);
   const ends_on = addCalendarDays(starts_on, Math.max(1, stayDays) - 1);
 
   return { starts_on, ends_on };
