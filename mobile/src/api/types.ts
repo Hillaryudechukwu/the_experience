@@ -157,6 +157,7 @@ export type DiscoveryResponse = {
   recommendation_set_id: string;
   context: DiscoveryContext;
   candidates_considered: number;
+  catalogue_empty?: boolean;
   notice: string | null;
   interpreted?: { understood_as: string[]; filters: Record<string, unknown> };
 };
