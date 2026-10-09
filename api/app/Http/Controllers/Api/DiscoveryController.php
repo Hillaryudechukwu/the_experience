@@ -8,7 +8,6 @@ use App\Domains\AI\Services\IntentParser;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
 use App\Domains\Destinations\Services\EnsureDestinationReadyForDiscovery;
 use App\Domains\Discovery\Services\NameRelevance;
-use App\Domains\Experiences\Models\Experience;
 use App\Domains\Experiences\Services\ExperiencePresenter;
 use App\Domains\Recommendations\DTO\ScoredExperience;
 use App\Domains\Recommendations\Services\RecommendationService;
@@ -126,8 +125,6 @@ class DiscoveryController extends ApiController
     private function respond(Request $request, array $input, int $limit): JsonResponse
     {
         $result = $this->recommendations->recommend($this->actor($request), $input, $limit);
-        $destinationId = $input['destination_id'] ?? $result['context']->journey?->destination_id;
-        $catalogueEmpty = is_string($destinationId) && ! $this->destinationHasPublishedExperiences($destinationId);
 
         return response()->json([
             'data' => array_map(
@@ -137,22 +134,13 @@ class DiscoveryController extends ApiController
             'recommendation_set_id' => $result['set']->id,
             'context' => $this->contextPayload($result['context']),
             'candidates_considered' => $result['set']->candidates_considered,
-            'catalogue_empty' => $catalogueEmpty,
-            'notice' => $this->notice(
-                $result['relaxed'] ?? [],
-                $result['results'],
-                $catalogueEmpty,
-            ),
+            'notice' => $this->notice($result['relaxed'] ?? [], $result['results']),
         ]);
     }
 
-    /** Say plainly when we had to loosen the request — or when the catalogue is empty. */
-    private function notice(array $relaxed, array $results, bool $catalogueEmpty): ?string
+    /** Say plainly when we had to loosen the request to find anything. */
+    private function notice(array $relaxed, array $results): ?string
     {
-        if ($results === [] && $catalogueEmpty) {
-            return 'This city does not have experiences loaded yet. Try another covered city, or check back once the catalogue is filled.';
-        }
-
         if ($results === []) {
             return 'Nothing here fits all of that. Loosening the time, the budget or the distance would open it up.';
         }
@@ -162,14 +150,6 @@ class DiscoveryController extends ApiController
             in_array('categories', $relaxed, true) => 'Nothing matched that exactly, so these are the closest fit on everything else you asked for.',
             default => null,
         };
-    }
-
-    private function destinationHasPublishedExperiences(string $destinationId): bool
-    {
-        return Experience::query()
-            ->where('destination_id', $destinationId)
-            ->where('status', 'published')
-            ->exists();
     }
 
     private function contextPayload($context): array

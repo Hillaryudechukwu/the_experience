@@ -45,25 +45,6 @@ class DestinationReleaseReadinessTest extends TestCase
             ->assertJsonStructure(['data', 'context', 'recommendation_set_id']);
     }
 
-    public function test_ready_empty_destination_queues_catalogue_fill_on_discovery(): void
-    {
-        \Illuminate\Support\Facades\Queue::fake();
-
-        $destination = $this->destination(['coverage_status' => DestinationCoverageStatus::Ready]);
-
-        $this->postJson('/api/discovery/now', ['destination_id' => $destination->id])
-            ->assertConflict()
-            ->assertHeader('Retry-After', '3')
-            ->assertJsonPath('code', 'destination_preparing')
-            ->assertJsonPath('coverage_status', 'queued');
-
-        $this->assertDatabaseHas('destination_imports', [
-            'destination_id' => $destination->id,
-            'status' => DestinationImportStatus::Queued->value,
-        ]);
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Domains\Destinations\Jobs\ImportDestination::class);
-    }
-
     public function test_readiness_evaluator_distinguishes_ready_limited_and_failed(): void
     {
         config()->set('experience.destination_activation.ready_minimum_published', 3);

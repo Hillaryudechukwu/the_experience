@@ -13,7 +13,6 @@ use App\Domains\Destinations\Models\DestinationImport;
 use App\Domains\Destinations\Services\DestinationCandidateToken;
 use App\Domains\Destinations\Services\DestinationCoverageStateMachine;
 use App\Domains\Destinations\Services\DestinationMetadataResolver;
-use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Contracts\PlaceDataProvider;
 use App\Domains\Shared\ValueObjects\Actor;
 use Illuminate\Support\Facades\Cache;
@@ -73,9 +72,7 @@ class ActivateDestination
                     ]);
                 }
 
-                /* Usable with content → done. Usable but empty → fall through and
-                   queue the same catalogue fill as discovery (Ready → Queued). */
-                if ($destination->coverage_status->isUsable() && $this->hasPublishedExperiences($destination->id)) {
+                if ($destination->coverage_status->isUsable()) {
                     return ['destination' => $destination, 'import' => null, 'created' => $created, 'import_created' => false];
                 }
 
@@ -88,9 +85,7 @@ class ActivateDestination
                     return ['destination' => $destination, 'import' => $activeImport, 'created' => $created, 'import_created' => false];
                 }
 
-                if ($destination->coverage_status !== DestinationCoverageStatus::Queued) {
-                    $this->coverage->transition($destination, DestinationCoverageStatus::Queued);
-                }
+                $this->coverage->transition($destination, DestinationCoverageStatus::Queued);
 
                 $import = $destination->imports()->create([
                     'active_destination_id' => $destination->id,
@@ -121,13 +116,5 @@ class ActivateDestination
         }
 
         return $slug;
-    }
-
-    private function hasPublishedExperiences(string $destinationId): bool
-    {
-        return Experience::query()
-            ->where('destination_id', $destinationId)
-            ->where('status', 'published')
-            ->exists();
     }
 }

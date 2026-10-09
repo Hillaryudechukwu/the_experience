@@ -78,31 +78,6 @@ class TimeBoxedDiscoveryTest extends TestCase
         $response->assertOk();
         $this->assertSame([], $response->json('data'));
         $this->assertNotNull($response->json('notice'));
-        $this->assertStringContainsString('Loosening the time', $response->json('notice'));
-    }
-
-    public function test_an_empty_catalogue_queues_import_instead_of_blaming_filters(): void
-    {
-        \Illuminate\Support\Facades\Queue::fake();
-
-        $destination = $this->destination([
-            'coverage_status' => \App\Domains\Destinations\Enums\DestinationCoverageStatus::Ready,
-        ]);
-
-        $response = $this->postJson('/api/discovery/now', [
-            'destination_id' => $destination->id,
-        ]);
-
-        $response->assertConflict()
-            ->assertJsonPath('code', 'destination_preparing')
-            ->assertJsonPath('coverage_status', 'queued');
-
-        $this->assertNotNull($response->json('import_id'));
-        $this->assertSame(
-            \App\Domains\Destinations\Enums\DestinationCoverageStatus::Queued,
-            $destination->fresh()->coverage_status,
-        );
-        \Illuminate\Support\Facades\Queue::assertPushed(\App\Domains\Destinations\Jobs\ImportDestination::class);
     }
 
     public function test_a_later_anchor_caps_the_window_the_traveller_asked_for(): void

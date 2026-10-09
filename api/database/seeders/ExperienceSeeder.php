@@ -159,7 +159,6 @@ class ExperienceSeeder extends Seeder
             'rome' => require database_path('seeders/data/rome.php'),
             'new-york' => require database_path('seeders/data/new-york.php'),
             'tokyo' => require database_path('seeders/data/tokyo.php'),
-            'lisbon' => require database_path('seeders/data/lisbon.php'),
         ];
     }
 }
