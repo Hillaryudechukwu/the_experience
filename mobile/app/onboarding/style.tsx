@@ -6,7 +6,8 @@ import { useCreateJourney, useCreateTrip, useUpdateProfile } from '../../src/api
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Gutter, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
-import { useOnboardingDraft } from '../../src/store/draft';
+import { stayBounds } from '../../src/lib/format';
+import { useOnboardingDraft, type StayDays } from '../../src/store/draft';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -27,6 +28,13 @@ const TOURIST_STYLE = [
   { value: 85, label: 'Iconic first' },
   { value: 60, label: 'Balanced' },
   { value: 25, label: 'Mostly local' },
+];
+
+const STAY: { days: StayDays; label: string; hint: string }[] = [
+  { days: 1, label: 'Just today', hint: 'One day' },
+  { days: 3, label: 'A few days', hint: 'About 3 days' },
+  { days: 7, label: 'About a week', hint: '7 days' },
+  { days: 14, label: 'Up to two weeks', hint: '14 days' },
 ];
 
 /** Travel style (Figma: 14.6), then everything is submitted at once. */
@@ -57,12 +65,15 @@ export default function TravelStyle() {
       });
 
       if (session.destinationId && draft.reason) {
+        const { starts_on, ends_on } = stayBounds(draft.stayDays);
         const journey = await createJourney.mutateAsync({
           destination_id: session.destinationId,
           reason: draft.reason,
           familiarity: draft.familiarity,
           adults: draft.adults,
           children: draft.children,
+          starts_on,
+          ends_on,
           ...(draft.mission.trim() ? { mission_text: draft.mission.trim() } : {}),
         });
 
@@ -78,6 +89,12 @@ export default function TravelStyle() {
       setError(cause instanceof Error ? cause.message : 'Something went wrong. Try again.');
     }
   };
+
+  const finishLabel = busy
+    ? draft.stayDays > 1
+      ? 'Building your itinerary…'
+      : 'Building your day…'
+    : 'Show me what is worth doing';
 
   return (
     <Screen>
@@ -122,6 +139,19 @@ export default function TravelStyle() {
           ))}
         </Row>
 
+        <SectionHeader title="How long are you staying?" caption="Shapes how many days we plan" />
+        <Row gap={space.xs} wrap>
+          {STAY.map((option) => (
+            <Choice
+              key={option.days}
+              label={option.label}
+              hint={option.hint}
+              selected={draft.stayDays === option.days}
+              onPress={() => draft.set({ stayDays: option.days })}
+            />
+          ))}
+        </Row>
+
         <SectionHeader title="Who is travelling?" />
         <Row gap={space.xl}>
           <Counter label="Adults" value={draft.adults} min={1} onChange={(adults) => draft.set({ adults })} />
@@ -137,7 +167,7 @@ export default function TravelStyle() {
 
       <Gutter style={{ marginTop: space.xxl }}>
         <Button
-          label={busy ? 'Building your day…' : 'Show me what is worth doing'}
+          label={finishLabel}
           size="large"
           onPress={finish}
           loading={busy}

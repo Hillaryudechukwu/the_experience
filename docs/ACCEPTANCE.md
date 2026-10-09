@@ -41,6 +41,8 @@ Behaviour the spec calls for that is also pinned by tests:
 | §23.2 | Journal entries are private by default | `Feature/AnalyticsAndPassportTest::test_a_journal_entry_is_private_unless_the_traveller_chooses_otherwise` |
 | §24 | Any past recommendation can be explained | `Feature/AdminOperationsTest::test_any_recommendation_can_be_explained_after_the_fact` |
 | — | Anchor times without an offset are destination-local | `Feature/TravellerAndJourneyTest::test_an_anchor_time_without_an_offset_is_read_in_the_destinations_timezone` |
+| — | A journey stores stay dates (`starts_on` / `ends_on`) | `Feature/TravellerAndJourneyTest::test_a_journey_stores_stay_dates` |
+| — | Generating an itinerary without overrides uses journey stay dates | `Feature/ItineraryTest::test_generating_without_overrides_uses_journey_stay_dates` |
 | — | Opening hours: unknown is never rendered as open | `Unit/OpeningHoursTest` (five cases) |
 
 ## Live integrations

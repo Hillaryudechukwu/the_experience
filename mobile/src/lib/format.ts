@@ -59,3 +59,71 @@ export function minutesLabel(minutes: number): string {
 export function titleCase(value: string): string {
   return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+/** Local calendar date as YYYY-MM-DD (API journey date fields). */
+export function isoDate(date = new Date()): string {
+  return date.toLocaleDateString('en-CA');
+}
+
+/** Add whole calendar days to a YYYY-MM-DD string without UTC drift. */
+export function addCalendarDays(iso: string, days: number): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+
+  return isoDate(date);
+}
+
+/** Inclusive stay bounds for onboarding presets (1 = today only). */
+export function stayBounds(stayDays: number, from = new Date()): { starts_on: string; ends_on: string } {
+  const starts_on = isoDate(from);
+  const ends_on = addCalendarDays(starts_on, Math.max(1, stayDays) - 1);
+
+  return { starts_on, ends_on };
+}
+
+/** Inclusive day count from journey dates, or null when dates are missing. */
+export function stayDayCount(startsOn: string | null | undefined, endsOn: string | null | undefined): number | null {
+  if (!startsOn || !endsOn) return null;
+
+  const start = new Date(`${startsOn}T12:00:00`);
+  const end = new Date(`${endsOn}T12:00:00`);
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+
+  return days > 0 ? days : null;
+}
+
+/** Compact stay range, e.g. "9–11 Oct" or "9 Oct – 2 Nov". */
+export function stayRangeLabel(startsOn: string, endsOn: string, timeZone?: string): string {
+  const options: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  };
+  const start = new Date(`${startsOn}T12:00:00`);
+  const end = new Date(`${endsOn}T12:00:00`);
+
+  if (startsOn === endsOn) {
+    return start.toLocaleDateString([], options);
+  }
+
+  const sameMonth =
+    start.toLocaleDateString([], { month: 'short', ...(timeZone ? { timeZone } : {}) }) ===
+    end.toLocaleDateString([], { month: 'short', ...(timeZone ? { timeZone } : {}) });
+
+  if (sameMonth) {
+    const day = start.toLocaleDateString([], { day: 'numeric', ...(timeZone ? { timeZone } : {}) });
+    const endLabel = end.toLocaleDateString([], options);
+
+    return `${day}–${endLabel}`;
+  }
+
+  return `${start.toLocaleDateString([], options)} – ${end.toLocaleDateString([], options)}`;
+}
+
+/** Trip empty-state CTA: single day vs multi-day stay. */
+export function buildPlanCtaLabel(stayDays: number | null | undefined, pending = false): string {
+  if (pending) return 'Building…';
+
+  return stayDays !== null && stayDays !== undefined && stayDays > 1 ? 'Build my itinerary' : 'Build my day';
+}
