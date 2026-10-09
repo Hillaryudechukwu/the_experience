@@ -79,8 +79,16 @@ class GooglePlacesProvider implements PlaceDataProvider
     {
         $types = $this->includedTypes($kinds);
 
+        /* Hash the type list — the full includedTypes string plus the cache
+           prefix exceeds MySQL's default cache.key varchar(255). */
         $payload = Cache::remember(
-            sprintf('google:nearby:%.3f:%.3f:%d:%s', $centre->lat, $centre->lng, $radiusMetres, implode(',', $types)),
+            sprintf(
+                'google:nearby:%.3f:%.3f:%d:%s',
+                $centre->lat,
+                $centre->lng,
+                $radiusMetres,
+                hash('sha256', implode(',', $types)),
+            ),
             (int) config('experience.place_data.google.cache_seconds', 900),
             function () use ($centre, $radiusMetres, $types, $limit) {
                 $response = $this->http
@@ -101,7 +109,10 @@ class GooglePlacesProvider implements PlaceDataProvider
                     ]);
 
                 if ($response->failed()) {
-                    throw new \RuntimeException("Google Places returned {$response->status()}: " . $response->body());
+                    throw new \RuntimeException(
+                        "Google Places returned {$response->status()}: "
+                        . mb_substr($response->body(), 0, 500),
+                    );
                 }
 
                 return $response->json() ?? [];
