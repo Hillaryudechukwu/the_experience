@@ -43,19 +43,35 @@ class WikimediaEnricherTest extends TestCase
         $this->assertFalse($result->hasImage(), 'An image we cannot attribute is one we must not publish.');
     }
 
-    public function test_a_place_with_no_external_references_is_skipped_without_a_request(): void
+    public function test_a_place_with_no_external_references_falls_back_to_its_name(): void
     {
-        Http::fake();
+        Http::fake($this->happyPath());
 
         $result = app(WikimediaEnricher::class)->enrich(new PlaceCandidate(
-            provider: 'osm',
-            providerId: 'node/1',
-            name: 'Unremarkable Bench',
-            point: new GeoPoint(51.5, -0.12),
+            provider: 'google_places',
+            providerId: 'ChIJtest',
+            name: 'Tower of London',
+            point: new GeoPoint(51.5081, -0.0759),
         ));
 
-        $this->assertNull($result);
-        Http::assertNothingSent();
+        $this->assertNotNull($result);
+        $this->assertStringContainsString('historic citadel', $result->summary);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'en.wikipedia.org'));
+    }
+
+    public function test_a_name_fallback_miss_is_cached_as_empty(): void
+    {
+        Http::fake(['*' => Http::response([], 404)]);
+
+        $candidate = new PlaceCandidate(
+            provider: 'google_places',
+            providerId: 'ChIJbench',
+            name: 'Unremarkable Bench',
+            point: new GeoPoint(51.5, -0.12),
+        );
+
+        $this->assertNull(app(WikimediaEnricher::class)->enrich($candidate));
+        $this->assertTrue(Cache::has('wikimedia:v1:name:unremarkable-bench'));
     }
 
     public function test_it_finds_the_article_through_wikidata_when_osm_did_not_tag_one(): void
