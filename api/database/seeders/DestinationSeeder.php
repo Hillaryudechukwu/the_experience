@@ -28,7 +28,15 @@ class DestinationSeeder extends Seeder
         foreach ($this->cities() as $city) {
             $destination = Destination::updateOrCreate(
                 ['slug' => $city['slug']],
-                collect($city)->except(['neighbourhoods', 'essentials', 'signature'])->all(),
+                /* hero_image_* are filled by experience:backfill-imagery — never
+                   reseeding them to null on every deploy. */
+                collect($city)->except([
+                    'neighbourhoods',
+                    'essentials',
+                    'signature',
+                    'hero_image_url',
+                    'hero_image_attribution',
+                ])->all(),
             );
 
             foreach ($city['neighbourhoods'] as $neighbourhood) {

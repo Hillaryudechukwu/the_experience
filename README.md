@@ -62,10 +62,13 @@ cp .env.example .env            # then set DB_USERNAME / DB_PASSWORD
 php artisan key:generate
 createdb experience && createdb experience_test
 php artisan migrate --seed
+php artisan experience:backfill-imagery all --limit=80   # licensed photos for seeded cities
 php artisan serve --port=8099
 ```
 
 `GET /api/health` reports the engine version and which suppliers are configured.
+Seeds are an editorial warm start for a few cities; new cities use activation +
+import enrich. Imagery backfill only fills null photo URLs.
 
 ### Mobile
 

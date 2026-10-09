@@ -105,7 +105,10 @@ class ExperienceSeeder extends Seeder
                         'accessibility' => $row['accessibility'] ?? [],
                         'best_time_of_day' => $row['best_time'] ?? [],
                         'know_before_you_go' => $row['kbyg'] ?? [],
-                        'image_url' => null,
+                        /* Do not set image_url here. Seed is editorial text;
+                           photography is filled by experience:backfill-imagery
+                           (or ingest enrich). Writing null would wipe photos
+                           on every deploy seed. */
                         'data_source' => 'seed_demo',
                         'verified_at' => $verified,
                         'status' => 'published',

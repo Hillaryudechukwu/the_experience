@@ -415,6 +415,10 @@ set_env DESTINATION_ACTIVATION_ENABLED "true"
 "$php_bin" artisan config:cache
 "$php_bin" artisan route:cache
 "$php_bin" artisan view:cache
+# Fill null photography after seed (idempotent — skips rows that already have
+# a URL). New activated cities get imagery via import enrich; this covers the
+# seeded warm catalogue. Bounded so deploy does not hang on provider rate limits.
+"$php_bin" artisan experience:backfill-imagery all --limit=80 --no-interaction || true
 "$php_bin" artisan queue:restart
 # Prove a worker processed a job after restart — do not trust a pre-restart
 # heartbeat (valid for 3 minutes). Clear it, enqueue via the scheduler, then
