@@ -184,3 +184,4 @@ content. Ingestion fills their gaps and never overwrites them.
 - [`docs/DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md`](docs/DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md) — dark-deploy gates, smoke tests, rollout steps, and rollback triggers.
 - [`docs/PROVIDER_SMOKE_RUNBOOK.md`](docs/PROVIDER_SMOKE_RUNBOOK.md) — live provider status, staging/prod smoke, key rotation, queue heartbeat.
 - [`docs/DESTINATION_ACTIVATION_GA_RUNBOOK.md`](docs/DESTINATION_ACTIVATION_GA_RUNBOOK.md) — P5 controlled city proof and rollout ladder.
+- [`docs/TRIP_STAY_DURATION_JEM.md`](docs/TRIP_STAY_DURATION_JEM.md) — stay length in onboarding → journey dates → multi-day itinerary.

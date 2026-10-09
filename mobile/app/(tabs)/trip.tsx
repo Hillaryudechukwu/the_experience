@@ -29,7 +29,14 @@ import {
   T,
 } from '../../src/components/primitives';
 import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
-import { clock, dayLabel, titleCase, windowLabel } from '../../src/lib/format';
+import {
+  buildPlanCtaLabel,
+  clock,
+  dayLabel,
+  stayDayCount,
+  stayRangeLabel,
+  titleCase,
+} from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -92,6 +99,8 @@ export default function TripScreen() {
   };
 
   const itinerary = trip?.itinerary;
+  const days = stayDayCount(journey?.starts_on, journey?.ends_on);
+  const multiDay = days !== null && days > 1;
 
   return (
     <Screen>
@@ -110,6 +119,16 @@ export default function TripScreen() {
               {journey.adults} adult{journey.adults === 1 ? '' : 's'}
               {journey.children > 0 ? `, ${journey.children} child${journey.children === 1 ? '' : 'ren'}` : ''}
             </T>
+            {days !== null && journey.starts_on && journey.ends_on ? (
+              <>
+                <T variant="small" color={colors.text.tertiary}>
+                  ·
+                </T>
+                <T variant="small" color={colors.text.secondary}>
+                  {days} day{days === 1 ? '' : 's'} ({stayRangeLabel(journey.starts_on, journey.ends_on)})
+                </T>
+              </>
+            ) : null}
           </Row>
         ) : null}
       </Gutter>
@@ -195,10 +214,14 @@ export default function TripScreen() {
         <Gutter>
           <EmptyState
             title="Nothing built yet"
-            body="I will fit realistic options into the gaps between your commitments, with travel time and opening hours accounted for."
+            body={
+              multiDay
+                ? 'I will fit realistic options across your stay, around your commitments, with travel time and opening hours accounted for.'
+                : 'I will fit realistic options into the gaps between your commitments, with travel time and opening hours accounted for.'
+            }
             action={
               <Button
-                label={generate.isPending ? 'Building…' : 'Build my day'}
+                label={buildPlanCtaLabel(days, generate.isPending)}
                 onPress={build}
                 loading={generate.isPending}
                 haptic="medium"

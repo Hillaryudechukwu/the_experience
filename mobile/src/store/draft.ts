@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+/** Calendar days in the city (arrival inclusive). Matches itinerary planner presets. */
+export type StayDays = 1 | 3 | 7 | 14;
+
 type Draft = {
   reason: string | null;
   familiarity: string;
@@ -7,6 +10,7 @@ type Draft = {
   interests: string[];
   adults: number;
   children: number;
+  stayDays: StayDays;
   pace: 'slow' | 'moderate' | 'fast';
   budget: 'budget' | 'moderate' | 'premium' | 'luxury';
   touristStyle: number;
@@ -21,6 +25,7 @@ const initial = {
   interests: [] as string[],
   adults: 1,
   children: 0,
+  stayDays: 3 as StayDays,
   pace: 'moderate' as const,
   budget: 'moderate' as const,
   touristStyle: 60,

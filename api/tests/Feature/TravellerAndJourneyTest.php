@@ -148,4 +148,21 @@ class TravellerAndJourneyTest extends TestCase
         $this->assertContains('interactive', array_column($mission->json('data.goals'), 'goal'));
         $this->assertStringContainsString('never override', $mission->json('data.note'));
     }
+
+    public function test_a_journey_stores_stay_dates(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=rome')->json('data.0.id');
+
+        $journey = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => '2026-10-09',
+            'ends_on' => '2026-10-15',
+        ], ['X-Guest-Token' => $token]);
+
+        $journey->assertCreated();
+        $this->assertSame('2026-10-09', $journey->json('data.starts_on'));
+        $this->assertSame('2026-10-15', $journey->json('data.ends_on'));
+    }
 }

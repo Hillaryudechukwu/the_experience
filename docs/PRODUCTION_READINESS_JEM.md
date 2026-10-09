@@ -783,7 +783,11 @@ Schema rollbacks are last resort; prefer flags.
 
 ---
 
-## 19. Status tracking
+## 19. Related product JEMs
+
+- [`TRIP_STAY_DURATION_JEM.md`](TRIP_STAY_DURATION_JEM.md) — collect stay length in onboarding, persist journey `starts_on` / `ends_on`, and name multi-day Plan CTAs (orthogonal to P0–P10 commercial readiness).
+
+## 20. Status tracking
 
 | Phase | Name | Status |
 |---|---|---|

@@ -7,7 +7,7 @@ import { ScoreRing } from '../../src/components/ExperienceScore';
 import { Icon } from '../../src/components/Icon';
 import { Photo } from '../../src/components/Photo';
 import { Button, Card, CardPress, Gutter, Loading, Row, Screen, T } from '../../src/components/primitives';
-import { clock, conditionLabel } from '../../src/lib/format';
+import { buildPlanCtaLabel, clock, conditionLabel, stayDayCount } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -28,6 +28,7 @@ export default function Ready() {
   const discovery = useDiscovery('now', { limit: 1 });
   const context = discovery.data?.context;
   const top = discovery.data?.data[0];
+  const days = stayDayCount(journey?.starts_on, journey?.ends_on);
 
   return (
     <Screen>
@@ -111,7 +112,12 @@ export default function Ready() {
       ) : null}
 
       <Gutter style={{ marginTop: space.xxl }}>
-        <Button label="Build my day" size="large" haptic="medium" onPress={() => router.replace('/(tabs)')} />
+        <Button
+          label={buildPlanCtaLabel(days)}
+          size="large"
+          haptic="medium"
+          onPress={() => router.replace('/(tabs)/trip')}
+        />
       </Gutter>
     </Screen>
   );

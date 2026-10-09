@@ -99,6 +99,53 @@ class ItineraryTest extends TestCase
         ], ['X-Guest-Token' => $guest->token])->assertCreated();
     }
 
+    public function test_generating_without_overrides_uses_journey_stay_dates(): void
+    {
+        $destination = $this->destination();
+        $guest = GuestSession::create(['token' => Str::random(40)]);
+        $actor = new Actor(guestSessionId: $guest->id);
+
+        $start = CarbonImmutable::now('UTC')->addDay()->startOfDay();
+        $end = $start->addDays(6);
+
+        $journey = $this->journey($destination, $actor, [
+            'reason' => 'holiday',
+            'starts_on' => $start->toDateString(),
+            'ends_on' => $end->toDateString(),
+        ]);
+
+        foreach ([['near-stop', 51.5080, -0.1280, 60], ['second-stop', 51.5095, -0.1300, 45]] as [$slug, $lat, $lng, $duration]) {
+            $this->experience($destination, [
+                'slug' => $slug,
+                'title' => ucfirst(str_replace('-', ' ', $slug)),
+                'min_duration_minutes' => (int) ($duration * 0.6),
+                'expected_duration_minutes' => $duration,
+                'max_duration_minutes' => $duration * 2,
+                'lat' => $lat,
+                'lng' => $lng,
+                'interest_affinity' => ['culture' => 80],
+                'uniqueness' => 70,
+                'iconic_weight' => 70,
+                'value_signal' => 80,
+                'categories' => ['quick_experience', 'culture'],
+            ]);
+        }
+
+        $trip = Trip::create(array_merge($actor->ownerAttributes(), [
+            'journey_id' => $journey->id,
+            'title' => 'Week in town',
+        ]));
+
+        $response = $this->postJson("/api/trips/{$trip->id}/generate-itinerary", [], [
+            'X-Guest-Token' => $guest->token,
+        ]);
+
+        $response->assertCreated();
+        $this->assertCount(7, $response->json('data.days'));
+        $this->assertSame($start->toDateString(), $response->json('data.days.0.date'));
+        $this->assertSame($end->toDateString(), $response->json('data.days.6.date'));
+    }
+
     /** @return array{0:Actor,1:GuestSession,2:Trip,3:\App\Domains\Journeys\Models\Journey,4:CarbonImmutable} */
     private function scenario(): array
     {
