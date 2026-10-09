@@ -22,7 +22,8 @@ enum DestinationCoverageStatus: string
             self::Importing => [self::Ready, self::Limited, self::Failed],
             self::Limited => [self::Queued, self::Importing, self::Ready, self::Failed],
             self::Failed => [self::Queued, self::Limited, self::Ready],
-            self::Ready => [],
+            /* Ready → Queued only for empty-catalogue fill (sync on first request). */
+            self::Ready => [self::Queued],
         };
     }
 
