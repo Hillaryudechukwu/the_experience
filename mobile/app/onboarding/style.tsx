@@ -65,7 +65,11 @@ export default function TravelStyle() {
       });
 
       if (session.destinationId && draft.reason) {
-        const { starts_on, ends_on } = stayBounds(draft.stayDays);
+        const { starts_on, ends_on } = stayBounds(
+          draft.stayDays,
+          new Date(),
+          session.destinationTimezone ?? undefined,
+        );
         const journey = await createJourney.mutateAsync({
           destination_id: session.destinationId,
           reason: draft.reason,
