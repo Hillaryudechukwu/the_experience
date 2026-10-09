@@ -126,7 +126,7 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
                     'error_code' => 'provider_temporarily_unavailable',
                     'retryable' => true,
                     'last_heartbeat_at' => now(),
-                    'error_context' => ['type' => $exception::class, 'message' => $exception->getMessage()],
+                    'error_context' => $this->errorContext($exception),
                 ]);
                 $this->log($import->fresh(), 'destination import attempt failed', ['error_code' => 'provider_temporarily_unavailable']);
 
@@ -153,10 +153,7 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
             'stage' => DestinationImportStage::Failed,
             'error_code' => $import->error_code ?? 'import_failed',
             'retryable' => true,
-            'error_context' => $exception === null ? $import->error_context : [
-                'type' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
+            'error_context' => $exception === null ? $import->error_context : $this->errorContext($exception),
             'finished_at' => now(),
         ]);
 
@@ -195,5 +192,18 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
             'provider_key' => $import->provider_key,
             'stage' => $import->stage->value,
         ], $extra));
+    }
+
+    /**
+     * Keep encrypted error_context inside MySQL TEXT after encryption overhead.
+     *
+     * @return array{type: class-string<Throwable>, message: string}
+     */
+    private function errorContext(Throwable $exception): array
+    {
+        return [
+            'type' => $exception::class,
+            'message' => mb_substr($exception->getMessage(), 0, 500),
+        ];
     }
 }
