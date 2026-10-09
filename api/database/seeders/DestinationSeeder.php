@@ -214,13 +214,48 @@ class DestinationSeeder extends Seeder
                     ['Follow a basement food hall', 'Department store depachika are among the best food halls anywhere.', 'food'],
                 ],
             ],
+            [
+                'slug' => 'lisbon',
+                'name' => 'Lisbon',
+                'country' => 'Portugal',
+                'country_code' => 'PT',
+                'timezone' => 'Europe/Lisbon',
+                'lat' => 38.7223,
+                'lng' => -9.1393,
+                'currency' => 'EUR',
+                'languages' => ['pt', 'en'],
+                'default_radius_m' => 8000,
+                'summary' => 'Seven hills above the Tagus, where miradouros, custard tarts and tiled façades reward slow walking more than tight schedules.',
+                'hero_image_url' => null,
+                'neighbourhoods' => [
+                    ['slug' => 'belem', 'name' => 'Belém', 'character' => 'Riverfront monuments and the original pastel de nata bakery — best as a half day with room to sit.', 'best_for' => ['history', 'food', 'views'], 'ideal_duration_minutes' => 210, 'lat' => 38.6979, 'lng' => -9.2067],
+                    ['slug' => 'alfama', 'name' => 'Alfama', 'character' => 'The oldest hill: alleys, laundry lines, fado doorways and the castle above.', 'best_for' => ['walking', 'views', 'history'], 'ideal_duration_minutes' => 180, 'lat' => 38.7125, 'lng' => -9.1305],
+                    ['slug' => 'baixa', 'name' => 'Baixa', 'character' => 'The post-earthquake grid: plazas, the river market and easy east–west walking.', 'best_for' => ['food', 'orientation'], 'ideal_duration_minutes' => 120, 'lat' => 38.7100, 'lng' => -9.1400],
+                    ['slug' => 'alcantara', 'name' => 'Alcântara', 'character' => 'Dockside warehouses under the bridge — LX Factory and long river walks toward Belém.', 'best_for' => ['design', 'food', 'nightlife'], 'ideal_duration_minutes' => 150, 'lat' => 38.7034, 'lng' => -9.1785],
+                    ['slug' => 'parque-das-nacoes', 'name' => 'Parque das Nações', 'character' => 'Expo \'98 rebuilt as parks, the Oceanário and a modern waterfront away from the hills.', 'best_for' => ['family', 'indoor days'], 'ideal_duration_minutes' => 180, 'lat' => 38.7636, 'lng' => -9.0937],
+                ],
+                'essentials' => [
+                    ['currency', 'Currency', 'Euro (EUR). Contactless cards are widely accepted; keep a little cash for small pastelarias and markets.', 'Banco de Portugal', 'https://www.bportugal.pt'],
+                    ['emergency', 'Emergency numbers', 'Dial 112 for police, fire or ambulance across the EU.', 'Portuguese Government', 'https://www.portugal.gov.pt'],
+                    ['transport', 'Transport and payment', 'A Viva Viagem card covers metro, buses, trams and some trains. The 28 tram is scenic and crowded — walking Alfama is often faster.', 'Carris / Metropolitano de Lisboa'],
+                    ['tipping', 'Tipping', 'Service is usually included. Rounding up or leaving 5–10% in restaurants is appreciated but not obligatory.', 'Local convention'],
+                    ['power', 'Power sockets', 'Type C and F sockets, 230V. Same adapters as most of mainland Europe.', 'IEC standard'],
+                    ['meal_times', 'Typical meal times', 'Lunch often runs 12:30–15:00; dinner rarely starts before 19:30. Pastelarias fill the gaps.', 'Local convention'],
+                ],
+                'signature' => [
+                    ['Watch sunset from a miradouro', 'Senhora do Monte and Santa Catarina beat most paid viewpoints.', 'views'],
+                    ['Eat a pastel de nata warm', 'Belém is the original; good neighbourhood bakeries are everywhere.', 'food'],
+                    ['Walk Belém along the river', 'Jerónimos, the tower and the bakery share one flat stretch.', 'history'],
+                    ['Get lost in Alfama on purpose', 'The castle is the landmark; the alleys are the point.', 'neighbourhood'],
+                ],
+            ],
         ], $this->tourismCities());
     }
 
     /**
      * High-demand tourism destinations that are populated by the place sync.
      *
-     * The four featured cities above retain their handcrafted editorial data.
+     * Featured cities above retain handcrafted editorial data.
      * These catalogue entries intentionally contain only stable destination
      * metadata; `experience:sync-places` supplies grounded place content.
      */
@@ -230,7 +265,6 @@ class DestinationSeeder extends Seeder
             ['paris', 'Paris', 'France', 'FR', 'Europe/Paris', 48.8566, 2.3522, 'EUR', ['fr', 'en'], 9000],
             ['barcelona', 'Barcelona', 'Spain', 'ES', 'Europe/Madrid', 41.3874, 2.1686, 'EUR', ['ca', 'es', 'en'], 8000],
             ['madrid', 'Madrid', 'Spain', 'ES', 'Europe/Madrid', 40.4168, -3.7038, 'EUR', ['es', 'en'], 9000],
-            ['lisbon', 'Lisbon', 'Portugal', 'PT', 'Europe/Lisbon', 38.7223, -9.1393, 'EUR', ['pt', 'en'], 8000],
             ['amsterdam', 'Amsterdam', 'Netherlands', 'NL', 'Europe/Amsterdam', 52.3676, 4.9041, 'EUR', ['nl', 'en'], 7000],
             ['berlin', 'Berlin', 'Germany', 'DE', 'Europe/Berlin', 52.5200, 13.4050, 'EUR', ['de', 'en'], 11000],
             ['vienna', 'Vienna', 'Austria', 'AT', 'Europe/Vienna', 48.2082, 16.3738, 'EUR', ['de', 'en'], 9000],

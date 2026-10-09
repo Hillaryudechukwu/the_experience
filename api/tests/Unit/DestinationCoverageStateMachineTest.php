@@ -23,6 +23,11 @@ class DestinationCoverageStateMachineTest extends TestCase
         $this->assertFalse(DestinationCoverageStatus::Ready->canTransitionTo(DestinationCoverageStatus::Failed));
     }
 
+    public function test_a_ready_empty_catalogue_can_be_queued_for_fill(): void
+    {
+        $this->assertTrue(DestinationCoverageStatus::Ready->canTransitionTo(DestinationCoverageStatus::Queued));
+    }
+
     public function test_a_failed_or_limited_destination_can_be_retried(): void
     {
         $this->assertTrue(DestinationCoverageStatus::Failed->canTransitionTo(DestinationCoverageStatus::Queued));
