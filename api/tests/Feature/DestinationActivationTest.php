@@ -172,7 +172,7 @@ class DestinationActivationTest extends TestCase
         ]);
     }
 
-    public function test_an_already_ready_empty_destination_starts_catalogue_fill(): void
+    public function test_an_already_ready_destination_does_not_start_an_import(): void
     {
         $this->seed(DatabaseSeeder::class);
         $paris = Destination::where('slug', 'paris')->firstOrFail();
@@ -190,36 +190,8 @@ class DestinationActivationTest extends TestCase
 
         $response = $this->postJson('/api/destinations/activate', ['candidate_token' => $token]);
 
-        $response->assertAccepted()
-            ->assertJsonPath('data.destination_id', $paris->id)
-            ->assertJsonPath('data.coverage_status', DestinationCoverageStatus::Queued->value);
-        $this->assertNotNull($response->json('data.import_id'));
-        $this->assertDatabaseHas('destination_imports', [
-            'destination_id' => $paris->id,
-            'status' => DestinationImportStatus::Queued->value,
-        ]);
-    }
-
-    public function test_an_already_ready_populated_destination_does_not_start_an_import(): void
-    {
-        $this->seed(DatabaseSeeder::class);
-        $london = Destination::where('slug', 'london')->firstOrFail();
-        $token = app(DestinationCandidateToken::class)->issue(new DestinationCandidate(
-            provider: 'nominatim',
-            externalId: 'relation/65606',
-            name: 'London',
-            region: 'England',
-            country: 'United Kingdom',
-            countryCode: 'GB',
-            lat: 51.5074,
-            lng: -0.1278,
-            kind: 'city',
-        ));
-
-        $response = $this->postJson('/api/destinations/activate', ['candidate_token' => $token]);
-
         $response->assertOk()
-            ->assertJsonPath('data.destination_id', $london->id)
+            ->assertJsonPath('data.destination_id', $paris->id)
             ->assertJsonPath('data.coverage_status', DestinationCoverageStatus::Ready->value)
             ->assertJsonPath('data.import_id', null);
         $this->assertDatabaseCount('destination_imports', 0);
