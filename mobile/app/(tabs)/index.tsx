@@ -127,11 +127,15 @@ export default function Discover() {
       ? `${windowLabel(window)} to spend.`
       : 'Your day is open.';
 
+  const emptyCatalogue = !discovery.isLoading && results.length === 0 && discovery.data?.catalogue_empty === true;
+
   const heroDetail = discovery.isLoading
     ? 'Working out what fits…'
     : results.length > 0
       ? `I found ${results.length} experience${results.length === 1 ? '' : 's'} that fit.`
-      : 'Nothing strong fits right now — try widening the time or distance.';
+      : emptyCatalogue
+        ? 'This city does not have experiences loaded yet — try another covered city for now.'
+        : 'Nothing strong fits right now — try widening the time or distance.';
 
   return (
     <Screen
@@ -289,8 +293,12 @@ export default function Discover() {
 
         {!discovery.isLoading && results.length === 0 && !discovery.isError ? (
           <EmptyState
-            title="Nothing strong fits all of that"
-            body="Loosening the time, the budget or the distance usually opens it up."
+            title={emptyCatalogue ? 'Nothing loaded for this city yet' : 'Nothing strong fits all of that'}
+            body={
+              emptyCatalogue
+                ? 'We have the city on the map, but no experiences to recommend yet. Try London, Rome, New York or Tokyo — or check back once this catalogue is filled.'
+                : 'Loosening the time, the budget or the distance usually opens it up.'
+            }
           />
         ) : null}
       </Gutter>

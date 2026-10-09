@@ -78,6 +78,22 @@ class TimeBoxedDiscoveryTest extends TestCase
         $response->assertOk();
         $this->assertSame([], $response->json('data'));
         $this->assertNotNull($response->json('notice'));
+        $this->assertStringContainsString('Loosening the time', $response->json('notice'));
+    }
+
+    public function test_an_empty_catalogue_is_not_blamed_on_filters(): void
+    {
+        $destination = $this->destination();
+
+        $response = $this->postJson('/api/discovery/now', [
+            'destination_id' => $destination->id,
+        ]);
+
+        $response->assertOk();
+        $this->assertSame([], $response->json('data'));
+        $this->assertTrue($response->json('catalogue_empty'));
+        $this->assertSame(0, $response->json('candidates_considered'));
+        $this->assertStringContainsString('does not have experiences loaded', $response->json('notice'));
     }
 
     public function test_a_later_anchor_caps_the_window_the_traveller_asked_for(): void
