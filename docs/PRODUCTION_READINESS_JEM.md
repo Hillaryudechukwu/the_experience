@@ -27,7 +27,7 @@ What remains is the last mile between “engine works” and “a stranger can i
 2. **Account portability** — register/login APIs exist; the Expo app has no screens for them.
 3. **Memory and privacy client completeness** — journal write, data export, and share are API-complete or trivial but unwired.
 4. **Live commercial providers** — Google Places, Viator, and Anthropic need production keys and smoke verification; sandbox/rules cover CI.
-5. **Destination activation GA** — dark-deployed at 0% rollout; allowlisted proof and progressive rollout remain.
+5. **Destination activation GA** — Reykjavík allowlisted proof GO; progressive rollout from 0% remains.
 6. **Store release** — privacy URL, deep-link association files, EAS production env, first AAB/IPA.
 7. **Full V1+ surface** — notifications outbox dispatch, group trip votes, thin admin UI, hardening/SLOs.
 
@@ -424,7 +424,7 @@ POST   /bookings/{booking}/cancel
 
 **Rollback.** `DESTINATION_ACTIVATION_ENABLED=false`; retain ready destinations (see checklist rollback triggers).
 
-**Status (2026-10-08).** Product code + recovery + GA runbook ready. Production still at rollout **0%** (dark deploy). Phase exits GO only after ops completes the controlled city proof and rollout ladder under approved spend.
+**Status (2026-10-10).** Controlled-city proof **GO** — Reykjavík allowlisted → activate → import → `ready` (6 published). Scheduler cron every minute; Places cache-key + Wikimedia name-fallback fixes landed. Production rollout still **0%**. Raise 5→25→100 only after spend ceilings are signed off; then record % in release notes.
 
 ---
 
@@ -796,8 +796,8 @@ Schema rollbacks are last resort; prefer flags.
 | P2 | Auth and cross-device continuity | GO — register/login/logout wired; deployed 2026-10-08 |
 | P3 | Memory, share, privacy | GO — journal/export/share/privacy; merged + deployed 2026-10-08 |
 | P4 | Live commercial providers | GO — keys live; runbook + provider-status; queue heartbeat green (2026-10-08) |
-| P5 | Destination activation GA | In progress — recovery + GA runbook; prod rollout still 0% pending ops proof |
-| P6 | Store release | Not started |
+| P5 | Destination activation GA | In progress — Reykjavík proof GO; rollout still 0% pending spend-approved ladder |
+| P6 | Store release | In progress — privacy + Android assetlinks live; rebuild AAB; iOS Team ID / AASA pending |
 | P7 | Notifications outbox | Not started |
 | P8 | Group trip votes | Not started |
 | P9 | Admin / ops UI | Not started |
