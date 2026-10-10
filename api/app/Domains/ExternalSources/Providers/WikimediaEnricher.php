@@ -35,9 +35,18 @@ class WikimediaEnricher implements PlaceEnricher
     {
         $wikipedia = $candidate->externalRefs['wikipedia'] ?? null;
         $wikidata = $candidate->externalRefs['wikidata'] ?? null;
+        $nameFallback = false;
 
         if ($wikipedia === null && $wikidata === null) {
-            return null;
+            /* Google Places (and similar) never carry OSM wiki tags. Fall back
+               to the place name so activation can still publish grounded copy;
+               a miss returns null the same way an untagged OSM node would. */
+            if (trim($candidate->name) === '') {
+                return null;
+            }
+
+            $wikipedia = $candidate->name;
+            $nameFallback = true;
         }
 
         /*
@@ -46,7 +55,9 @@ class WikimediaEnricher implements PlaceEnricher
          * rename or signature change turns every warm entry into an
          * unserialisation error rather than a miss.
          */
-        $key = 'wikimedia:v1:' . ($wikidata ?? $wikipedia);
+        $key = 'wikimedia:v1:' . ($nameFallback
+            ? 'name:' . Str::slug($candidate->name)
+            : ($wikidata ?? $wikipedia));
         $payload = Cache::get($key);
 
         if (! is_array($payload)) {
@@ -59,12 +70,13 @@ class WikimediaEnricher implements PlaceEnricher
                 }
 
                 $summary = $wikipedia !== null ? $this->wikipediaSummary($wikipedia) : null;
+                $wikidata = $wikidata ?? ($summary['wikidata'] ?? null);
                 $imageFile = $wikidata !== null ? $this->wikidataImage($wikidata) : null;
                 $image = $imageFile !== null ? $this->commonsImage($imageFile) : null;
 
                 $payload = ($summary === null && $image === null)
                     ? ['empty' => true]
-                    : ['summary' => $summary, 'image' => $image];
+                    : ['summary' => $summary, 'image' => $image, 'wikidata' => $wikidata, 'wikipedia' => $wikipedia];
 
                 /*
                  * Only a definitive answer is cached. "Wikipedia has nothing on
@@ -89,6 +101,8 @@ class WikimediaEnricher implements PlaceEnricher
 
         $summary = $payload['summary'] ?? null;
         $image = $payload['image'] ?? null;
+        $wikidata = $payload['wikidata'] ?? $wikidata;
+        $wikipedia = $payload['wikipedia'] ?? $wikipedia;
 
         return new PlaceEnrichment(
             summary: $summary['extract'] ?? null,
