@@ -439,43 +439,67 @@ destinations_json="$(curl --fail --silent --show-error --max-time 30 "${API_ORIG
 node -e 'JSON.parse(process.argv[1])' "$destinations_json"
 printf "Verified JSON: %s/api/destinations\n" "${API_ORIGIN%/}"
 
-printf "%bPublishing privacy policy and Android App Links on the web host...%b\n" "$YELLOW" "$NC"
+printf "%bPublishing privacy policy and App Link association files on the web host...%b\n" "$YELLOW" "$NC"
 mkdir -p "$SCRIPT_DIR/mobile/dist/.well-known"
 rsync --archive --compress \
     -e "$API_RSYNC_SHELL" \
     "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/privacy.html" \
     "$SCRIPT_DIR/mobile/dist/privacy"
-assetlinks_file="$SCRIPT_DIR/mobile/dist/.well-known/assetlinks.json"
-assetlinks_candidate="${assetlinks_file}.candidate"
-rm -f -- "$assetlinks_candidate"
-if ! assetlinks_status="$(curl --silent --show-error --max-time 30 \
-    --output "$assetlinks_candidate" --write-out '%{http_code}' \
-    "${API_ORIGIN%/}/.well-known/assetlinks.json")"; then
-    printf "%bCould not retrieve Android App Links from the API host.%b\n" "$RED" "$NC" >&2
-    exit 1
-fi
 
-if [[ "$assetlinks_status" == "200" ]]; then
-    if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' \
-        "$assetlinks_candidate"; then
-        printf "%bGenerated assetlinks.json is not valid JSON.%b\n" "$RED" "$NC" >&2
+publish_well_known_json() {
+    local name="$1"
+    local label="$2"
+    local required="$3"
+    local missing_hint="$4"
+    local file="$SCRIPT_DIR/mobile/dist/.well-known/$name"
+    local candidate="${file}.candidate"
+    local status
+
+    rm -f -- "$candidate"
+    if ! status="$(curl --silent --show-error --max-time 30 \
+        --output "$candidate" --write-out '%{http_code}' \
+        "${API_ORIGIN%/}/.well-known/$name")"; then
+        printf "%bCould not retrieve %s from the API host.%b\n" "$RED" "$label" "$NC" >&2
         exit 1
     fi
-    mv -- "$assetlinks_candidate" "$assetlinks_file"
-elif [[ "$assetlinks_status" == "404" ]]; then
-    rm -f -- "$assetlinks_candidate" "$assetlinks_file"
-    if [[ "$REQUIRE_ANDROID_APP_LINKS" == "true" ]]; then
-        printf "%bAndroid App Links are required but the API returned 404. Set APP_LINKS_ANDROID_SHA256 to the release signing fingerprint.%b\n" \
-            "$RED" "$NC" >&2
+
+    if [[ "$status" == "200" ]]; then
+        if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' \
+            "$candidate"; then
+            printf "%bGenerated %s is not valid JSON.%b\n" "$RED" "$name" "$NC" >&2
+            exit 1
+        fi
+        mv -- "$candidate" "$file"
+        printf "Published %s from the API host.\n" "$name"
+    elif [[ "$status" == "404" ]]; then
+        rm -f -- "$candidate" "$file"
+        if [[ "$required" == "true" ]]; then
+            printf "%b%s required but the API returned 404. %s%b\n" \
+                "$RED" "$label" "$missing_hint" "$NC" >&2
+            exit 1
+        fi
+        printf "%b%s not configured yet (API 404); skipping web publish.%b\n" \
+            "$YELLOW" "$label" "$NC"
+    else
+        rm -f -- "$candidate"
+        printf "%b%s endpoint returned HTTP %s.%b\n" \
+            "$RED" "$label" "$status" "$NC" >&2
         exit 1
     fi
-    printf "%bAndroid App Links explicitly skipped; REQUIRE_ANDROID_APP_LINKS=false.%b\n" "$YELLOW" "$NC"
-else
-    rm -f -- "$assetlinks_candidate"
-    printf "%bAndroid App Links endpoint returned HTTP %s.%b\n" \
-        "$RED" "$assetlinks_status" "$NC" >&2
-    exit 1
-fi
+}
+
+publish_well_known_json \
+    "assetlinks.json" \
+    "Android App Links" \
+    "$REQUIRE_ANDROID_APP_LINKS" \
+    "Set APP_LINKS_ANDROID_SHA256 to the release signing fingerprint."
+
+# iOS AASA is optional until APP_LINKS_IOS_TEAM_ID is set — 404 must not fail deploy.
+publish_well_known_json \
+    "apple-app-site-association" \
+    "Apple App Site Association" \
+    "false" \
+    "Set APP_LINKS_IOS_TEAM_ID to the Apple Developer Team ID."
 
 printf "%bSynchronising the Expo-only web host...%b\n" "$YELLOW" "$NC"
 ssh "${SSH_OPTIONS[@]}" "$SERVER_USER@$WEB_SERVER_HOST" "mkdir -p -- '$WEB_ROOT_PATH'"
