@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Domains\JourneyIntelligence\Services\MissionInterpreter;
+use App\Domains\JourneyIntelligence\Services\MissionSuggestionGenerator;
 use App\Domains\Journeys\Models\Journey;
 use App\Domains\Journeys\Models\JourneyAnchor;
 use Carbon\CarbonImmutable;
@@ -14,7 +15,32 @@ use Illuminate\Validation\Rule;
 
 class JourneyController extends ApiController
 {
-    public function __construct(private readonly MissionInterpreter $missions) {}
+    public function __construct(
+        private readonly MissionInterpreter $missions,
+        private readonly MissionSuggestionGenerator $missionSuggestions,
+    ) {}
+
+    /**
+     * Chip suggestions for onboarding mission, shaped by reason-for-travel
+     * (and optionally destination). AI when Anthropic is configured; playbook
+     * fallback otherwise.
+     */
+    public function missionSuggestions(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'reason' => ['required', Rule::in(array_keys(config('experience.playbooks')))],
+            'destination' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'familiarity' => ['sometimes', 'nullable', Rule::in(['never', 'once', 'few', 'well'])],
+        ]);
+
+        $payload = $this->missionSuggestions->suggest(
+            $data['reason'],
+            $data['destination'] ?? null,
+            $data['familiarity'] ?? null,
+        );
+
+        return response()->json(['data' => $payload]);
+    }
 
     public function store(Request $request): JsonResponse
     {

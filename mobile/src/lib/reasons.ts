@@ -57,13 +57,69 @@ export const INTERESTS: { key: string; label: string; icon: IconName }[] = [
   { key: 'local_life', label: 'Local life', icon: 'person' },
 ];
 
-export const MISSION_SUGGESTIONS = [
-  'I want my children to really experience this city.',
-  "I'm here for work, but I don't want to leave without seeing it.",
-  'I want an unforgettable anniversary weekend.',
-  'I want to eat the way locals actually eat.',
-  'I want to come back feeling rested, not exhausted.',
-];
+/** Offline / loading fallback keyed by journey reason. */
+export const MISSION_SUGGESTIONS_BY_REASON: Record<string, string[]> = {
+  holiday: [
+    'I want the essentials without feeling like I only saw the postcard.',
+    'I want at least one meal I will still talk about next year.',
+    'I want a mix of iconic and a little off the main square.',
+  ],
+  business: [
+    "I'm here for work, but I don't want to leave without tasting the city.",
+    'I want short, high-value evenings close to where I am staying.',
+    'I want one impressive dinner I could take a client to.',
+  ],
+  conference: [
+    'I want something memorable in the gaps between sessions.',
+    'I want one neighbourhood walk that is not the hotel lobby.',
+    'I want a dinner worth recommending to people I meet here.',
+  ],
+  family: [
+    'I want my children to really experience this city.',
+    'I want days that do not end in meltdowns and long queues.',
+    'I want something we will all remember, not just endure.',
+  ],
+  romantic: [
+    'I want evenings that feel like us, not like a checklist.',
+    'I want good light, good food, and nowhere too crowded.',
+    'I want one moment that feels unforgettable for two.',
+  ],
+  anniversary: [
+    'I want an unforgettable anniversary weekend.',
+    'I want dinner and a view that feel worth the trip alone.',
+    'I want fewer stops and more time in the right places.',
+  ],
+  solo: [
+    'I want space to explore at my own pace.',
+    'I want places I can enjoy alone — and company when I choose it.',
+    'I want to come back feeling clearer, not just fuller.',
+  ],
+  visiting_friends: [
+    'I want to do what locals actually do, not the tourist loop.',
+    'I want recommendations my hosts will be proud to share.',
+    'I want evenings that fit around seeing people I care about.',
+  ],
+  layover: [
+    'I want the highest-value hours before I have to leave.',
+    'I want something close, quick, and worth the dash.',
+    'I want one strong memory from a short stop.',
+  ],
+  other: [
+    'I want this trip to feel like mine, not a template.',
+    'I want a few things done well rather than everything half-seen.',
+    'I want to leave knowing I used the time well.',
+  ],
+};
+
+export function missionSuggestionsFor(reason: string | null | undefined): string[] {
+  if (reason && MISSION_SUGGESTIONS_BY_REASON[reason]) {
+    return MISSION_SUGGESTIONS_BY_REASON[reason];
+  }
+  return MISSION_SUGGESTIONS_BY_REASON.other;
+}
+
+/** @deprecated Prefer missionSuggestionsFor(reason) — kept for any stray imports. */
+export const MISSION_SUGGESTIONS = MISSION_SUGGESTIONS_BY_REASON.other;
 
 export const ANCHOR_TYPES: { key: string; label: string; icon: IconName }[] = [
   { key: 'flight', label: 'Flight', icon: 'ticket' },
