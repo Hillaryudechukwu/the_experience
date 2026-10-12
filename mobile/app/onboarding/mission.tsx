@@ -1,25 +1,38 @@
 import React from 'react';
-import { TextInput, View } from 'react-native';
+import { ActivityIndicator, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { useMissionSuggestions } from '../../src/api/hooks';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
-import { MISSION_SUGGESTIONS } from '../../src/lib/reasons';
+import { missionSuggestionsFor } from '../../src/lib/reasons';
 import { useOnboardingDraft } from '../../src/store/draft';
+import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
 /**
  * Journey mission (Figma: 14.4).
  *
- * One optional question that captures what the trip is actually for. The note
- * underneath is not boilerplate — it is the promise that this text biases
- * suggestions and never overrides a booking, a closing time or an exclusion.
+ * Chips are shaped by the purpose chosen on the previous screen. The API
+ * rewrites them with AI when Anthropic is configured; otherwise (and while
+ * loading) we show the playbook fallback for that reason.
  */
 export default function Mission() {
   const colors = useTheme();
   const router = useRouter();
   const draft = useOnboardingDraft();
+  const destinationName = useSession((s) => s.destinationName);
+
+  const { data, isFetching } = useMissionSuggestions(
+    draft.reason,
+    destinationName,
+    draft.familiarity,
+  );
+
+  const suggestions = data?.suggestions?.length
+    ? data.suggestions
+    : missionSuggestionsFor(draft.reason);
 
   return (
     <Screen>
@@ -52,11 +65,16 @@ export default function Mission() {
         />
 
         <View style={{ marginTop: space.md, gap: space.xs }}>
-          <T variant="label" color={colors.text.tertiary}>
-            Or start from one of these
-          </T>
+          <Row gap={space.xs}>
+            <T variant="label" color={colors.text.tertiary}>
+              Or start from one of these
+            </T>
+            {isFetching && !data ? (
+              <ActivityIndicator size="small" color={colors.text.tertiary} />
+            ) : null}
+          </Row>
           <Row gap={space.xs} wrap>
-            {MISSION_SUGGESTIONS.map((suggestion) => (
+            {suggestions.map((suggestion) => (
               <Chip key={suggestion} label={suggestion} size="small" onPress={() => draft.set({ mission: suggestion })} />
             ))}
           </Row>

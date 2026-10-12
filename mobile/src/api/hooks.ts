@@ -47,7 +47,33 @@ export const keys = {
   journal: (id: string) => ['journal', id] as const,
   recap: (journeyId: string) => ['recap', journeyId] as const,
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
+  missionSuggestions: (reason: string, destination?: string | null, familiarity?: string | null) =>
+    ['mission-suggestions', reason, destination ?? '', familiarity ?? ''] as const,
 };
+
+export type MissionSuggestions = {
+  suggestions: string[];
+  source: 'anthropic' | 'playbook' | string;
+  reason: string;
+};
+
+export function useMissionSuggestions(
+  reason: string | null | undefined,
+  destination?: string | null,
+  familiarity?: string | null,
+) {
+  return useQuery({
+    enabled: !!reason,
+    queryKey: keys.missionSuggestions(reason ?? '', destination, familiarity),
+    queryFn: async () => {
+      const params = new URLSearchParams({ reason: reason! });
+      if (destination) params.set('destination', destination);
+      if (familiarity) params.set('familiarity', familiarity);
+      return wrapped(http.get<{ data: MissionSuggestions }>(`/journeys/mission-suggestions?${params}`));
+    },
+    staleTime: 60 * 60 * 1000,
+  });
+}
 
 /**
  * Covered cities, and — when none match — the places that exist anyway.

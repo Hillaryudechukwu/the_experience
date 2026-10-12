@@ -45,6 +45,8 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::get('traveller/experience-dna', [TravellerProfileController::class, 'dna']);
 
     Route::post('journeys', [JourneyController::class, 'store']);
+    Route::get('journeys/mission-suggestions', [JourneyController::class, 'missionSuggestions'])
+        ->middleware('throttle:30,1');
     Route::get('journeys/{journey}', [JourneyController::class, 'show']);
     Route::patch('journeys/{journey}', [JourneyController::class, 'update']);
     Route::post('journeys/{journey}/mission', [JourneyController::class, 'mission']);
