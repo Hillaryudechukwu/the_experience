@@ -153,32 +153,41 @@ class MissionSuggestionGenerator
             : 'other';
 
         $cacheKey = sprintf(
-            'mission-suggestions:v1:%s:%s:%s',
+            'mission-suggestions:v2:%s:%s:%s',
             $reason,
             Str::slug((string) $destination) ?: 'anywhere',
             $familiarity ?: 'any',
         );
 
-        /** @var array{suggestions: list<string>, source: string, reason: string} $payload */
-        $payload = Cache::remember($cacheKey, now()->addDay(), function () use ($reason, $destination, $familiarity) {
-            $fallback = $this->fallback($reason);
+        /** @var array{suggestions: list<string>, source: string, reason: string}|null $cached */
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && ($cached['source'] ?? null) === 'anthropic') {
+            return $cached;
+        }
 
-            if (! $this->anthropicReady()) {
-                return [
-                    'suggestions' => $fallback,
-                    'source' => 'playbook',
-                    'reason' => $reason,
-                ];
-            }
+        $fallback = $this->fallback($reason);
+        $playbook = [
+            'suggestions' => $fallback,
+            'source' => 'playbook',
+            'reason' => $reason,
+        ];
 
-            $generated = $this->viaAnthropic($reason, $destination, $familiarity);
+        if (! $this->anthropicReady()) {
+            return $playbook;
+        }
 
-            return [
-                'suggestions' => $generated === [] ? $fallback : $generated,
-                'source' => $generated === [] ? 'playbook' : 'anthropic',
-                'reason' => $reason,
-            ];
-        });
+        $generated = $this->viaAnthropic($reason, $destination, $familiarity);
+        if ($generated === []) {
+            /* Transient model failures must not poison the day-long cache. */
+            return $playbook;
+        }
+
+        $payload = [
+            'suggestions' => $generated,
+            'source' => 'anthropic',
+            'reason' => $reason,
+        ];
+        Cache::put($cacheKey, $payload, now()->addDay());
 
         return $payload;
     }

@@ -57,7 +57,7 @@ export const INTERESTS: { key: string; label: string; icon: IconName }[] = [
   { key: 'local_life', label: 'Local life', icon: 'person' },
 ];
 
-/** Offline / loading fallback keyed by journey reason. */
+/** Offline / loading fallback keyed by journey reason (mirrors API playbook chips). */
 export const MISSION_SUGGESTIONS_BY_REASON: Record<string, string[]> = {
   holiday: [
     'I want the essentials without feeling like I only saw the postcard.',
@@ -89,6 +89,16 @@ export const MISSION_SUGGESTIONS_BY_REASON: Record<string, string[]> = {
     'I want dinner and a view that feel worth the trip alone.',
     'I want fewer stops and more time in the right places.',
   ],
+  birthday: [
+    'I want this birthday trip to feel celebratory, not just busy.',
+    'I want one night that feels like the reason we came.',
+    'I want good food, good company, and a little sparkle.',
+  ],
+  honeymoon: [
+    'I want unhurried days and places that feel only ours.',
+    'I want romance without the tourist crush.',
+    'I want beauty, slow meals, and nowhere we have to rush.',
+  ],
   solo: [
     'I want space to explore at my own pace.',
     'I want places I can enjoy alone — and company when I choose it.',
@@ -103,6 +113,66 @@ export const MISSION_SUGGESTIONS_BY_REASON: Record<string, string[]> = {
     'I want the highest-value hours before I have to leave.',
     'I want something close, quick, and worth the dash.',
     'I want one strong memory from a short stop.',
+  ],
+  pilgrimage: [
+    'I want time and quiet around the places that matter spiritually.',
+    'I want to move with respect for local rhythms and sacred sites.',
+    'I want reflection more than a packed sightseeing list.',
+  ],
+  education: [
+    'I want to learn something real about this place.',
+    'I want depth and context, without overspending.',
+    'I want museums, sites, and walks that teach as much as they show.',
+  ],
+  medical: [
+    'I want gentle days close to where I need to be.',
+    'I want restful options that do not drain me.',
+    'I want short, low-effort experiences around treatment.',
+  ],
+  relocation: [
+    'I want to feel what living here would actually be like.',
+    'I want neighbourhoods, parks, and everyday places — not just landmarks.',
+    'I want a sense of daily life before I decide.',
+  ],
+  shopping: [
+    'I want the districts and markets this city is known for.',
+    'I want local makers as much as the big names.',
+    'I want to leave with something I could not buy at home.',
+  ],
+  sports_event: [
+    'I want the fixture to anchor the day — everything else fits around it.',
+    'I want pre-match atmosphere without missing kick-off.',
+    'I want one good meal and enough buffer for transport.',
+  ],
+  festival: [
+    'I want the event to be the night — with room to enjoy the city around it.',
+    'I want late options that still get me home safely.',
+    'I want the energy of the festival without losing the rest of the trip.',
+  ],
+  food: [
+    'I want to eat the way locals actually eat.',
+    'I want markets, producers, and the dishes this place is known for.',
+    'I want at least one meal I could not have at home.',
+  ],
+  cultural: [
+    'I want depth over ticking boxes.',
+    'I want to understand the place, not just photograph it.',
+    'I want one museum or site that still stays with me.',
+  ],
+  photography: [
+    'I want golden hour and viewpoints worth the climb.',
+    'I want frames I could not get from a postcard.',
+    'I want light, angles, and time to wait for them.',
+  ],
+  retreat: [
+    'I want to come back feeling rested, not exhausted.',
+    'I want green space, quiet, and nowhere I have to perform.',
+    'I want days that restore more than they demand.',
+  ],
+  backpacking: [
+    'I want great experiences without spending like a tourist.',
+    'I want local life more than polished attractions.',
+    'I want free or cheap highlights that still feel special.',
   ],
   other: [
     'I want this trip to feel like mine, not a template.',

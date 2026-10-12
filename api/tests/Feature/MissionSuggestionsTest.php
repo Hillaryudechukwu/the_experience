@@ -96,6 +96,36 @@ class MissionSuggestionsTest extends TestCase
         );
     }
 
+    public function test_anthropic_failure_is_not_cached_so_retry_can_succeed(): void
+    {
+        config(['experience.assistant.api_key' => 'test-key']);
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::sequence()
+                ->push(['error' => ['message' => 'overloaded']], 529)
+                ->push([
+                    'content' => [[
+                        'type' => 'text',
+                        'text' => json_encode([
+                            'I want one sharp layover highlight before boarding.',
+                            'I want something close enough to make the dash.',
+                            'I want a memory that outlasts the connection.',
+                            'I want food I can finish before the gate call.',
+                            'I want the city in an hour, not a checklist.',
+                        ]),
+                    ]],
+                ]),
+        ]);
+
+        $this->getJson('/api/journeys/mission-suggestions?reason=layover&destination=Lisbon')
+            ->assertOk()
+            ->assertJsonPath('data.source', 'playbook');
+
+        $this->getJson('/api/journeys/mission-suggestions?reason=layover&destination=Lisbon')
+            ->assertOk()
+            ->assertJsonPath('data.source', 'anthropic');
+    }
+
     public function test_invalid_reason_is_rejected(): void
     {
         $this->getJson('/api/journeys/mission-suggestions?reason=not-a-playbook')
