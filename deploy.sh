@@ -272,6 +272,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
         --filter='protect .well-known/*.txt' \
         --filter='protect .well-known/assetlinks.json' \
         --filter='protect .well-known/apple-app-site-association' \
+        --filter='protect .well-known/.htaccess' \
         --filter='protect .well-known/pki-validation/***' \
         -e "$WEB_RSYNC_SHELL" \
         "$SCRIPT_DIR/mobile/dist/" \
@@ -505,6 +506,15 @@ publish_well_known_json \
     "false" \
     "Set APP_LINKS_IOS_TEAM_ID to the Apple Developer Team ID."
 
+# Extensionless AASA files are served without a MIME type on LiteSpeed unless
+# ForceType is set — Apple rejects anything that is not application/json.
+cat > "$SCRIPT_DIR/mobile/dist/.well-known/.htaccess" <<'EOF'
+<Files "apple-app-site-association">
+  ForceType application/json
+  Header set Content-Type "application/json"
+</Files>
+EOF
+
 printf "%bSynchronising the Expo-only web host...%b\n" "$YELLOW" "$NC"
 ssh "${SSH_OPTIONS[@]}" "$SERVER_USER@$WEB_SERVER_HOST" "mkdir -p -- '$WEB_ROOT_PATH'"
 rsync "${RSYNC_OPTIONS[@]}" --delete \
@@ -512,6 +522,7 @@ rsync "${RSYNC_OPTIONS[@]}" --delete \
     --filter='protect .well-known/*.txt' \
     --filter='protect .well-known/assetlinks.json' \
     --filter='protect .well-known/apple-app-site-association' \
+    --filter='protect .well-known/.htaccess' \
     --filter='protect .well-known/pki-validation/***' \
     -e "$WEB_RSYNC_SHELL" \
     "$SCRIPT_DIR/mobile/dist/" \
