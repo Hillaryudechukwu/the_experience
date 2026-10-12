@@ -666,6 +666,8 @@ function sourceLabel(source: string | null): string {
     sandbox: 'Sandbox supplier',
     deeplink: 'Partner',
     viator: 'Viator',
+    tiqets: 'Tiqets',
+    getyourguide: 'GetYourGuide',
     open_meteo: 'Open-Meteo',
     seeded_forecast: 'Simulated forecast',
     osrm: 'OSRM',

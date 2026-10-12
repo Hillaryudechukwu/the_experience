@@ -55,6 +55,7 @@
         <env name="GOOGLE_PLACES_API_KEY" value="" force="true"/>
         <env name="VIATOR_API_KEY" value="" force="true"/>
         <env name="GETYOURGUIDE_API_KEY" value="" force="true"/>
+        <env name="TIQETS_API_KEY" value="" force="true"/>
         <env name="ANTHROPIC_API_KEY" value="" force="true"/>
         <!-- The redirect supplier needs real configuration to be offered at
              all, so the suite configures it deliberately rather than relying
