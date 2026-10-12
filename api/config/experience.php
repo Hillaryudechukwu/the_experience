@@ -307,6 +307,7 @@ return [
                this is a ceiling we set until they tell us theirs. */
             'getyourguide' => 60,
             'viator' => 60,
+            'tiqets' => 60,
         ],
     ],
 
@@ -430,6 +431,12 @@ return [
             /* Attribution. Without it a booking we sent them is a booking we
                do not get paid for, so it rides on every outbound link. */
             'partner_id' => env('GETYOURGUIDE_PARTNER_ID'),
+        ],
+        /* Affiliate/distributor token from the Tiqets portal. Product URLs
+           already include the partner sitebrand; booking stays redirect-only
+           until Booking API access is granted. */
+        'tiqets' => [
+            'api_key' => env('TIQETS_API_KEY'),
         ],
     ],
 

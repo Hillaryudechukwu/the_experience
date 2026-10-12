@@ -32,6 +32,7 @@ and `pg_trgm`, so the database user needs permission to create extensions.
 | `EXPERIENCE_ASSISTANT_DRIVER` | `rules` | `rules` (deterministic) or `anthropic` (needs `ANTHROPIC_API_KEY`) |
 | `EXPERIENCE_TICKET_PROVIDER` | `deeplink` | preferred ticket supplier |
 | `VIATOR_API_KEY` | — | activates the Viator adapter when present |
+| `TIQETS_API_KEY` | — | activates Tiqets (catalogue + availability + redirect checkout) |
 | `DEEPLINK_AFFILIATE_ID` | `demo-partner` | partner id in generated redirect URLs |
 | `CORS_ALLOWED_ORIGINS` | `*` | comma-separated; tighten before production |
 | `DESTINATION_ACTIVATION_ENABLED` | `true` | global kill switch for on-demand city preparation |
