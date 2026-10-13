@@ -13,7 +13,8 @@
         "applinks:experience.synteric.co.uk"
       ],
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Your location is used only to work out what is worth doing near you right now. You can decline and pick a city instead."
+        "NSLocationWhenInUseUsageDescription": "Your location is used only to work out what is worth doing near you right now. You can decline and pick a city instead.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
