@@ -11,6 +11,7 @@ use App\Domains\Destinations\Enums\DestinationImportStatus;
 use App\Domains\Destinations\Models\DestinationImport;
 use App\Domains\Destinations\Services\DestinationCoverageStateMachine;
 use App\Domains\Destinations\Services\DestinationReadinessEvaluator;
+use App\Domains\Notifications\Services\NotificationEnqueuer;
 use App\Domains\Places\Actions\IngestPlaces;
 use App\Domains\Shared\ValueObjects\Actor;
 use Illuminate\Bus\Queueable;
@@ -121,6 +122,10 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
                 $import->refresh();
                 $this->recordOutcome($events, $import);
                 $this->log($import, 'destination import finished');
+
+                if (in_array($import->status, [DestinationImportStatus::Succeeded, DestinationImportStatus::Partial], true)) {
+                    rescue(fn () => app(NotificationEnqueuer::class)->destinationImportFinished($import), report: false);
+                }
             } catch (Throwable $exception) {
                 $import->update([
                     'error_code' => 'provider_temporarily_unavailable',
