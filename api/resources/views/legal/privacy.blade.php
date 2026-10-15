@@ -80,6 +80,8 @@
     <li><strong>Ticketing partners</strong> — only if you choose to book, and only what the booking requires.</li>
     <li><strong>Anthropic</strong> — if you use the in-app guide, your message and the relevant facts about your trip are sent to the model that answers it. Do not type anything into it you would not want processed by a third party.</li>
     <li><strong>Expo</strong> — if you allow notifications, the device token and the text of that notification are sent to Expo's push service so it can reach your phone.</li>
+    <li><strong>Twilio</strong> — if operator text alerts are turned on, the text of that notification is sent to Twilio for delivery to those operator numbers.</li>
+    <li><strong>SendGrid</strong> — if email delivery is turned on, your email address and the text of that notification are sent to SendGrid so it can deliver the message. If SendGrid cannot deliver it, the same message is sent to Brevo.</li>
   </ul>
 
   <h2>How long we keep it</h2>
