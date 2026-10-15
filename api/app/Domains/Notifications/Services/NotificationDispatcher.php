@@ -177,7 +177,24 @@ class NotificationDispatcher
         return true;
     }
 
-    /** @param list<string> $tokens */
+    /**
+     * Pushes to every registered device.
+     *
+     * A per-device error is not a failure of the send. Expo answers with one
+     * ticket per token, in the order they were given, and the usual error is
+     * DeviceNotRegistered — the app was uninstalled from one of the
+     * traveller's devices. Treating any such ticket as fatal re-queued the
+     * whole row, and because 'push' had not yet been recorded in
+     * sent_channels, every retry pushed to the full list again: the devices
+     * that received it the first time received it up to five times.
+     *
+     * So only a transport failure, or every single ticket failing, is retried
+     * — in both of those cases nothing was delivered and a retry is honest.
+     * A token Expo says is dead is deleted rather than carried forward, which
+     * is also the only thing that stops it failing again tomorrow.
+     *
+     * @param  list<string>  $tokens
+     */
     private function push(NotificationOutbox $row, array $tokens): void
     {
         $response = Http::timeout(8)
@@ -196,10 +213,37 @@ class NotificationDispatcher
             throw new \RuntimeException('Expo push returned HTTP '.$response->status());
         }
 
-        foreach ((array) $response->json('data') as $ticket) {
-            if (is_array($ticket) && ($ticket['status'] ?? null) === 'error') {
-                throw new \RuntimeException((string) ($ticket['message'] ?? 'Expo push ticket error'));
+        $tickets = (array) $response->json('data');
+        $dead = [];
+        $failed = 0;
+
+        foreach (array_values($tickets) as $index => $ticket) {
+            if (! is_array($ticket) || ($ticket['status'] ?? null) !== 'error') {
+                continue;
             }
+
+            $failed++;
+            $token = $tokens[$index] ?? null;
+
+            if ($token !== null && ($ticket['details']['error'] ?? null) === 'DeviceNotRegistered') {
+                $dead[] = $token;
+
+                continue;
+            }
+
+            Log::warning('notification.push_ticket_failed', [
+                'id' => $row->id,
+                'reason' => (string) ($ticket['message'] ?? 'unknown'),
+            ]);
+        }
+
+        if ($dead !== []) {
+            DevicePushToken::whereIn('token', $dead)->delete();
+        }
+
+        /* Nothing reached anyone, so there is something to retry. */
+        if ($tickets !== [] && $failed === count($tickets)) {
+            throw new \RuntimeException('Expo rejected every push token.');
         }
     }
 

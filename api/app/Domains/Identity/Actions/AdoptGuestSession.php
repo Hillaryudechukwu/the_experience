@@ -38,8 +38,38 @@ class AdoptGuestSession
                     ->update(['user_id' => $user->id, 'guest_session_id' => null]);
             }
 
-            Journey::where('guest_session_id', $guest->id)->update(['user_id' => $user->id]);
-            SavedExperience::where('guest_session_id', $guest->id)->update(['user_id' => $user->id]);
+            /*
+             * The guest id is cleared, not merely overwritten.
+             *
+             * journeys.guest_session_id and saved_experiences.guest_session_id
+             * are both constrained()->cascadeOnDelete(). Leaving them pointing
+             * at the old session means the row still dies with it — so the day
+             * anything prunes stale guest sessions, and a TTL on that table is
+             * the obvious next thing to add, a registered traveller loses their
+             * trips, the itineraries hanging off them, and every save. The four
+             * tables below already cleared it; these two did not.
+             */
+            Journey::where('guest_session_id', $guest->id)
+                ->update(['user_id' => $user->id, 'guest_session_id' => null]);
+
+            /*
+             * Saves are deduplicated first. The table is unique on
+             * (user_id, experience_id), so handing the account a guest save of
+             * something it already holds raises a constraint violation inside
+             * this transaction and takes the whole sign-in down with it — which
+             * is reachable today: save something, sign out, save it again as
+             * the new guest, sign back in.
+             */
+            $alreadySaved = SavedExperience::where('user_id', $user->id)->pluck('experience_id');
+
+            if ($alreadySaved->isNotEmpty()) {
+                SavedExperience::where('guest_session_id', $guest->id)
+                    ->whereIn('experience_id', $alreadySaved)
+                    ->delete();
+            }
+
+            SavedExperience::where('guest_session_id', $guest->id)
+                ->update(['user_id' => $user->id, 'guest_session_id' => null]);
             DevicePushToken::where('guest_session_id', $guest->id)
                 ->update(['user_id' => $user->id, 'guest_session_id' => null]);
             NotificationOutbox::where('guest_session_id', $guest->id)
