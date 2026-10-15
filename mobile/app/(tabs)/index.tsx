@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { ApiError, API_URL } from '../../src/api/client';
+import { ApiError, API_URL, http } from '../../src/api/client';
 import {
   useDestination,
   useDestinationImport,
@@ -18,7 +18,7 @@ import { DestinationHero } from '../../src/components/DestinationHero';
 import { QUICK_ACTIONS_OVERLAP, QuickActions } from '../../src/components/QuickActions';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
 import { Icon } from '../../src/components/Icon';
-import { MOODS, MoodTile } from '../../src/components/MoodTile';
+import { MOOD_CREDIT, MOODS, MoodTile } from '../../src/components/MoodTile';
 import { Photo } from '../../src/components/Photo';
 import {
   Button,
@@ -35,7 +35,7 @@ import {
   T,
 } from '../../src/components/primitives';
 import { clock, conditionLabel, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
-import { useSession } from '../../src/store/session';
+import { discoveryPayload, useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
 const TIME_WINDOWS = [
@@ -163,16 +163,25 @@ export default function Discover() {
       : 'Your day is open.';
 
   const emptyCatalogue = !discovery.isLoading && results.length === 0 && discovery.data?.catalogue_empty === true;
+  const primary = discovery.data?.primary ?? null;
+  const precision = context?.location_precision;
+  const nearYou = precision === 'precise' || precision === 'approximate';
 
   const heroDetail = discovery.isLoading || preparingCity
     ? preparingCity
       ? 'Preparing this city — finding places worth recommending…'
       : 'Working out what fits…'
-    : results.length > 0
-      ? `I found ${results.length} experience${results.length === 1 ? '' : 's'} that fit.`
-      : emptyCatalogue
-        ? 'This city does not have experiences loaded yet — try another covered city for now.'
-        : 'Nothing strong fits right now — try widening the time or distance.';
+    : primary
+      ? nearYou
+        ? primary.travel_minutes
+          ? `${primary.action} ${primary.place_name}, ${primary.travel_minutes} min away.`
+          : `${primary.action} ${primary.place_name}.`
+        : `${primary.action} In ${session.destinationName ?? 'the city'}.`
+      : results.length > 0
+        ? `I found ${results.length} experience${results.length === 1 ? '' : 's'} that fit.`
+        : emptyCatalogue
+          ? 'This city does not have experiences loaded yet — try another covered city for now.'
+          : 'Nothing strong fits right now — try widening the time or distance.';
 
   return (
     <Screen
@@ -200,6 +209,7 @@ export default function Discover() {
         dateLabel={context ? dateStamp(context.local_time, tz) : null}
         temperature={context?.weather?.temperature_c ?? null}
         condition={context?.weather ? conditionLabel(context.weather.condition) : null}
+        clothing={context?.weather?.clothing?.headline ?? null}
         onPressCity={() => router.push('/onboarding/destination')}
         onPressProfile={() => router.push('/(tabs)/you')}
         onPressSearch={() => router.push('/search')}
@@ -214,8 +224,10 @@ export default function Discover() {
             label: 'For you',
             icon: 'sparkle',
             onPress: () => {
-              setWindow(null);
-              setMood(null);
+              void clearIntent(['mood', 'window_minutes']).then(() => {
+                setWindow(null);
+                setMood(null);
+              });
             },
           },
           { key: 'open-now', label: 'Open now', icon: 'clock', onPress: () => setWindow(60) },
@@ -263,8 +275,10 @@ export default function Discover() {
           label="Right now"
           selected={window === null && mood === null}
           onPress={() => {
-            setWindow(null);
-            setMood(null);
+            void clearIntent(['mood', 'window_minutes']).then(() => {
+              setWindow(null);
+              setMood(null);
+            });
           }}
         />
         {TIME_WINDOWS.map((option) => (
@@ -273,8 +287,14 @@ export default function Discover() {
             label={option.label}
             selected={window === option.minutes}
             onPress={() => {
-              setMood(null);
-              setWindow(window === option.minutes ? null : option.minutes);
+              if (window === option.minutes) {
+                void clearIntent(['window_minutes']).then(() => setWindow(null));
+                return;
+              }
+              void clearIntent(['mood']).then(() => {
+                setMood(null);
+                setWindow(option.minutes);
+              });
             }}
           />
         ))}
@@ -297,8 +317,17 @@ export default function Discover() {
           caption={
             discovery.data ? `Chosen from ${discovery.data.candidates_considered} nearby options` : undefined
           }
-          action={results.length > 0 ? 'See all' : undefined}
-          onAction={() => router.push('/search')}
+          action={window || mood ? 'Clear' : results.length > 0 ? 'See all' : undefined}
+          onAction={() => {
+            if (window || mood) {
+              void clearIntent(['mood', 'window_minutes']).then(() => {
+                setWindow(null);
+                setMood(null);
+              });
+              return;
+            }
+            router.push('/search');
+          }}
         />
       </Gutter>
 
@@ -417,8 +446,14 @@ export default function Discover() {
             mood={option}
             selected={mood === option.key}
             onPress={() => {
-              setWindow(null);
-              setMood(mood === option.key ? null : option.key);
+              if (mood === option.key) {
+                void clearIntent(['mood']).then(() => setMood(null));
+                return;
+              }
+              void clearIntent(['window_minutes']).then(() => {
+                setWindow(null);
+                setMood(option.key);
+              });
             }}
           />
         ))}
@@ -443,6 +478,11 @@ export default function Discover() {
           </T>
         </Pressable>
       </ScrollView>
+      <Gutter>
+        <T variant="caption" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
+          {MOOD_CREDIT}
+        </T>
+      </Gutter>
 
       {/* ── Hidden gems rail ───────────────────────────────────────────── */}
       {(hiddenGems.data?.data.length ?? 0) > 0 ? (
@@ -604,4 +644,8 @@ function partOfDay(iso: string | undefined, timeZone?: string): string {
   if (hour < 18) return 'afternoon';
 
   return 'evening';
+}
+
+function clearIntent(fields: string[]) {
+  return http.post('/discovery/intent', discoveryPayload({ clear: fields }));
 }

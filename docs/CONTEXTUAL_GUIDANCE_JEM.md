@@ -1,6 +1,6 @@
 # Interlude — Contextual guidance JEM
 
-**Status:** Proposed implementation specification  
+**Status:** Implemented (P4b public plan links not built)  
 **Scope:** Laravel API scoring and discovery, Expo Discover / Trip / Guide / account, weather advice, plan sharing, Google and Apple sign-in  
 **Objective:** At any moment, tell the traveller one thing to do and one place to go, using where they are and what they have already chosen or said; show mood as a picture; say what to wear for the weather; let them share the plan; and let them create an account with Google (and Apple on iOS).
 
@@ -862,13 +862,14 @@ Do not start step 11’s production flag before step 12’s binary. A Google use
 
 ## 21. Status
 
+Section 8 is the baseline from before this work. The phases below are the implementation state.
 | Phase | Name | Status |
 |---|---|---|
-| P0 | Mood blend and derived affinity | Not started |
-| P1 | Primary action and live intent | Not started |
-| P2 | Clothing advice | Not started |
-| P3 | Mood photographs | Not started |
-| P4 | Share my plan | Not started |
-| P5 | Google and Apple sign-in | Not started |
+| P0 | Mood blend and derived affinity | Implemented |
+| P1 | Primary action and live intent | Implemented |
+| P2 | Clothing advice | Implemented |
+| P3 | Mood photographs | Implemented |
+| P4 | Share my plan | Implemented (on-device share sheet only) |
+| P5 | Google and Apple sign-in | Implemented (client flag off until client ids are set) |
 
 Update this table as phases exit GO.

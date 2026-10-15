@@ -7,7 +7,9 @@ namespace App\Http\Controllers\Api;
 use App\Domains\AI\Services\IntentParser;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
 use App\Domains\Destinations\Services\EnsureDestinationReadyForDiscovery;
+use App\Domains\Discovery\Services\LiveIntentStore;
 use App\Domains\Discovery\Services\NameRelevance;
+use App\Domains\Discovery\Services\PrimaryActionComposer;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\Experiences\Services\ExperiencePresenter;
 use App\Domains\Recommendations\DTO\ScoredExperience;
@@ -29,6 +31,8 @@ class DiscoveryController extends ApiController
         private readonly RecordBehaviouralEvent $events,
         private readonly NameRelevance $relevance,
         private readonly EnsureDestinationReadyForDiscovery $destinationReadiness,
+        private readonly LiveIntentStore $liveIntents,
+        private readonly PrimaryActionComposer $primary,
     ) {}
 
     /** Spec s4.1 — "I'm Here Now". */
@@ -88,12 +92,33 @@ class DiscoveryController extends ApiController
 
         $payload = $response->getData(true);
         $payload['data'] = $this->relevance->promote($payload['data'] ?? [], $request->input('q'));
+        if (($payload['data'][0]['id'] ?? null) !== ($payload['primary']['experience_id'] ?? null)) {
+            $payload['primary'] = $payload['data'] === []
+                ? null
+                : $this->primary->fromCard($payload['data'][0]);
+        }
         $payload['interpreted'] = [
             'understood_as' => $parsed['echo'],
             'filters' => $input,
         ];
 
         return response()->json($payload);
+    }
+
+    /** Clears fields on the live intent without touching the rest of it. */
+    public function intent(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'clear' => ['required', 'array', 'min:1'],
+            'clear.*' => [Rule::in(['mood', 'window_minutes', 'categories', 'exclude_categories', 'free_only'])],
+            'journey_id' => ['sometimes', 'nullable', 'uuid'],
+            'destination_id' => ['sometimes', 'nullable', 'uuid'],
+            'destination' => ['sometimes', 'nullable', 'string'],
+        ]);
+
+        $this->liveIntents->clear($this->actor($request), $data, $data['clear']);
+
+        return response()->json(['status' => 'cleared']);
     }
 
     /** Spec s14.6 — a constrained "surprise me". */
@@ -125,15 +150,20 @@ class DiscoveryController extends ApiController
 
     private function respond(Request $request, array $input, int $limit): JsonResponse
     {
+        $this->liveIntents->recordDiscovery($this->actor($request), $input);
         $result = $this->recommendations->recommend($this->actor($request), $input, $limit);
         $destinationId = $input['destination_id'] ?? $result['context']->journey?->destination_id;
         $catalogueEmpty = is_string($destinationId) && ! $this->destinationHasPublishedExperiences($destinationId);
+        $cards = array_map(
+            fn (ScoredExperience $scored) => $this->presenter->card($scored->candidate->experience, $scored),
+            $result['results'],
+        );
 
         return response()->json([
-            'data' => array_map(
-                fn (ScoredExperience $scored) => $this->presenter->card($scored->candidate->experience, $scored),
-                $result['results'],
-            ),
+            'data' => $cards,
+            'primary' => $result['results'] === []
+                ? null
+                : $this->primary->compose($result['results'][0]),
             'recommendation_set_id' => $result['set']->id,
             'context' => $this->contextPayload($result['context']),
             'candidates_considered' => $result['set']->candidates_considered,

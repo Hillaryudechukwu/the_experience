@@ -7,6 +7,7 @@ namespace App\Domains\Recommendations\Services;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
 use App\Domains\Discovery\Services\CandidateBuilder;
 use App\Domains\Discovery\Services\ContextEngine;
+use App\Domains\Discovery\Services\LiveIntentStore;
 use App\Domains\ExternalSources\Services\OfferService;
 use App\Domains\Recommendations\DTO\ScoredExperience;
 use App\Domains\Recommendations\DTO\ScoringContext;
@@ -14,6 +15,7 @@ use App\Domains\Recommendations\Models\Recommendation;
 use App\Domains\Recommendations\Models\RecommendationReason;
 use App\Domains\Recommendations\Models\RecommendationSet;
 use App\Domains\Recommendations\Scoring\ExperienceScorer;
+use App\Domains\Recommendations\Scoring\MoodBlend;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,8 @@ class RecommendationService
         private readonly ContextEngine $contextEngine,
         private readonly CandidateBuilder $candidates,
         private readonly ExperienceScorer $scorer,
+        private readonly MoodBlend $moodBlend,
+        private readonly LiveIntentStore $liveIntents,
         private readonly OfferService $offers,
         private readonly RecordBehaviouralEvent $events,
     ) {}
@@ -42,6 +46,7 @@ class RecommendationService
     {
         $started = microtime(true);
 
+        $input = $this->liveIntents->mergeInto($actor, $input);
         $context = $this->contextEngine->build($actor, $input);
         $candidates = $this->candidates->build($context, $input);
 
@@ -79,7 +84,7 @@ class RecommendationService
             }
         }
 
-        $ranked = $this->scorer->rank($candidates, $context);
+        $ranked = $this->moodBlend->apply($this->scorer->rank($candidates, $context), $context);
         $selected = array_slice($ranked, 0, $limit);
 
         $snapshot = $this->contextEngine->snapshot($context);

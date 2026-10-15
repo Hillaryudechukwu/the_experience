@@ -144,6 +144,7 @@ export type DiscoveryContext = {
     temperature_c: number;
     precipitation_probability: number;
     is_poor: boolean;
+    clothing?: { headline: string; items: string[] } | null;
     sunset: string | null;
     freshness: Freshness;
   } | null;
@@ -154,6 +155,16 @@ export type DiscoveryContext = {
 
 export type DiscoveryResponse = {
   data: ExperienceCard[];
+  primary: {
+    experience_id: string;
+    title: string;
+    action: string;
+    place_name: string;
+    neighbourhood: string | null;
+    travel_minutes: number | null;
+    directions_url: string | null;
+    why: string | null;
+  } | null;
   recommendation_set_id: string;
   context: DiscoveryContext;
   candidates_considered: number;
@@ -325,6 +336,8 @@ export type TravellerProfile = {
   accessibility: Record<string, unknown>;
   interests: { interest: string; weight: number; source: string }[];
   is_guest: boolean;
+  providers?: string[];
+  has_password?: boolean;
 };
 
 export type ExperienceDna = {

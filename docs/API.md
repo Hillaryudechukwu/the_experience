@@ -9,6 +9,8 @@ subsequent requests. Registering later adopts everything the guest already did.
 ```
 POST   /auth/register
 POST   /auth/login
+POST   /auth/google                       ID token; creates or links an account
+POST   /auth/apple                        ID token; Apple is required on iOS if Google is offered
 POST   /auth/logout                       (auth:sanctum)
 ```
 
@@ -55,13 +57,20 @@ actor/IP/global daily limits.
 POST   /discovery/now                     §4.1  "I'm here now"
 POST   /discovery/time-boxed              §4.2  requires window_minutes
 POST   /discovery/mood                    §4.3
+POST   /discovery/intent                  remember or clear mood, window, categories
 POST   /discovery/search                  §5.6  natural language; echoes how it was read
 POST   /discovery/surprise-me             §14.6 constrained roulette
 ```
 
 Every discovery response carries `context` (local time, location precision, weather,
-next anchor, engine version), `recommendation_set_id`, `candidates_considered`, and a
+next anchor, engine version), `primary` (the one thing to do right now, or null),
+`recommendation_set_id`, `candidates_considered`, and a
 `notice` when a constraint had to be loosened to find anything.
+
+`context.weather.clothing` is a headline and a short list of garments for the
+forecast. It is separate from a place's dress code. `POST /discovery/intent`
+with `clear` forgets those fields for the rest of the local day. Omitting a
+field on the next discovery call does not clear it.
 
 ## Experiences
 
@@ -114,6 +123,17 @@ GET    /passport/recap/{journey}
 POST   /assistant/message                 §15
 GET    /assistant/conversations/{conversation}
 ```
+
+## Notifications
+
+```
+GET    /notifications                     recent outbox rows for this actor
+POST   /notifications/push-token          { token, platform? }
+```
+
+Rows are written when a booking confirms, a destination import finishes ready
+or limited, or a replan proposal is created. `notifications:flush` delivers
+them. The same event key is never inserted twice.
 
 ## Analytics and privacy
 
