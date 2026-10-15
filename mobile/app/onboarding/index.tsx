@@ -34,14 +34,14 @@ export default function Welcome() {
             <Row gap={space.xs}>
               <Icon name="compass" size={26} color="#FFFFFF" strokeWidth={1.9} />
               <T variant="label" color="rgba(255,255,255,0.8)">
-                Interlude
+                WAYOA
               </T>
             </Row>
           </Gutter>
 
           <Gutter style={{ gap: space.md }}>
             <T variant="displayXl" color="#FFFFFF">
-              Make the most{'\n'}of the time between.
+              Know where to go.
             </T>
             <T variant="bodyL" color="rgba(255,255,255,0.82)">
               Land anywhere and know what is worth doing, why it suits you, and whether it fits the time you

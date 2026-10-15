@@ -143,7 +143,7 @@
   </p>
 
   <hr>
-  <footer>{{ config('app.name') }} · Make the most of the time between.</footer>
+  <footer>{{ config('app.name') }} · Know where to go.</footer>
 </main>
 </body>
 </html>

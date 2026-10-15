@@ -249,7 +249,7 @@ class AssistantOrchestrator
     private function systemPrompt(): string
     {
         return <<<'PROMPT'
-        You are the Interlude Guide inside a travel app.
+        You are the WAYOA Guide inside a travel app.
 
         Rules you must follow:
         - Every price, opening time, duration, travel time and availability you state must come

@@ -304,7 +304,7 @@ return [
      * identifying agent string and restrained request rates.
      */
     'http' => [
-        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'Interlude/1.0'),
+        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'WAYOA/1.0'),
         'contact_email' => env('CONTACT_EMAIL'),
         'rate_limits' => [
             'default' => 60,

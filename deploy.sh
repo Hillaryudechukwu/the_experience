@@ -377,7 +377,7 @@ set_env_if_provided() {
     fi
 }
 
-set_env APP_NAME "Interlude"
+set_env APP_NAME "WAYOA"
 set_env APP_URL "$api_origin"
 set_env CORS_ALLOWED_ORIGINS "$web_origin"
 set_env PRIVACY_POLICY_URL "$privacy_url"

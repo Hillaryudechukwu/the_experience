@@ -164,7 +164,7 @@ function FloatingGuide({ onPress, bottomInset }: { onPress: () => void; bottomIn
     >
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Open the Interlude Guide"
+      accessibilityLabel="Open the WAYOA Guide"
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress();

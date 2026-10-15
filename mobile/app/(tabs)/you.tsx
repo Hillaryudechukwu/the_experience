@@ -91,7 +91,7 @@ export default function You() {
     try {
       const payload = await exportPrivacy.mutateAsync();
       await Share.share({
-        title: 'My Interlude data',
+        title: 'My WAYOA data',
         message: JSON.stringify(payload, null, 2),
       });
     } catch {

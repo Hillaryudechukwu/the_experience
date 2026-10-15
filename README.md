@@ -1,6 +1,6 @@
-# Interlude
+# WAYOA
 
-*Make the most of the time between.*
+*Know where to go.*
 
 A context-aware travel operating system. Given a specific traveller and a specific
 journey, it answers one question better than a map, a review directory or a ticket
