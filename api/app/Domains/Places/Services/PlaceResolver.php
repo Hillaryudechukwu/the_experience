@@ -9,6 +9,7 @@ use App\Domains\ExternalSources\DTO\PlaceCandidate;
 use App\Domains\ExternalSources\Models\ExternalEntity;
 use App\Domains\Places\Models\Place;
 use App\Domains\Places\Models\PlaceMergeCandidate;
+use App\Domains\Places\Support\NameSimilarity;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Illuminate\Support\Facades\DB;
 
@@ -131,10 +132,10 @@ class PlaceResolver
          */
         $this->geo->withinRadius($query, 'places', $point, $radius);
 
-        /* Trigram similarity is a PostgreSQL extension. Where it exists it is
-           better than anything we can do in PHP, and where it does not the
-           loop below falls back to similar_text() over a candidate set the
-           radius has already made small. */
+        /* Trigram similarity is a PostgreSQL extension. Where it exists we let
+           the database do the work; where it does not, the loop below computes
+           the same measure in PHP over a candidate set the radius has already
+           made small. */
         $query->when(
             DB::getDriverName() === 'pgsql',
             fn ($q) => $q->selectRaw('places.*, similarity(normalised_name, ?) as name_similarity', [$candidate->normalisedName()]),
@@ -152,11 +153,11 @@ class PlaceResolver
                 continue;
             }
 
-            /* Trust PostgreSQL's trigram similarity where available, and fall
-               back to a string comparison elsewhere so the logic still works. */
+            /* Trust PostgreSQL's trigram similarity where available, and
+               compute the same measure in PHP elsewhere. */
             $similarity = ($place->name_similarity ?? null) !== null && $place->name_similarity > 0
                 ? (float) $place->name_similarity
-                : $this->stringSimilarity($candidate->normalisedName(), (string) $place->normalised_name);
+                : NameSimilarity::between($candidate->normalisedName(), (string) $place->normalised_name);
 
             if ($best === null || $similarity > $best['similarity']) {
                 $best = ['place' => $place, 'distance' => $distance, 'similarity' => $similarity];
@@ -164,17 +165,6 @@ class PlaceResolver
         }
 
         return $best;
-    }
-
-    private function stringSimilarity(string $a, string $b): float
-    {
-        if ($a === '' || $b === '') {
-            return 0.0;
-        }
-
-        similar_text($a, $b, $percent);
-
-        return round($percent / 100, 3);
     }
 
     private function recordMergeCandidate(PlaceCandidate $candidate, Place $place, float $similarity, float $distance): void

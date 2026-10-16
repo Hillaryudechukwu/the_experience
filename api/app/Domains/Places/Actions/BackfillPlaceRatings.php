@@ -11,6 +11,7 @@ use App\Domains\ExternalSources\Models\ProviderSyncFailure;
 use App\Domains\ExternalSources\Models\ProviderSyncRun;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
 use App\Domains\Places\Models\Place;
+use App\Domains\Places\Support\NameSimilarity;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -164,8 +165,14 @@ class BackfillPlaceRatings
                 continue;
             }
 
-            similar_text($place->normalised_name, $candidate->normalisedName(), $percent);
-            $similarity = $percent / 100;
+            /* The same measure the resolver uses. similar_text() scored a
+               shared prefix so generously that "south street seaport museum"
+               matched "south street seaport historic district" at 0.677, and a
+               rating on the wrong place is worse than no rating. */
+            $similarity = NameSimilarity::between(
+                (string) $place->normalised_name,
+                $candidate->normalisedName(),
+            );
 
             if ($similarity < self::NAME_SIMILARITY) {
                 continue;

@@ -48,6 +48,64 @@ jobs:
         working-directory: api
         run: php artisan test --compact
 
+  # The same suite against the engine production actually runs.
+  #
+  # cPanel calls it "MySQL" and .env says DB_CONNECTION=mysql, but the server
+  # answers select version() with 11.4.13-MariaDB: the mysql driver is merely
+  # how Laravel talks to MariaDB, not a statement about the engine. Pinning
+  # mysql:8.0 here would have proved compatibility with a database nobody
+  # runs, which is worse than not testing — it reads green.
+  #
+  # PostgreSQL will not tell us when something only works there: the JSON
+  # column defaults, the earthdistance fallback, and the trigram fallback in
+  # PlaceResolver all take a different path on this driver.
+  #
+  # DB_CONNECTION stays mysql to mirror production exactly; the mariadb driver
+  # would select a different query grammar than the one deployed. Credentials
+  # are unprivileged, because cPanel never hands out a root account either.
+  api-mariadb:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: experience_test
+          MARIADB_USER: experience
+          MARIADB_PASSWORD: experience
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: experience_test
+      DB_USERNAME: experience
+      DB_PASSWORD: experience
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_mysql, mbstring, xml, curl, zip, bcmath, intl
+          coverage: none
+      - name: Install dependencies
+        working-directory: api
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        working-directory: api
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Test
+        working-directory: api
+        run: php artisan test --compact
+
   mobile:
     runs-on: ubuntu-latest
     steps:
