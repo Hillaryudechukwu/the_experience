@@ -34,7 +34,7 @@ import {
   Skeleton,
   T,
 } from '../../src/components/primitives';
-import { clock, conditionLabel, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
+import { clock, conditionLabel, isoDate, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -123,7 +123,9 @@ export default function Discover() {
   const [top, ...rest] = results;
 
   const todaysItems = useMemo(() => {
-    const today = new Date().toLocaleDateString('en-CA', tz ? { timeZone: tz } : {});
+    /* The same call onboarding uses to set starts_on. Two copies of this rule
+       drift apart silently: the itinerary's first day simply stops matching. */
+    const today = isoDate(new Date(), tz);
 
     return trip?.itinerary?.days.find((day) => day.date === today)?.items ?? [];
   }, [trip, tz]);
