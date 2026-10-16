@@ -87,11 +87,27 @@ export function DestinationHero({
     : null;
 
   return (
-    <View style={{ height: total, width: '100%', backgroundColor: colors.brand.midnight }}>
+    /*
+     * A floor, not a ceiling.
+     *
+     * This was a fixed height, and the column inside it had no room left: with
+     * a two-line headline the content came to exactly the 288pt available, so
+     * the next thing added — anything at all — pushed the search field past the
+     * bottom edge. Android clips an overflowing child where iOS lets it hang,
+     * so the field simply disappeared there while looking merely tight on iOS.
+     *
+     * minHeight keeps the designed 320pt whenever the content fits and lets the
+     * header grow the rare time it does not. The overlap strip is reserved as
+     * padding, so the card below still rides up over photograph either way.
+     */
+    <View style={{ minHeight: total, width: '100%', backgroundColor: colors.brand.midnight }}>
       {imageUri ? (
         <Image
           source={{ uri: imageUri }}
-          style={{ position: 'absolute', inset: 0 as never, width: '100%', height: total }}
+          /* Pinned to all four edges, so it follows the header when the
+             content makes it taller than `total`. A percentage height would be
+             measured against a parent that no longer has a fixed one. */
+          style={{ position: 'absolute', inset: 0 as never }}
           resizeMode="cover"
           accessibilityIgnoresInvertColors
         />
@@ -106,11 +122,21 @@ export function DestinationHero({
         pointerEvents="none"
       />
 
-      <View style={{ flex: 1, paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.lg + overlapBelow }}>
+      {/* flexGrow with an auto basis, not `flex: 1`.
+          `flex: 1` is flexBasis 0, which reports no height of its own — against
+          a parent that is now min-height rather than fixed, the column would
+          measure as nothing and the header would collapse to 320pt regardless
+          of what is inside it. An auto basis measures the content first and
+          then grows into whatever room is left. */}
+      <View style={{ flexGrow: 1, flexBasis: 'auto', paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.lg + overlapBelow }}>
         {/* ── Wordmark, city switch, profile ───────────────────────────── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <View style={{ flex: 1 }}>
-            <WayoaLogo variant="mark" size="sm" accessibilityLabel={BRAND.name} />
+            {/* The wordmark, small, where the caption wordmark used to be.
+                The square mark at `sm` is 40pt tall against the 15pt line it
+                replaced, and this header lives in a box of fixed height — see
+                the note on `total` below. */}
+            <WayoaLogo variant="full" size="xs" accessibilityLabel={BRAND.name} />
             <Pressable
               onPress={onPressCity}
               accessibilityRole="button"

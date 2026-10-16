@@ -4,7 +4,7 @@ import { Image, Pressable, View, type ImageSourcePropType } from 'react-native';
 import { BRAND } from '../brand';
 
 export type WayoaLogoVariant = 'full' | 'mark';
-export type WayoaLogoSize = 'sm' | 'md' | 'lg';
+export type WayoaLogoSize = 'xs' | 'sm' | 'md' | 'lg';
 
 /**
  * Official WAYOA artwork.
@@ -25,9 +25,14 @@ const ASPECT: Record<WayoaLogoVariant, number> = {
   mark: 1,
 };
 
+/*
+ * `xs` exists for the one place the brand sits inside a box of fixed height.
+ * Everywhere else the logo can set its own terms; in the city header it has a
+ * budget, and 18pt is roughly the caption wordmark it replaced.
+ */
 const HEIGHT: Record<WayoaLogoVariant, Record<WayoaLogoSize, number>> = {
-  full: { sm: 28, md: 48, lg: 72 },
-  mark: { sm: 40, md: 56, lg: 88 },
+  full: { xs: 18, sm: 28, md: 48, lg: 72 },
+  mark: { xs: 22, sm: 40, md: 56, lg: 88 },
 };
 
 export function WayoaLogo({
