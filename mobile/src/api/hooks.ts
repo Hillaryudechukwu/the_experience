@@ -190,6 +190,21 @@ export function useUpdateProfile() {
   });
 }
 
+/**
+ * Route segment to the name the API records the surface under.
+ *
+ * The two differ, and deliberately: the routes are hyphenated while the
+ * server labels surfaces in snake_case — `discovery/surprise-me` has always
+ * been recorded as `surprise_me`. Tagging client-side events with the route
+ * segment put both `time-boxed` and `time_boxed` into behavioural_events for
+ * one surface, so anything grouping by it saw two half-sized surfaces.
+ */
+export const SURFACE_LABEL = {
+  now: 'now',
+  'time-boxed': 'time_boxed',
+  mood: 'mood',
+} as const;
+
 /** The three context-engine surfaces: now, time-boxed, mood. */
 export function useDiscovery(
   surface: 'now' | 'time-boxed' | 'mood',

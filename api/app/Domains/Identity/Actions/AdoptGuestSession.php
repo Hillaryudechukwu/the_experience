@@ -74,8 +74,33 @@ class AdoptGuestSession
                 ->update(['user_id' => $user->id, 'guest_session_id' => null]);
             NotificationOutbox::where('guest_session_id', $guest->id)
                 ->update(['user_id' => $user->id, 'guest_session_id' => null]);
-            LiveIntent::where('guest_session_id', $guest->id)
-                ->update(['user_id' => $user->id, 'guest_session_id' => null]);
+            /*
+             * Row by row, because owner_key is derived on save and a mass
+             * update bypasses model events entirely. Left to a mass update the
+             * moved row would keep its guest key, so the lookup — which goes
+             * by that key — would never find it again: the traveller's live
+             * intent would survive the adoption and be invisible afterwards.
+             */
+            $ownerKeys = LiveIntent::where('user_id', $user->id)->pluck('owner_key')->all();
+
+            foreach (LiveIntent::where('guest_session_id', $guest->id)->get() as $intent) {
+                $moved = LiveIntent::ownerKeyFor($user->id, null, $intent->journey_id);
+
+                /* The account already has an intent for this journey, and the
+                   column is unique: keeping both is not an option, and the one
+                   the account made is the one to keep. */
+                if (in_array($moved, $ownerKeys, true)) {
+                    $intent->delete();
+
+                    continue;
+                }
+
+                $intent->user_id = $user->id;
+                $intent->guest_session_id = null;
+                $intent->save();
+
+                $ownerKeys[] = $moved;
+            }
         });
     }
 }

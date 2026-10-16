@@ -40,6 +40,22 @@ class BrevoTransport extends AbstractTransport
             'subject' => (string) $email->getSubject(),
         ];
 
+        /*
+         * Carried, not discarded.
+         *
+         * recipients() strips Cc and Bcc out of `to` so they are not addressed
+         * twice, but nothing put them back — so anyone copied on a message
+         * received nothing at all, and the send still reported success. This
+         * is the failover transport, which by definition runs when the primary
+         * is already refusing mail; losing a copy silently there is the worst
+         * moment for it.
+         */
+        foreach (['cc' => $email->getCc(), 'bcc' => $email->getBcc()] as $field => $addresses) {
+            if ($addresses !== []) {
+                $payload[$field] = array_map($this->person(...), $addresses);
+            }
+        }
+
         $html = $email->getHtmlBody();
         $text = $email->getTextBody();
         if (is_string($html) && $html !== '') {

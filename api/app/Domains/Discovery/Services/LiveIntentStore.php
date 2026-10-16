@@ -9,6 +9,7 @@ use App\Domains\Discovery\Models\LiveIntent;
 use App\Domains\Journeys\Models\Journey;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * The only writer of live intent.
@@ -61,14 +62,36 @@ class LiveIntentStore
         $expires = CarbonImmutable::now($this->timezone($actor, $input, $journeyId))->endOfDay();
 
         if ($row === null) {
-            return LiveIntent::create(array_merge($actor->ownerAttributes(), [
-                'journey_id' => $journeyId,
-                'categories' => [],
-                'exclude_categories' => [],
-                'free_only' => false,
-                'source' => $source,
-                'expires_at' => $expires,
-            ], $fields));
+            $owner = $actor->ownerAttributes();
+
+            try {
+                return LiveIntent::create(array_merge($owner, [
+                    'owner_key' => LiveIntent::ownerKeyFor(
+                        $actor->userId,
+                        $owner['guest_session_id'] ?? null,
+                        $journeyId,
+                    ),
+                    'journey_id' => $journeyId,
+                    'categories' => [],
+                    'exclude_categories' => [],
+                    'free_only' => false,
+                    'source' => $source,
+                    'expires_at' => $expires,
+                ], $fields));
+            } catch (UniqueConstraintViolationException) {
+                /*
+                 * Another request inserted the row between our read and this
+                 * write — which is the normal case when a mood is tapped while
+                 * the first discovery fetch is still in flight. The unique
+                 * index turned what used to be a silent second row into this,
+                 * so the loser now updates the winner's row instead.
+                 */
+                $row = $this->active($actor, $journeyId);
+
+                if ($row === null) {
+                    return null;
+                }
+            }
         }
 
         $row->fill($fields);
@@ -154,12 +177,16 @@ class LiveIntentStore
             return null;
         }
 
-        $query = LiveIntent::query()->ownedBy($actor);
-        $journeyId === null
-            ? $query->whereNull('journey_id')
-            : $query->where('journey_id', $journeyId);
-
-        $row = $query->first();
+        /* By the key the unique index is on, so there is exactly one row this
+           can return rather than whichever of several the database offered. */
+        $row = LiveIntent::query()
+            ->ownedBy($actor)
+            ->where('owner_key', LiveIntent::ownerKeyFor(
+                $actor->userId,
+                $actor->guestSessionId,
+                $journeyId,
+            ))
+            ->first();
         if ($row === null) {
             return null;
         }
@@ -202,6 +229,9 @@ class LiveIntentStore
             $destination = Destination::where('slug', $input['destination'])->first();
         }
 
-        return $destination->timezone ?? 'UTC';
+        /* Null-safe: both lookups above return null for a destination the
+           catalogue does not hold, which is reachable now that search offers
+           geocoded places we do not cover. */
+        return $destination?->timezone ?? 'UTC';
     }
 }

@@ -3,16 +3,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native
 import { useRouter } from 'expo-router';
 
 import { ApiError, API_URL, http } from '../../src/api/client';
-import {
-  useDestination,
-  useDestinationImport,
-  useDiscovery,
-  useJourney,
-  useProfile,
-  useSaved,
-  useSurpriseMe,
-  useTrip,
-} from '../../src/api/hooks';
+import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
 import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
 import { DestinationHero } from '../../src/components/DestinationHero';
 import { QUICK_ACTIONS_OVERLAP, QuickActions } from '../../src/components/QuickActions';
@@ -77,6 +68,9 @@ export default function Discover() {
   const [mood, setMood] = useState<string | null>(null);
 
   const surface = window ? 'time-boxed' : mood ? 'mood' : 'now';
+  /* What the API records this surface as, which is not what the route is
+     called: the routes are hyphenated, the recorded names are snake_case. */
+  const surfaceLabel = SURFACE_LABEL[surface];
   const payload = useMemo(
     () => (window ? { window_minutes: window } : mood ? { mood } : {}),
     [window, mood],
@@ -358,7 +352,7 @@ export default function Discover() {
             card={top}
             variant="recommendation"
             recommendationSetId={discovery.data?.recommendation_set_id}
-            surface={surface}
+            surface={surfaceLabel}
           />
         ) : null}
 
@@ -386,7 +380,7 @@ export default function Discover() {
               card={card}
               variant="feature"
               recommendationSetId={discovery.data?.recommendation_set_id}
-              surface={surface}
+              surface={surfaceLabel}
             />
           ))}
         </ScrollView>

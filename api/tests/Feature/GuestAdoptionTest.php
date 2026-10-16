@@ -82,6 +82,36 @@ class GuestAdoptionTest extends TestCase
         $this->assertSame(0, SavedExperience::whereNotNull('guest_session_id')->count());
     }
 
+    /**
+     * A live intent has to remain findable after adoption.
+     *
+     * owner_key is derived on save and the lookup goes by it, so moving the
+     * row with a mass update would leave the guest key in place: the intent
+     * would survive the sign-in and be invisible from that moment on.
+     */
+    public function test_an_adopted_live_intent_is_still_found_afterwards(): void
+    {
+        $user = User::factory()->create();
+        $guest = $this->guest();
+
+        \App\Domains\Discovery\Models\LiveIntent::query()->create([
+            'guest_session_id' => $guest->id,
+            'mood' => 'romantic',
+            'categories' => [],
+            'exclude_categories' => [],
+            'free_only' => false,
+            'source' => 'discover',
+            'expires_at' => now()->endOfDay(),
+        ]);
+
+        app(AdoptGuestSession::class)->run($this->requestFor($guest), $user);
+
+        $merged = app(\App\Domains\Discovery\Services\LiveIntentStore::class)
+            ->mergeInto(new \App\Domains\Shared\ValueObjects\Actor(userId: $user->id), []);
+
+        $this->assertSame('romantic', $merged['mood'] ?? null);
+    }
+
     /** @return array{0: User, 1: GuestSession} */
     private function adopted(): array
     {
