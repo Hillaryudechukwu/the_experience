@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { ApiError } from '../../src/api/client';
 import { useLogin } from '../../src/api/hooks';
 import { SocialSignIn } from '../../src/components/SocialSignIn';
+import { WayoaLogo } from '../../src/components/WayoaLogo';
 import { Button, Gutter, Note, Screen, T } from '../../src/components/primitives';
 import { showAlert } from '../../src/lib/alert';
 import { useBackTo } from '../../src/lib/navigation';
@@ -50,6 +51,7 @@ export default function Login() {
   return (
     <Screen>
       <Gutter style={{ paddingTop: space.sm, gap: space.md }}>
+        <WayoaLogo variant="full" size="md" />
         <T variant="displayL">Sign in</T>
         <T variant="body" color={colors.text.secondary}>
           Pick up the trip you left on another device. Guest work on this phone is adopted when you sign in.

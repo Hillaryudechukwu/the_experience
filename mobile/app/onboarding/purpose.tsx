@@ -28,7 +28,11 @@ export default function Purpose() {
 
   return (
     <Screen>
-      <OnboardingChrome step={2} total={6} onSkip={() => router.push('/onboarding/mission')} />
+      <OnboardingChrome
+        step={2}
+        total={6}
+        onSkip={() => router.push(draft.reason ? '/onboarding/mission' : '/onboarding/interests')}
+      />
       <OnboardingIntro
         eyebrow={destinationName ?? undefined}
         title="What brings you here?"

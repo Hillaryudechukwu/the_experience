@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy Policy — {{ config('app.name') }}</title>
+  <meta name="description" content="{{ config('experience.brand.description') }}">
   <style>
     :root { color-scheme: light dark; --ink: #0D1B2A; --muted: #4A5468; --rule: #E4E8EF; --bg: #FFFFFF; --accent: #2856F6; }
     @media (prefers-color-scheme: dark) {
@@ -143,7 +144,7 @@
   </p>
 
   <hr>
-  <footer>{{ config('app.name') }} · Make the most of the time between.</footer>
+  <footer>{{ config('app.name') }} · {{ config('experience.brand.tagline') }}</footer>
 </main>
 </body>
 </html>

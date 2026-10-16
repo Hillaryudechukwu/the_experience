@@ -20,9 +20,16 @@ export type IdentityProof = {
 };
 
 /**
- * Google on every platform. Apple sits above it on iOS, because offering
- * Google there without Apple fails App Store review. The flag defaults off,
- * so a build with no client ids shows nothing.
+ * Google everywhere, with Apple above it on iOS when the device offers it —
+ * App Store review expects Sign in with Apple alongside other providers.
+ *
+ * Google is not gated on Apple being available. appleAvailable starts false
+ * and is only set by an async check, so gating it meant the first render of
+ * every iOS screen had no buttons at all, and an iOS build missing the
+ * expo-apple-authentication entitlement showed an empty box permanently.
+ * Offering one provider is a degraded sign-in; offering none is a dead end.
+ *
+ * The flag defaults off, so a build with no client ids shows nothing.
  */
 export function SocialSignIn(props: {
   mode?: 'account' | 'proof';

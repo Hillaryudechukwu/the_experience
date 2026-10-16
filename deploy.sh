@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Interlude production deployment.
+# WAYOA production deployment.
 #
 # api.experience.synteric.co.uk: Laravel (document root: api/public)
 # experience.synteric.co.uk:     Expo web export only
@@ -101,7 +101,7 @@ activate_node_20() {
 
 activate_node_20
 
-printf "%bStarting split Interlude deployment...%b\n\n" "$GREEN" "$NC"
+printf "%bStarting split WAYOA deployment...%b\n\n" "$GREEN" "$NC"
 printf "%bAPI host:%b\n" "$YELLOW" "$NC"
 printf "  SSH:           %s@%s:%s\n" "$SERVER_USER" "$API_SERVER_HOST" "$SSH_PORT"
 printf "  Application:   %s\n" "$API_APP_PATH"
@@ -377,7 +377,7 @@ set_env_if_provided() {
     fi
 }
 
-set_env APP_NAME "Interlude"
+set_env APP_NAME "WAYOA"
 set_env APP_URL "$api_origin"
 set_env CORS_ALLOWED_ORIGINS "$web_origin"
 set_env PRIVACY_POLICY_URL "$privacy_url"
@@ -513,6 +513,20 @@ cat > "$SCRIPT_DIR/mobile/dist/.well-known/.htaccess" <<'EOF'
   ForceType application/json
   Header set Content-Type "application/json"
 </Files>
+EOF
+
+# Expo web is a single-page app: deep links like /onboarding/purpose have no
+# file on disk. Without this fallback LiteSpeed 404s the route before the
+# client router can take over — which is how fresh onboarding dies on web.
+cat > "$SCRIPT_DIR/mobile/dist/.htaccess" <<'EOF'
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
 EOF
 
 printf "%bSynchronising the Expo-only web host...%b\n" "$YELLOW" "$NC"

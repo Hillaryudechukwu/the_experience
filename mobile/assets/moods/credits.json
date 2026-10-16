@@ -1,16 +1,16 @@
 {
-  "holder": "Interlude",
+  "holder": "WAYOA",
   "licence": "original",
-  "line": "Mood photographs: Interlude.",
+  "line": "Mood photographs: WAYOA.",
   "images": {
-    "adventurous": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "relaxed": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "romantic": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "curious": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "hungry": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "social": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "inspired": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "energetic": { "creator": "Interlude", "licence": "original", "source_url": null },
-    "different": { "creator": "Interlude", "licence": "original", "source_url": null }
+    "adventurous": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "relaxed": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "romantic": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "curious": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "hungry": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "social": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "inspired": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "energetic": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "different": { "creator": "WAYOA", "licence": "original", "source_url": null }
   }
 }

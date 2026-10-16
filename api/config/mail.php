@@ -131,7 +131,7 @@ return [
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', env('CONTACT_EMAIL', 'hello@example.com')),
-        'name' => env('MAIL_FROM_NAME', 'Interlude'),
+        'name' => env('MAIL_FROM_NAME', 'WAYOA'),
     ],
 
 ];

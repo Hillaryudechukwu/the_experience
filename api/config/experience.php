@@ -1,13 +1,22 @@
 <?php
 
 /**
- * Interlude — engine configuration.
+ * WAYOA — engine configuration.
  *
  * Scoring weights, journey playbooks and freshness policy live here rather than
  * in controllers or the UI (spec s6.1: "Weights should be configurable,
  * testable and eventually personalised").
  */
 return [
+
+    /*
+     * Traveller-facing name lives in APP_NAME. The tagline and description are
+     * presentation copy for the privacy page and any other server-rendered surface.
+     */
+    'brand' => [
+        'tagline' => 'Know where to go.',
+        'description' => env('APP_NAME', 'WAYOA').' helps travellers discover, plan and book experiences that fit their journey.',
+    ],
 
     'engine_version' => 'score-v1.4',
 
@@ -304,7 +313,7 @@ return [
      * identifying agent string and restrained request rates.
      */
     'http' => [
-        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'Interlude/1.0'),
+        'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'WAYOA/1.0'),
         'contact_email' => env('CONTACT_EMAIL'),
         'rate_limits' => [
             'default' => 60,
@@ -405,12 +414,20 @@ return [
     /*
      * Audiences for ID tokens. Comma-separated. A token minted for another
      * app is rejected. Empty means that provider cannot sign anyone in.
+     * GOOGLE_CLIENT_ID, ANDROID_CLIENT_ID and IOS_CLIENT_ID are the same
+     * audiences when they are recorded under those names. The web client
+     * secret is not an audience and is not used for ID-token sign-in.
      */
     'identity' => [
-        'google_client_ids' => array_values(array_filter(array_map(
+        'google_client_ids' => array_values(array_unique(array_filter(array_map(
             'trim',
-            explode(',', (string) env('GOOGLE_CLIENT_IDS', '')),
-        ))),
+            array_merge(
+                explode(',', (string) env('GOOGLE_CLIENT_IDS', '')),
+                explode(',', (string) env('GOOGLE_CLIENT_ID', '')),
+                explode(',', (string) env('ANDROID_CLIENT_ID', '')),
+                explode(',', (string) env('IOS_CLIENT_ID', '')),
+            ),
+        )))),
         'apple_client_ids' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('APPLE_CLIENT_ID', '')),
