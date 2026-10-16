@@ -48,27 +48,35 @@ jobs:
         working-directory: api
         run: php artisan test --compact
 
-  # The same suite against MySQL, because production runs on MySQL and
+  # The same suite against the engine production actually runs.
+  #
+  # cPanel calls it "MySQL" and .env says DB_CONNECTION=mysql, but the server
+  # answers select version() with 11.4.13-MariaDB: the mysql driver is merely
+  # how Laravel talks to MariaDB, not a statement about the engine. Pinning
+  # mysql:8.0 here would have proved compatibility with a database nobody
+  # runs, which is worse than not testing — it reads green.
+  #
   # PostgreSQL will not tell us when something only works there: the JSON
   # column defaults, the earthdistance fallback, and the trigram fallback in
   # PlaceResolver all take a different path on this driver.
   #
-  # Keep the image on the version the host runs, and the credentials
-  # unprivileged — cPanel never hands out a root account either.
-  api-mysql:
+  # DB_CONNECTION stays mysql to mirror production exactly; the mariadb driver
+  # would select a different query grammar than the one deployed. Credentials
+  # are unprivileged, because cPanel never hands out a root account either.
+  api-mariadb:
     runs-on: ubuntu-latest
     services:
-      mysql:
-        image: mysql:8.0
+      mariadb:
+        image: mariadb:11.4
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: experience_test
-          MYSQL_USER: experience
-          MYSQL_PASSWORD: experience
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: experience_test
+          MARIADB_USER: experience
+          MARIADB_PASSWORD: experience
         ports:
           - 3306:3306
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -proot"
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
