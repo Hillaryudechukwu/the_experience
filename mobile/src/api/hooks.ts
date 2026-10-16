@@ -190,6 +190,21 @@ export function useUpdateProfile() {
   });
 }
 
+/**
+ * Route segment to the name the API records the surface under.
+ *
+ * The two differ, and deliberately: the routes are hyphenated while the
+ * server labels surfaces in snake_case — `discovery/surprise-me` has always
+ * been recorded as `surprise_me`. Tagging client-side events with the route
+ * segment put both `time-boxed` and `time_boxed` into behavioural_events for
+ * one surface, so anything grouping by it saw two half-sized surfaces.
+ */
+export const SURFACE_LABEL = {
+  now: 'now',
+  'time-boxed': 'time_boxed',
+  mood: 'mood',
+} as const;
+
 /** The three context-engine surfaces: now, time-boxed, mood. */
 export function useDiscovery(
   surface: 'now' | 'time-boxed' | 'mood',
@@ -263,10 +278,14 @@ export function useDeleteAccount() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: (password?: string) =>
+    mutationFn: (proof?: { password?: string; id_token?: string; provider?: 'google' | 'apple' }) =>
       http.delete<{ status: string; retained_bookings: number }>(
         '/auth/account',
-        password ? { password } : undefined,
+        proof?.password
+          ? { password: proof.password }
+          : proof?.id_token
+            ? { id_token: proof.id_token, provider: proof.provider }
+            : undefined,
       ),
     onSuccess: async () => {
       await clearIdentity();
@@ -534,7 +553,7 @@ export function useCancelBooking() {
   });
 }
 
-export type AuthUser = { id: number; name: string; email: string };
+export type AuthUser = { id: number; name: string; email: string; providers?: string[] };
 
 export function useRegister() {
   const client = useQueryClient();
@@ -559,6 +578,24 @@ export function useLogin() {
   return useMutation({
     mutationFn: async (body: { email: string; password: string }) => {
       const result = await http.post<{ token: string; user: AuthUser }>('/auth/login', body);
+      await setAuthToken(result.token);
+      return result.user;
+    },
+    onSuccess: () => {
+      client.invalidateQueries();
+    },
+  });
+}
+
+export function useIdentitySignIn() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { provider: 'google' | 'apple'; id_token: string; name?: string | null }) => {
+      const result = await http.post<{ token: string; user: AuthUser }>(`/auth/${body.provider}`, {
+        id_token: body.id_token,
+        ...(body.name ? { name: body.name } : {}),
+      });
       await setAuthToken(result.token);
       return result.user;
     },

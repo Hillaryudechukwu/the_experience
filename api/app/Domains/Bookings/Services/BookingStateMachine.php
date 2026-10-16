@@ -6,6 +6,7 @@ namespace App\Domains\Bookings\Services;
 
 use App\Domains\Bookings\BookingState;
 use App\Domains\Bookings\Models\Booking;
+use App\Domains\Notifications\Services\NotificationEnqueuer;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class BookingStateMachine
             throw new DomainException("Illegal booking transition {$from->value} -> {$to->value}.");
         }
 
-        return DB::transaction(function () use ($booking, $from, $to, $actor, $reason) {
+        $saved = DB::transaction(function () use ($booking, $from, $to, $actor, $reason) {
             $booking->state = $to;
 
             if ($to === BookingState::Confirmed) {
@@ -57,5 +58,13 @@ class BookingStateMachine
 
             return $booking;
         });
+
+        /* After the commit. A failed notice must not roll back a payment,
+           and a unique-key collision inside the booking transaction would. */
+        if ($saved->state === BookingState::Confirmed) {
+            rescue(fn () => app(NotificationEnqueuer::class)->bookingConfirmed($saved), report: false);
+        }
+
+        return $saved;
     }
 }

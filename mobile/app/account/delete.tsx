@@ -3,6 +3,7 @@ import { TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useDeleteAccount, useProfile } from '../../src/api/hooks';
+import { SocialSignIn, type IdentityProof } from '../../src/components/SocialSignIn';
 import { Icon } from '../../src/components/Icon';
 import { Button, Card, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { confirmAction, showAlert } from '../../src/lib/alert';
@@ -34,8 +35,10 @@ export default function DeleteAccount() {
   const remove = useDeleteAccount();
 
   const [password, setPassword] = useState('');
+  const [proof, setProof] = useState<IdentityProof | null>(null);
   const isGuest = profile?.is_guest ?? true;
-  const canSubmit = isGuest || password.length > 0;
+  const providerOnly = !isGuest && profile?.has_password === false;
+  const canSubmit = isGuest || (providerOnly ? proof !== null : password.length > 0);
 
   const confirm = () => {
     confirmAction('Delete everything?', 'This is immediate and cannot be undone.', {
@@ -48,7 +51,9 @@ export default function DeleteAccount() {
 
   const run = async () => {
     try {
-      const result = await remove.mutateAsync(isGuest ? undefined : password);
+      const result = await remove.mutateAsync(
+        isGuest ? undefined : providerOnly && proof ? proof : { password },
+      );
 
       await session.reset();
 
@@ -112,7 +117,7 @@ export default function DeleteAccount() {
         </Note>
 
         {/* ── Proof of identity ────────────────────────────────────────── */}
-        {!isGuest ? (
+        {!isGuest && !providerOnly ? (
           <View style={{ gap: space.xs }}>
             <T variant="label" color={colors.text.tertiary}>
               Confirm your password
@@ -139,6 +144,23 @@ export default function DeleteAccount() {
                 fontSize: 16,
               }}
             />
+          </View>
+        ) : null}
+
+        {providerOnly ? (
+          <View style={{ gap: space.xs }}>
+            <T variant="label" color={colors.text.tertiary}>
+              Confirm it is you
+            </T>
+            <T variant="small" color={colors.text.secondary}>
+              This account has no password. Sign in with the same provider again, then delete.
+            </T>
+            <SocialSignIn mode="proof" onProof={setProof} />
+            {proof ? (
+              <T variant="small" color={colors.text.secondary}>
+                Confirmed. You can delete this account now.
+              </T>
+            ) : null}
           </View>
         ) : null}
 

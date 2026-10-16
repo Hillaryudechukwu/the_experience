@@ -1,0 +1,16 @@
+{
+  "holder": "Interlude",
+  "licence": "original",
+  "line": "Mood photographs: Interlude.",
+  "images": {
+    "adventurous": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "relaxed": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "romantic": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "curious": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "hungry": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "social": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "inspired": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "energetic": { "creator": "Interlude", "licence": "original", "source_url": null },
+    "different": { "creator": "Interlude", "licence": "original", "source_url": null }
+  }
+}

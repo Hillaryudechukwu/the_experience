@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\DiscoveryController;
 use App\Http\Controllers\Api\ExperienceController;
 use App\Http\Controllers\Api\ItineraryItemController;
 use App\Http\Controllers\Api\JourneyController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PassportController;
 use App\Http\Controllers\Api\PrivacyController;
 use App\Http\Controllers\Api\TravellerProfileController;
@@ -35,6 +36,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
+    Route::post('auth/google', [AuthController::class, 'google']);
+    Route::post('auth/apple', [AuthController::class, 'apple']);
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     /* Guests included: the erasure is the same, they simply have no password
        to re-enter and no user row at the end of it. */
@@ -62,6 +65,7 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('discovery/now', [DiscoveryController::class, 'now']);
     Route::post('discovery/time-boxed', [DiscoveryController::class, 'timeBoxed']);
     Route::post('discovery/mood', [DiscoveryController::class, 'mood']);
+    Route::post('discovery/intent', [DiscoveryController::class, 'intent']);
     Route::post('discovery/search', [DiscoveryController::class, 'search']);
     Route::post('discovery/surprise-me', [DiscoveryController::class, 'surpriseMe']);
 
@@ -97,6 +101,9 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::get('assistant/conversations/{conversation}', [AssistantController::class, 'history']);
 
     Route::post('events', [AnalyticsController::class, 'store']);
+
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/push-token', [NotificationController::class, 'storePushToken']);
 
     Route::get('privacy/export', [PrivacyController::class, 'export']);
     Route::delete('privacy/location-history', [PrivacyController::class, 'forgetLocationHistory']);

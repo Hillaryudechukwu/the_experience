@@ -75,13 +75,13 @@ class IntentParser
             $deadline = $now->setTime($hour, $minute);
             if ($deadline->gt($now)) {
                 $intent['window_minutes'] = min($intent['window_minutes'] ?? 10000, (int) $now->diffInMinutes($deadline));
-                $intent['echo'][] = 'the time before ' . $deadline->format('H:i');
+                $intent['echo'][] = 'the time before '.$deadline->format('H:i');
             }
         }
 
         if (preg_match('/under\s*[£$€]?\s*(\d+)/', $text, $m)) {
             $intent['filters']['max_price_minor'] = ((int) $m[1]) * 100;
-            $intent['echo'][] = 'under ' . $m[0];
+            $intent['echo'][] = 'under '.$m[0];
         }
 
         if ($this->mentions($text, ['free', 'no cost', 'without spending'])) {
@@ -111,7 +111,7 @@ class IntentParser
                 /* "I don't want another museum" is a filter too — just an inverted one. */
                 if ($this->isNegated($text, $word)) {
                     $intent['filters']['exclude_categories'][] = $category;
-                    $intent['echo'][] = 'no ' . str_replace('_', ' ', $category);
+                    $intent['echo'][] = 'no '.str_replace('_', ' ', $category);
                 } else {
                     $intent['filters']['categories'][] = $category;
                 }
@@ -141,6 +141,17 @@ class IntentParser
         if ($this->mentions($text, ['walking distance', 'near me', 'nearby', 'close to me', 'around here'])) {
             $intent['filters']['radius_metres'] = 2000;
             $intent['echo'][] = 'within walking distance';
+        }
+
+        if ($intent['mood'] === null && in_array('food_experience', $intent['filters']['categories'] ?? [], true)) {
+            $intent['mood'] = 'hungry';
+            $intent['echo'][] = 'hungry';
+        }
+
+        /* "never mind", "anything", or "surprise me" without a new mood drops
+           the previous mood and the things they had ruled out. */
+        if ($intent['mood'] === null && $this->mentions($text, ['never mind', 'anything', 'surprise me'])) {
+            $intent['clear'] = ['mood', 'exclude_categories'];
         }
 
         /* Only fall back to a text query when nothing structured was understood.
@@ -177,9 +188,9 @@ class IntentParser
         /* A refusal only applies inside its own clause: "no museums. somewhere a
            local would go" must not negate the second half of the sentence. */
         $boundary = max(
-            (int) mb_strrpos(' ' . $preceding, '.'),
-            (int) mb_strrpos(' ' . $preceding, ','),
-            (int) mb_strrpos(' ' . $preceding, ';'),
+            (int) mb_strrpos(' '.$preceding, '.'),
+            (int) mb_strrpos(' '.$preceding, ','),
+            (int) mb_strrpos(' '.$preceding, ';'),
         );
 
         if ($boundary > 0) {

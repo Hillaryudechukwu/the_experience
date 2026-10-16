@@ -34,6 +34,7 @@ export function DestinationHero({
   dateLabel,
   temperature,
   condition,
+  clothing,
   onPressCity,
   onPressProfile,
   onPressSearch,
@@ -50,6 +51,7 @@ export function DestinationHero({
   dateLabel?: string | null;
   temperature?: number | null;
   condition?: string | null;
+  clothing?: string | null;
   onPressCity?: () => void;
   onPressProfile?: () => void;
   onPressSearch?: () => void;
@@ -166,6 +168,11 @@ export function DestinationHero({
                   {condition ? (
                     <T variant="caption" color="rgba(255,255,255,0.78)">
                       {condition}
+                    </T>
+                  ) : null}
+                  {clothing ? (
+                    <T variant="caption" color="rgba(255,255,255,0.78)">
+                      {clothing}
                     </T>
                   ) : null}
                 </View>

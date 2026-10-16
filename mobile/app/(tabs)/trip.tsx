@@ -9,6 +9,7 @@ import {
   useJourney,
   useReplan,
   useTrip,
+  recordEvents,
   type ReplanResult,
 } from '../../src/api/hooks';
 import type { ItineraryItem } from '../../src/api/types';
@@ -37,6 +38,7 @@ import {
   stayRangeLabel,
   titleCase,
 } from '../../src/lib/format';
+import { shareItinerary } from '../../src/lib/share';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -258,7 +260,27 @@ export default function TripScreen() {
       ))}
 
       {itinerary ? (
-        <Gutter style={{ marginTop: space.lg }}>
+        <Gutter style={{ marginTop: space.lg, gap: space.sm }}>
+          <Button
+            label="Share my plan"
+            tone="secondary"
+            onPress={() => {
+              const city = journey?.destination.name ?? session.destinationName ?? 'Trip';
+              void shareItinerary(
+                city,
+                itinerary.days.map((day) => ({
+                  label: dayLabel(day.date, tz),
+                  items: day.items.map((item) => ({
+                    time: clock(item.starts_at, tz),
+                    title: item.title,
+                    experienceId: item.experience?.id,
+                  })),
+                })),
+              ).then(() => {
+                recordEvents([{ type: 'share', surface: 'trip' }]);
+              });
+            }}
+          />
           <Button
             label={replan.isPending ? 'Checking…' : 'Should I change anything?'}
             tone="secondary"

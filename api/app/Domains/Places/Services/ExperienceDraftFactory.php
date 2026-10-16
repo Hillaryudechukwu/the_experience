@@ -76,6 +76,27 @@ class ExperienceDraftFactory
         'food' => ['food' => 92, 'local_life' => 60],
     ];
 
+    /**
+     * Moods a kind actually serves, 0–100. Absent keys stay absent so the
+     * blend uses a neutral prior instead of burying the place. `different`
+     * is not stored here; the blend derives it from uniqueness.
+     *
+     * @var array<string, array<string, int>>
+     */
+    public const MOOD_AFFINITY = [
+        'museum' => ['relaxed' => 40, 'curious' => 90, 'inspired' => 80],
+        'gallery' => ['relaxed' => 55, 'romantic' => 40, 'curious' => 80, 'inspired' => 88, 'different' => 40],
+        'historic' => ['curious' => 85, 'inspired' => 70],
+        'viewpoint' => ['adventurous' => 50, 'relaxed' => 60, 'romantic' => 80, 'inspired' => 75, 'energetic' => 40],
+        'park' => ['adventurous' => 60, 'relaxed' => 85, 'romantic' => 70, 'social' => 50, 'energetic' => 70],
+        'market' => ['curious' => 60, 'hungry' => 90, 'social' => 85, 'energetic' => 50, 'different' => 40],
+        'food' => ['relaxed' => 40, 'romantic' => 50, 'hungry' => 95, 'social' => 70],
+        'nightlife' => ['adventurous' => 40, 'romantic' => 40, 'hungry' => 50, 'social' => 90, 'energetic' => 70, 'different' => 50],
+        'zoo' => ['adventurous' => 80, 'curious' => 50, 'social' => 70, 'energetic' => 85],
+        'theme_park' => ['adventurous' => 80, 'curious' => 50, 'social' => 70, 'energetic' => 85],
+        'worship' => ['relaxed' => 60, 'curious' => 70, 'inspired' => 75],
+    ];
+
     /** Kinds that are normally free to enter. */
     private const USUALLY_FREE = ['park', 'viewpoint', 'artwork', 'market', 'worship', 'memorial'];
 
@@ -142,7 +163,7 @@ class ExperienceDraftFactory
             'romance_score' => in_array($kind, ['viewpoint', 'park'], true) ? 78 : 50,
             'social_score' => in_array($kind, ['market', 'nightlife', 'food'], true) ? 82 : 50,
             'interest_affinity' => self::AFFINITY[$kind] ?? ['culture' => 60],
-            'mood_affinity' => [],
+            'mood_affinity' => self::MOOD_AFFINITY[$kind] ?? [],
             'accessibility' => $candidate->accessibility,
             'best_time_of_day' => $kind === 'viewpoint' ? ['golden_hour', 'evening'] : [],
             'know_before_you_go' => $this->knowBeforeYouGo($candidate),
@@ -165,7 +186,7 @@ class ExperienceDraftFactory
         $sentences = preg_split('/(?<=[.!?])\s+/u', trim($text)) ?: [];
         $summary = $sentences[0] ?? $text;
 
-        return mb_strlen($summary) > 240 ? mb_substr($summary, 0, 237) . '…' : $summary;
+        return mb_strlen($summary) > 240 ? mb_substr($summary, 0, 237).'…' : $summary;
     }
 
     /** @return list<string> */
@@ -186,7 +207,7 @@ class ExperienceDraftFactory
         }
 
         if ($candidate->website !== null) {
-            $notes[] = 'Official site: ' . $candidate->website;
+            $notes[] = 'Official site: '.$candidate->website;
         }
 
         return $notes;

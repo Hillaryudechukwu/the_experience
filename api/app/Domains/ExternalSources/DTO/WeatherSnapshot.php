@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domains\ExternalSources\DTO;
 
+use App\Domains\Discovery\Services\ClothingAdvisor;
 use App\Domains\Shared\ValueObjects\Freshness;
 use Carbon\CarbonImmutable;
 
@@ -53,7 +54,7 @@ final readonly class WeatherSnapshot
 
     public function toArray(): array
     {
-        return [
+        $payload = [
             'condition' => $this->condition,
             'temperature_c' => $this->temperatureC,
             'precipitation_probability' => $this->precipitationProbability,
@@ -63,5 +64,12 @@ final readonly class WeatherSnapshot
             'hourly' => $this->hourly,
             'freshness' => $this->freshness->toArray(),
         ];
+
+        $clothing = app(ClothingAdvisor::class)->advise($this);
+        if ($clothing !== null) {
+            $payload['clothing'] = $clothing;
+        }
+
+        return $payload;
     }
 }

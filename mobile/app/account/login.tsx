@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { ApiError } from '../../src/api/client';
 import { useLogin } from '../../src/api/hooks';
+import { SocialSignIn } from '../../src/components/SocialSignIn';
 import { Button, Gutter, Note, Screen, T } from '../../src/components/primitives';
 import { showAlert } from '../../src/lib/alert';
 import { useBackTo } from '../../src/lib/navigation';
@@ -78,6 +79,7 @@ export default function Login() {
         {error ? <Note tone="warning">{error}</Note> : null}
 
         <Button label={login.isPending ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={login.isPending} />
+        <SocialSignIn onSignedIn={() => router.replace('/(tabs)/you')} />
         <Button label="Create an account" tone="tertiary" onPress={() => router.replace('/account/register')} />
         <Button label="Back" tone="secondary" onPress={goBack} />
       </Gutter>

@@ -12,6 +12,10 @@ Artisan::command('inspire', function () {
 Schedule::job(new RecordQueueHeartbeat)
     ->everyMinute();
 
+Schedule::command('notifications:flush')
+    ->everyMinute()
+    ->withoutOverlapping(5);
+
 Schedule::command('queue:work database --stop-when-empty --max-time=50 --tries=4 --timeout=300')
     ->everyMinute()
     ->withoutOverlapping(10)

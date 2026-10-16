@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -8,6 +8,7 @@ import { Icon } from '../../src/components/Icon';
 import { Photo } from '../../src/components/Photo';
 import { Button, Card, CardPress, Gutter, Loading, Row, Screen, T } from '../../src/components/primitives';
 import { buildPlanCtaLabel, clock, conditionLabel, stayDayCount } from '../../src/lib/format';
+import { registerForPush } from '../../src/lib/push';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -29,6 +30,10 @@ export default function Ready() {
   const context = discovery.data?.context;
   const top = discovery.data?.data[0];
   const days = stayDayCount(journey?.starts_on, journey?.ends_on);
+
+  useEffect(() => {
+    registerForPush().catch(() => {});
+  }, []);
 
   return (
     <Screen>

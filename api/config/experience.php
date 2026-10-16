@@ -9,7 +9,7 @@
  */
 return [
 
-    'engine_version' => 'score-v1.3',
+    'engine_version' => 'score-v1.4',
 
     'scoring' => [
         /*
@@ -39,6 +39,17 @@ return [
 
         'cache_ttl_seconds' => 300,
         'max_candidates' => 400,
+
+        /*
+         * Mood is a bounded re-rank after the nine components, in the same
+         * spirit as name relevance. It is not a tenth weight: a weight would
+         * shrink journey purpose even when nobody has chosen a mood.
+         * 0 turns the blend off and leaves score-v1.3 order intact.
+         */
+        'mood_blend' => (float) env('SCORING_MOOD_BLEND', 0.22),
+
+        /* When false, Discover ignores the live intent row. */
+        'use_live_intent' => (bool) env('SCORING_USE_LIVE_INTENT', true),
     ],
 
     'interests' => [
@@ -388,6 +399,34 @@ return [
         'driver' => env('EXPERIENCE_WEATHER_DRIVER', 'seeded'),
         'cache_seconds' => 900,
         'poor_conditions' => ['rain', 'heavy_rain', 'snow', 'storm', 'sleet'],
+        'clothing_enabled' => (bool) env('WEATHER_CLOTHING_ENABLED', true),
+    ],
+
+    /*
+     * Audiences for ID tokens. Comma-separated. A token minted for another
+     * app is rejected. Empty means that provider cannot sign anyone in.
+     */
+    'identity' => [
+        'google_client_ids' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('GOOGLE_CLIENT_IDS', '')),
+        ))),
+        'apple_client_ids' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('APPLE_CLIENT_ID', '')),
+        ))),
+
+        /*
+         * How long before the key set may be re-fetched again after a token
+         * arrived with a kid it did not contain.
+         *
+         * A rotation is the only honest reason for an unknown kid, and
+         * without a re-fetch it locks every sign-in out until the cached set
+         * expires. The kid comes from an unauthenticated caller, though, so
+         * the re-fetch needs a floor: otherwise a stream of tokens carrying
+         * random kids becomes a way of making us hammer the provider.
+         */
+        'jwks_refresh_cooldown' => (int) env('IDENTITY_JWKS_REFRESH_COOLDOWN', 60),
     ],
 
     'assistant' => [
@@ -449,6 +488,15 @@ return [
         'name_similarity_review' => 0.45,
     ],
 
+    /*
+     * Outbox delivery. Off stops new rows and the flush; rows already
+     * scheduled stay scheduled until it is turned back on.
+     */
+    'notifications' => [
+        'enabled' => env('NOTIFICATIONS_ENABLED', true),
+        'max_attempts' => 5,
+    ],
+
     'privacy' => [
         'store_location_history' => false,
         'context_snapshot_retention_days' => 30,
@@ -487,7 +535,7 @@ return [
      * content. Kept here so changing the policy and dating it is one edit.
      */
     'legal' => [
-        'privacy_updated' => env('EXPERIENCE_PRIVACY_UPDATED', 'September 2026'),
+        'privacy_updated' => env('EXPERIENCE_PRIVACY_UPDATED', '15 October 2026'),
 
         /*
          * Its own key rather than reusing http.contact_email. That one is the

@@ -6,6 +6,7 @@ namespace App\Domains\Itineraries\Services;
 
 use App\Domains\Bookings\Models\Booking;
 use App\Domains\ExternalSources\Contracts\WeatherProvider;
+use App\Domains\Notifications\Services\NotificationEnqueuer;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Trips\Models\Itinerary;
 use App\Domains\Trips\Models\ItineraryItem;
@@ -53,8 +54,12 @@ class ItineraryReplanner
             fn (array $c) => $c['direction'] === 'removed' && in_array($c['item_id'], $locked, true),
         ));
 
+        $proposal->load('days.items.experience');
+
+        rescue(fn () => app(NotificationEnqueuer::class)->replanProposed($actor, $trip, $proposal), report: false);
+
         return [
-            'proposal' => $proposal->load('days.items.experience'),
+            'proposal' => $proposal,
             'changes' => $changes,
             'trigger' => $trigger,
             'blocked_by_confirmed_bookings' => $conflicts,
@@ -176,7 +181,7 @@ class ItineraryReplanner
         $index = [];
         foreach ($itinerary->days as $day) {
             foreach ($day->items as $item) {
-                $key = $item->kind . ':' . ($item->experience_id ?? $item->journey_anchor_id ?? $item->title);
+                $key = $item->kind.':'.($item->experience_id ?? $item->journey_anchor_id ?? $item->title);
                 $index[$key] = $item;
             }
         }

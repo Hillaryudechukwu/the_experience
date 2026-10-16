@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Domains\Notifications\Mail\BrevoTransport;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -25,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
            1000-byte index limit. At four bytes per utf8mb4 character, the
            framework's default varchar(255) exceeds it; 191 remains indexable. */
         Schema::defaultStringLength(191);
+
+        Mail::extend('brevo', fn (array $config) => new BrevoTransport((string) ($config['key'] ?? '')));
 
         /*
          * A JSON column with a default, on both databases.
