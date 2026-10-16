@@ -14,6 +14,21 @@ WebBrowser.maybeCompleteAuthSession();
 
 const enabled = process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
+/**
+ * Google's iOS client rejects every redirect except the reversed client id.
+ *
+ * The auth library otherwise sends `{bundle id}:/oauthredirect`, which is a
+ * redirect_uri_mismatch. Google Sign-In for iOS uses this exact form:
+ * `com.googleusercontent.apps.<id>:/oauth2callback`. The scheme half is
+ * registered in app.json so the browser can return to the app.
+ */
+function googleIosRedirectUri(clientId: string | undefined): string | undefined {
+  if (Platform.OS !== 'ios' || !clientId?.endsWith('.apps.googleusercontent.com')) return undefined;
+
+  const scheme = clientId.split('.').reverse().join('.');
+  return `${scheme}:/oauth2callback`;
+}
+
 export type IdentityProof = {
   id_token: string;
   provider: 'google' | 'apple';
@@ -54,11 +69,13 @@ function SocialSignInButtons({
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const iosRedirectUri = googleIosRedirectUri(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
   const [request, response, promptGoogle] = Google.useIdTokenAuthRequest({
     clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'disabled',
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'disabled',
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || 'disabled',
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || 'disabled',
+    ...(iosRedirectUri ? { redirectUri: iosRedirectUri } : {}),
   });
 
   const finish = async (provider: 'google' | 'apple', idToken: string, name: string | null) => {

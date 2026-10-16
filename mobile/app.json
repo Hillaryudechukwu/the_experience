@@ -92,10 +92,15 @@
       "expo-web-browser",
       "expo-apple-authentication"
     ],
-    "scheme": "interlude",
+    "scheme": [
+      "interlude",
+      "com.googleusercontent.apps.1057354438819-3s104cblbau8p59clq27dpumcpnljqnv"
+    ],
     "newArchEnabled": true,
     "extra": {
-      "router": {},
+      "router": {
+        "origin": "https://experience.synteric.co.uk"
+      },
       "eas": {
         "projectId": "588b5410-a890-4805-8c97-33f7cd965e06"
       }
