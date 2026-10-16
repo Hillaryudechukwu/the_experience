@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 
 import { ApiError } from '../../src/api/client';
 import { useRegister } from '../../src/api/hooks';
+import { SocialSignIn } from '../../src/components/SocialSignIn';
+import { WayoaLogo } from '../../src/components/WayoaLogo';
 import { Button, Gutter, Note, Screen, T } from '../../src/components/primitives';
 import { showAlert } from '../../src/lib/alert';
 import { useBackTo } from '../../src/lib/navigation';
@@ -54,6 +56,7 @@ export default function Register() {
   return (
     <Screen>
       <Gutter style={{ paddingTop: space.sm, gap: space.md }}>
+        <WayoaLogo variant="full" size="md" />
         <T variant="displayL">Create an account</T>
         <T variant="body" color={colors.text.secondary}>
           Keep this trip across devices. Everything you already saved as a guest comes with you.
@@ -97,6 +100,12 @@ export default function Register() {
         ) : null}
 
         <Button label={register.isPending ? 'Creating…' : 'Create account'} onPress={submit} disabled={register.isPending} />
+        <SocialSignIn
+          onSignedIn={() => {
+            router.replace('/(tabs)/you');
+            showAlert('Account created', 'Your guest saves, plans and bookings are now on this account.');
+          }}
+        />
         <Button label="I already have an account" tone="tertiary" onPress={() => router.replace('/account/login')} />
         <Button label="Back" tone="secondary" onPress={goBack} />
       </Gutter>

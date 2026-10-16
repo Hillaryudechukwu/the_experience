@@ -10,6 +10,7 @@ import { useDebounced } from '../../src/lib/useDebounced';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Card, CardPress, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
+import { BRAND } from '../../src/brand';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -287,7 +288,7 @@ export default function Destination() {
               {importProgress.data.status === 'partial' ? (
                 <View style={{ gap: space.sm }}>
                   <Note>
-                    Interlude found some grounded recommendations, but coverage is still limited. You can continue now or choose another city.
+                    {BRAND.name} found some grounded recommendations, but coverage is still limited. You can continue now or choose another city.
                   </Note>
                   <Button
                     label="Continue with limited coverage"
@@ -383,7 +384,7 @@ export default function Destination() {
             {elsewhere.length > 0 ? (
               <View style={{ gap: space.xs }}>
                 <T variant="label" color={colors.text.tertiary}>
-                  Cities Interlude can prepare
+                  Cities {BRAND.name} can prepare
                 </T>
                 {elsewhere.map((place) => (
                   <Card key={place.display_name}>
@@ -412,7 +413,7 @@ export default function Destination() {
 
             <Note>
               {elsewhere.length > 0
-                ? 'Choose a city and Interlude will prepare grounded recommendations from live place data. You can leave this screen while it works.'
+                ? `Choose a city and ${BRAND.name} will prepare grounded recommendations from live place data. You can leave this screen while it works.`
                 : `We could not find ${query.trim()} at all. Check the spelling, or pick one of these.`}
             </Note>
 

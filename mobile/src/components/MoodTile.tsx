@@ -1,31 +1,44 @@
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import { radius, space, useTheme } from '../theme';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
 import { T } from './primitives';
+import credits from '../../assets/moods/credits.json';
 
 export type Mood = {
   key: string;
   label: string;
-  icon: IconName;
-  from: string;
-  to: string;
+  image: number;
 };
 
-/** Expressive tiles rather than ordinary filter chips (Figma: 16, 43). */
+const IMAGES = {
+  adventurous: require('../../assets/moods/adventurous.jpg'),
+  relaxed: require('../../assets/moods/relaxed.jpg'),
+  romantic: require('../../assets/moods/romantic.jpg'),
+  curious: require('../../assets/moods/curious.jpg'),
+  hungry: require('../../assets/moods/hungry.jpg'),
+  social: require('../../assets/moods/social.jpg'),
+  inspired: require('../../assets/moods/inspired.jpg'),
+  energetic: require('../../assets/moods/energetic.jpg'),
+  different: require('../../assets/moods/different.jpg'),
+} as const;
+
+/** A picture of the mood, not a picture of a place. */
 export const MOODS: Mood[] = [
-  { key: 'adventurous', label: 'Adventurous', icon: 'compass', from: '#2856F6', to: '#123AAE' },
-  { key: 'relaxed', label: 'Relaxed', icon: 'weather', from: '#27A875', to: '#12694A' },
-  { key: 'romantic', label: 'Romantic', icon: 'save', from: '#FF6B5E', to: '#B93B32' },
-  { key: 'hungry', label: 'Hungry', icon: 'food', from: '#F4B63F', to: '#B4790E' },
-  { key: 'curious', label: 'Curious', icon: 'sparkle', from: '#7B5AE0', to: '#4A2F9C' },
-  { key: 'social', label: 'Social', icon: 'family', from: '#1C9BD1', to: '#0E5F84' },
-  { key: 'inspired', label: 'Inspired', icon: 'camera', from: '#0D1B2A', to: '#25405C' },
-  { key: 'different', label: 'Something different', icon: 'map', from: '#E0559B', to: '#93235F' },
+  { key: 'adventurous', label: 'Adventurous', image: IMAGES.adventurous },
+  { key: 'relaxed', label: 'Relaxed', image: IMAGES.relaxed },
+  { key: 'romantic', label: 'Romantic', image: IMAGES.romantic },
+  { key: 'hungry', label: 'Hungry', image: IMAGES.hungry },
+  { key: 'curious', label: 'Curious', image: IMAGES.curious },
+  { key: 'social', label: 'Social', image: IMAGES.social },
+  { key: 'inspired', label: 'Inspired', image: IMAGES.inspired },
+  { key: 'energetic', label: 'Energetic', image: IMAGES.energetic },
+  { key: 'different', label: 'Something different', image: IMAGES.different },
 ];
+
+export const MOOD_CREDIT = credits.line;
 
 export function MoodTile({
   mood,
@@ -42,7 +55,8 @@ export function MoodTile({
 
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="imagebutton"
+      accessibilityLabel={`${mood.label}, picture`}
       accessibilityState={{ selected: !!selected }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -58,17 +72,31 @@ export function MoodTile({
         borderColor: colors.text.primary,
       })}
     >
-      <LinearGradient
-        colors={[mood.from, mood.to]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ flex: 1, padding: space.sm, justifyContent: 'space-between' }}
+      <Image
+        source={mood.image}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 48,
+          backgroundColor: 'rgba(13,27,42,0.55)',
+        }}
+      />
+      <T
+        variant="smallStrong"
+        color="#FFFFFF"
+        numberOfLines={2}
+        style={{ position: 'absolute', left: space.sm, right: space.sm, bottom: space.sm }}
       >
-        <Icon name={mood.icon} size={20} color="rgba(255,255,255,0.92)" />
-        <T variant="smallStrong" color="#FFFFFF" numberOfLines={2}>
-          {mood.label}
-        </T>
-      </LinearGradient>
+        {mood.label}
+      </T>
 
       {selected ? (
         <View
@@ -84,7 +112,7 @@ export function MoodTile({
             justifyContent: 'center',
           }}
         >
-          <Icon name="check" size={13} color={mood.from} strokeWidth={2.4} />
+          <Icon name="check" size={13} color={colors.text.primary} strokeWidth={2.4} />
         </View>
       ) : null}
     </Pressable>

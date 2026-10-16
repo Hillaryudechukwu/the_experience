@@ -126,16 +126,16 @@ two sources for one number is how you end up uploading a duplicate.
 
 ### Before you build: the API URL
 
-`EXPO_PUBLIC_API_URL` in `eas.json` is `https://REPLACE-ME/api`. A build
-carrying that placeholder compiles, uploads and installs perfectly, and then
-fails on every screen for every user — including the reviewer.
-
-Left unset it is no better: `resolveApiUrl()` falls back to
+`eas.json` production (and preview) must point at the live API and privacy
+policy — never loopback. Left unset, `resolveApiUrl()` falls back to
 `http://127.0.0.1:8099`, which on a phone is the phone.
 
-So the API has to be hosted on a public HTTPS domain before a production build
-is worth making. REPLACE-ME is deliberately a hostname that cannot resolve, so
-a mistake here fails loudly and immediately rather than looking like an
-intermittent network problem.
+Current production values:
 
-Set both `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_PRIVACY_URL`, then build.
+- `EXPO_PUBLIC_API_URL=https://api.experience.synteric.co.uk/api`
+- `EXPO_PUBLIC_PRIVACY_URL=https://experience.synteric.co.uk/privacy`
+
+Confirm both before kicking an EAS store build. For iOS universal links, set
+`APP_LINKS_IOS_TEAM_ID` on the API host and redeploy so
+`/.well-known/apple-app-site-association` is published (404 until then is
+intentional).

@@ -34,6 +34,7 @@ import {
 } from '../../src/components/primitives';
 import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
 import { clock, minutesLabel, titleCase } from '../../src/lib/format';
+import { registerForPush } from '../../src/lib/push';
 import { shareExperience } from '../../src/lib/share';
 import { elevation, radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
 import { useBackTo } from '../../src/lib/navigation';
@@ -304,17 +305,22 @@ export default function ExperienceScreen() {
                     </T>
                   </Row>
                 ))}
-                {descriptive.what_to_wear ? (
-                  <>
-                    <Divider />
-                    <Row align="flex-start" gap={space.xs}>
-                      <Icon name="person" size={15} color={colors.text.tertiary} />
-                      <T variant="small" color={colors.text.secondary} style={{ flex: 1 }}>
-                        {descriptive.what_to_wear}
-                      </T>
-                    </Row>
-                  </>
-                ) : null}
+              </View>
+            </Card>
+          </Gutter>
+        ) : null}
+
+        {descriptive.what_to_wear ? (
+          <Gutter>
+            <SectionHeader title="At this place" />
+            <Card>
+              <View style={{ padding: space.md }}>
+                <Row align="flex-start" gap={space.xs}>
+                  <Icon name="person" size={15} color={colors.text.tertiary} />
+                  <T variant="small" color={colors.text.secondary} style={{ flex: 1 }}>
+                    {descriptive.what_to_wear}
+                  </T>
+                </Row>
               </View>
             </Card>
           </Gutter>
@@ -666,6 +672,8 @@ function sourceLabel(source: string | null): string {
     sandbox: 'Sandbox supplier',
     deeplink: 'Partner',
     viator: 'Viator',
+    tiqets: 'Tiqets',
+    getyourguide: 'GetYourGuide',
     open_meteo: 'Open-Meteo',
     seeded_forecast: 'Simulated forecast',
     osrm: 'OSRM',
@@ -814,6 +822,10 @@ function OfferCard({ offer, experienceId }: { offer: Offer; experienceId: string
       ]);
 
       setPicking(false);
+
+      if (booking.state === 'confirmed') {
+        registerForPush().catch(() => {});
+      }
 
       if (booking.redirect_url) {
         await Linking.openURL(booking.redirect_url);

@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\DiscoveryController;
 use App\Http\Controllers\Api\ExperienceController;
 use App\Http\Controllers\Api\ItineraryItemController;
 use App\Http\Controllers\Api\JourneyController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PassportController;
 use App\Http\Controllers\Api\PrivacyController;
 use App\Http\Controllers\Api\TravellerProfileController;
@@ -25,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /*
- * Interlude — API surface (spec s21).
+ * WAYOA — API surface (spec s21).
  *
  * Everything here works for a guest: the ResolveActor middleware mints a guest
  * session on first contact and returns it in X-Guest-Token. Registering later
@@ -35,6 +36,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
+    Route::post('auth/google', [AuthController::class, 'google']);
+    Route::post('auth/apple', [AuthController::class, 'apple']);
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     /* Guests included: the erasure is the same, they simply have no password
        to re-enter and no user row at the end of it. */
@@ -45,6 +48,8 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::get('traveller/experience-dna', [TravellerProfileController::class, 'dna']);
 
     Route::post('journeys', [JourneyController::class, 'store']);
+    Route::get('journeys/mission-suggestions', [JourneyController::class, 'missionSuggestions'])
+        ->middleware('throttle:30,1');
     Route::get('journeys/{journey}', [JourneyController::class, 'show']);
     Route::patch('journeys/{journey}', [JourneyController::class, 'update']);
     Route::post('journeys/{journey}/mission', [JourneyController::class, 'mission']);
@@ -60,6 +65,7 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('discovery/now', [DiscoveryController::class, 'now']);
     Route::post('discovery/time-boxed', [DiscoveryController::class, 'timeBoxed']);
     Route::post('discovery/mood', [DiscoveryController::class, 'mood']);
+    Route::post('discovery/intent', [DiscoveryController::class, 'intent']);
     Route::post('discovery/search', [DiscoveryController::class, 'search']);
     Route::post('discovery/surprise-me', [DiscoveryController::class, 'surpriseMe']);
 
@@ -95,6 +101,9 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::get('assistant/conversations/{conversation}', [AssistantController::class, 'history']);
 
     Route::post('events', [AnalyticsController::class, 'store']);
+
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/push-token', [NotificationController::class, 'storePushToken']);
 
     Route::get('privacy/export', [PrivacyController::class, 'export']);
     Route::delete('privacy/location-history', [PrivacyController::class, 'forgetLocationHistory']);

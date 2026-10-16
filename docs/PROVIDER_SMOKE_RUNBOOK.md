@@ -11,6 +11,7 @@ proves production (or staging) can use them, and knows how to fall back.
 | Content enricher | Wikimedia (keyless) | `content_enricher: wikimedia` |
 | Native tickets | `VIATOR_API_KEY` | `providers.viator.configured: true` |
 | Redirect tickets | `DEEPLINK_AFFILIATE_ID` + `DEEPLINK_BASE_URL` | `providers.deeplink.configured: true` |
+| Tiqets (redirect) | `TIQETS_API_KEY` | `providers.tiqets.configured: true` |
 | AI guide | `ANTHROPIC_API_KEY`, `EXPERIENCE_ASSISTANT_DRIVER=anthropic` | `assistant_driver: anthropic` |
 | Sandbox (always) | none | `providers.sandbox.configured: true` — store demo / CI |
 | Queue | durable `QUEUE_CONNECTION=database` + cron `schedule:run` | `queue_worker_alive: true` |

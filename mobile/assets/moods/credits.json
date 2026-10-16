@@ -1,0 +1,16 @@
+{
+  "holder": "WAYOA",
+  "licence": "original",
+  "line": "Mood photographs: WAYOA.",
+  "images": {
+    "adventurous": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "relaxed": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "romantic": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "curious": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "hungry": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "social": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "inspired": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "energetic": { "creator": "WAYOA", "licence": "original", "source_url": null },
+    "different": { "creator": "WAYOA", "licence": "original", "source_url": null }
+  }
+}

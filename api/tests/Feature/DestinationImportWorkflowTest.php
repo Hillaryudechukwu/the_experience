@@ -101,6 +101,23 @@ class DestinationImportWorkflowTest extends TestCase
         $this->assertSame(1, BehaviouralEvent::where('type', 'destination_import_failed')->count());
     }
 
+    public function test_failed_import_truncates_oversized_error_messages(): void
+    {
+        $destination = $this->destination(['coverage_status' => DestinationCoverageStatus::Importing]);
+        $import = DestinationImport::create([
+            'destination_id' => $destination->id,
+            'status' => DestinationImportStatus::Running,
+            'stage' => DestinationImportStage::DiscoveringPlaces,
+            'provider_key' => 'osm',
+        ]);
+
+        (new ImportDestination($import->id))->failed(new \RuntimeException(str_repeat('x', 5000)));
+
+        $context = $import->fresh()->error_context;
+        $this->assertIsArray($context);
+        $this->assertSame(500, mb_strlen($context['message']));
+    }
+
     public function test_stalled_imports_are_failed_by_the_recovery_command(): void
     {
         $destination = $this->destination(['coverage_status' => DestinationCoverageStatus::Importing]);

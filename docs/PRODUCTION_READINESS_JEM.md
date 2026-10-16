@@ -27,7 +27,7 @@ What remains is the last mile between “engine works” and “a stranger can i
 2. **Account portability** — register/login APIs exist; the Expo app has no screens for them.
 3. **Memory and privacy client completeness** — journal write, data export, and share are API-complete or trivial but unwired.
 4. **Live commercial providers** — Google Places, Viator, and Anthropic need production keys and smoke verification; sandbox/rules cover CI.
-5. **Destination activation GA** — dark-deployed at 0% rollout; allowlisted proof and progressive rollout remain.
+5. **Destination activation GA** — Reykjavík allowlisted proof GO; progressive rollout at 5% since 2026-10-15. 25% and 100% remain.
 6. **Store release** — privacy URL, deep-link association files, EAS production env, first AAB/IPA.
 7. **Full V1+ surface** — notifications outbox dispatch, group trip votes, thin admin UI, hardening/SLOs.
 
@@ -424,7 +424,7 @@ POST   /bookings/{booking}/cancel
 
 **Rollback.** `DESTINATION_ACTIVATION_ENABLED=false`; retain ready destinations (see checklist rollback triggers).
 
-**Status (2026-10-08).** Product code + recovery + GA runbook ready. Production still at rollout **0%** (dark deploy). Phase exits GO only after ops completes the controlled city proof and rollout ladder under approved spend.
+**Status (2026-10-15).** Controlled-city proof **GO** — Reykjavík allowlisted → activate → import → `ready` (6 published). Scheduler cron every minute; Places cache-key + Wikimedia name-fallback fixes landed. Google Cloud budget alerts are in place for Places and the rest of that billing account. Production rollout is **5%** (config cached; `GET /api/health` shows `rollout_percentage: 5`, activation still on, prewarm still off). Watch spend, failed imports, and activation errors for 30 minutes before 25%.
 
 ---
 
@@ -786,6 +786,7 @@ Schema rollbacks are last resort; prefer flags.
 ## 19. Related product JEMs
 
 - [`TRIP_STAY_DURATION_JEM.md`](TRIP_STAY_DURATION_JEM.md) — collect stay length in onboarding, persist journey `starts_on` / `ends_on`, and name multi-day Plan CTAs (orthogonal to P0–P10 commercial readiness).
+- [`CONTEXTUAL_GUIDANCE_JEM.md`](CONTEXTUAL_GUIDANCE_JEM.md) — next-action ranking from location and prior choices, mood pictures, weather clothing, plan sharing, and Google/Apple sign-in. Builds on P2 auth and P3 single-experience share; does not reopen those phases.
 
 ## 20. Status tracking
 
@@ -796,9 +797,9 @@ Schema rollbacks are last resort; prefer flags.
 | P2 | Auth and cross-device continuity | GO — register/login/logout wired; deployed 2026-10-08 |
 | P3 | Memory, share, privacy | GO — journal/export/share/privacy; merged + deployed 2026-10-08 |
 | P4 | Live commercial providers | GO — keys live; runbook + provider-status; queue heartbeat green (2026-10-08) |
-| P5 | Destination activation GA | In progress — recovery + GA runbook; prod rollout still 0% pending ops proof |
-| P6 | Store release | Not started |
-| P7 | Notifications outbox | Not started |
+| P5 | Destination activation GA | In progress — Reykjavík proof GO; rollout **5%** since 2026-10-15. Observe 30 minutes, then 25%, then 100%. |
+| P6 | Store release | In progress — privacy + Android assetlinks live; rebuild AAB; iOS Team ID / AASA pending |
+| P7 | Notifications outbox | Code complete (2026-10-15) — flush, three event kinds, push-token route, permission prompt. Feature tests green. Staging delivery not yet observed. Turn off with `NOTIFICATIONS_ENABLED=false`. |
 | P8 | Group trip votes | Not started |
 | P9 | Admin / ops UI | Not started |
 | P10 | Hardening and SLOs | Not started |

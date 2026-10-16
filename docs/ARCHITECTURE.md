@@ -58,6 +58,12 @@ that cannot physically work — does not fit the window, would risk a fixed comm
 fails a declared accessibility need — before scoring begins. A low score should mean
 "not the best use of your time", never "impossible".
 
+**Mood is not a tenth weight.** After the nine components rank, `MoodBlend` nudges
+the order toward the traveller's current mood using each place's affinity. The
+blend is `SCORING_MOOD_BLEND` (default 0.22). A missing affinity is a neutral
+prior and adds no reason. The live intent row remembers mood and time window
+until the end of the destination-local day and stores no coordinates.
+
 Every ranking is written to `recommendation_sets` with its component reasons and a
 `journey_context_snapshot` of the inputs, so `GET /api/admin/recommendation-sets/{id}`
 can explain any recommendation after the fact.

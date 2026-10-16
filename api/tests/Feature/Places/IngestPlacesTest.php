@@ -213,10 +213,17 @@ class IngestPlacesTest extends TestCase
                     ],
                 ],
             ]),
-            'en.wikipedia.org/*' => Http::response([
-                'extract' => 'The Tower of London is a historic citadel on the north bank of the River Thames.',
-                'content_urls' => ['desktop' => ['page' => 'https://en.wikipedia.org/wiki/Tower_of_London']],
-            ]),
+            'en.wikipedia.org/*' => function ($request) {
+                $url = rawurldecode($request->url());
+                if (! str_contains($url, 'Tower of London') && ! str_contains($url, 'Tower_of_London')) {
+                    return Http::response(['title' => 'Not found'], 404);
+                }
+
+                return Http::response([
+                    'extract' => 'The Tower of London is a historic citadel on the north bank of the River Thames.',
+                    'content_urls' => ['desktop' => ['page' => 'https://en.wikipedia.org/wiki/Tower_of_London']],
+                ]);
+            },
             'www.wikidata.org/*' => Http::response([
                 'claims' => ['P18' => [['mainsnak' => ['datavalue' => ['value' => 'Tower.jpg']]]]],
                 'entities' => ['Q62378' => ['sitelinks' => ['enwiki' => ['title' => 'Tower of London']]]],

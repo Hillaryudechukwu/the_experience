@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy Policy — {{ config('app.name') }}</title>
+  <meta name="description" content="{{ config('experience.brand.description') }}">
   <style>
     :root { color-scheme: light dark; --ink: #0D1B2A; --muted: #4A5468; --rule: #E4E8EF; --bg: #FFFFFF; --accent: #2856F6; }
     @media (prefers-color-scheme: dark) {
@@ -52,6 +53,7 @@
     <tr><th>Behaviour</th><td>Which suggestions you opened, saved or ignored. This is what makes later suggestions better.</td></tr>
     <tr><th>Conversations</th><td>What you type to the in-app guide.</td></tr>
     <tr><th>Account</th><td>Name, email and a hashed password — only if you create an account. You can use the whole app without one.</td></tr>
+    <tr><th>Notifications</th><td>If you allow notifications, the device token Expo gives us, so we can tell you a booking confirmed, a city finished preparing, or a plan change is waiting. You can decline and keep using the app.</td></tr>
     <tr><th>Bookings</th><td>If you book something: the traveller names required by the supplier, the amount, and a reference. We do not store card numbers; payment is handled by the provider.</td></tr>
   </table>
 
@@ -71,12 +73,16 @@
   <ul>
     <li><strong>OpenStreetMap / Overpass, Nominatim</strong> — what places exist nearby.</li>
     <li><strong>Google Places</strong> — ratings, opening hours and photographs of places.</li>
+    <li><strong>Google and Apple</strong> — only if you choose to sign in with them. We receive your name, email and their subject identifier. The sign-in token is verified and then discarded. We do not keep it.</li>
     <li><strong>OSRM</strong> — how long it takes to walk somewhere.</li>
     <li><strong>Open-Meteo</strong> — the weather where you are.</li>
     <li><strong>Wikimedia / Wikipedia</strong> — descriptions and licensed photographs.</li>
     <li><strong>Frankfurter</strong> — currency conversion. No personal data is sent.</li>
     <li><strong>Ticketing partners</strong> — only if you choose to book, and only what the booking requires.</li>
     <li><strong>Anthropic</strong> — if you use the in-app guide, your message and the relevant facts about your trip are sent to the model that answers it. Do not type anything into it you would not want processed by a third party.</li>
+    <li><strong>Expo</strong> — if you allow notifications, the device token and the text of that notification are sent to Expo's push service so it can reach your phone.</li>
+    <li><strong>Twilio</strong> — if operator text alerts are turned on, the text of that notification is sent to Twilio for delivery to those operator numbers.</li>
+    <li><strong>SendGrid</strong> — if email delivery is turned on, your email address and the text of that notification are sent to SendGrid so it can deliver the message. If SendGrid cannot deliver it, the same message is sent to Brevo.</li>
   </ul>
 
   <h2>How long we keep it</h2>
@@ -138,7 +144,7 @@
   </p>
 
   <hr>
-  <footer>{{ config('app.name') }} · Make the most of the time between.</footer>
+  <footer>{{ config('app.name') }} · {{ config('experience.brand.tagline') }}</footer>
 </main>
 </body>
 </html>

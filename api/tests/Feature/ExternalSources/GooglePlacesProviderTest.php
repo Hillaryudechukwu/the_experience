@@ -78,6 +78,35 @@ class GooglePlacesProviderTest extends TestCase
         });
     }
 
+    public function test_nearby_cache_keys_fit_mysql_varchar_with_the_full_type_list(): void
+    {
+        config([
+            'experience.place_data.google.api_key' => 'test-key',
+            'cache.prefix' => 'interlude-cache-',
+        ]);
+        Http::fake(['*' => Http::response($this->fixture())]);
+
+        $seenKey = null;
+        \Illuminate\Support\Facades\Cache::shouldReceive('remember')
+            ->once()
+            ->withArgs(function (string $key, $ttl, $callback) use (&$seenKey) {
+                $seenKey = $key;
+
+                return str_starts_with($key, 'google:nearby:');
+            })
+            ->andReturnUsing(fn (string $key, $ttl, callable $callback) => $callback());
+
+        app(GooglePlacesProvider::class)->searchNearby(new GeoPoint(64.146, -21.942), 10000, [], 20);
+
+        $this->assertNotNull($seenKey);
+        $this->assertLessThanOrEqual(
+            191,
+            strlen((string) config('cache.prefix').$seenKey),
+            "prefixed cache key is too long for MySQL cache.key: {$seenKey}",
+        );
+        $this->assertStringNotContainsString('museum,art_gallery', (string) $seenKey);
+    }
+
     private function fixture(): array
     {
         return [

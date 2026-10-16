@@ -6,9 +6,11 @@ namespace App\Domains\TravellerProfile\Services;
 
 use App\Domains\Analytics\Models\BehaviouralEvent;
 use App\Domains\Experiences\Models\Experience;
+use App\Domains\Identity\Models\SocialIdentity;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\Money;
 use App\Domains\TravellerProfile\Models\TravellerProfile;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -141,7 +143,32 @@ class TravellerProfileService
                 'source' => $i->source,
             ])->sortByDesc('weight')->values()->all(),
             'is_guest' => $profile->user_id === null,
+            'providers' => $this->providers($profile),
+            'has_password' => $this->hasPassword($profile),
         ];
+    }
+
+    /** @return list<string> */
+    private function providers(TravellerProfile $profile): array
+    {
+        if ($profile->user_id === null) {
+            return [];
+        }
+
+        return SocialIdentity::query()
+            ->where('user_id', $profile->user_id)
+            ->orderBy('provider')
+            ->pluck('provider')
+            ->all();
+    }
+
+    private function hasPassword(TravellerProfile $profile): bool
+    {
+        if ($profile->user_id === null) {
+            return false;
+        }
+
+        return User::query()->whereKey($profile->user_id)->whereNotNull('password')->exists();
     }
 
     /** Spec s2.3 — the consumer-facing summary of the profile. */

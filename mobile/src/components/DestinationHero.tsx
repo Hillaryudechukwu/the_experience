@@ -4,7 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ImageAttribution } from '../api/types';
+import { BRAND } from '../brand';
 import { Icon } from './Icon';
+import { WayoaLogo } from './WayoaLogo';
 import { T } from './primitives';
 import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
 
@@ -34,6 +36,7 @@ export function DestinationHero({
   dateLabel,
   temperature,
   condition,
+  clothing,
   onPressCity,
   onPressProfile,
   onPressSearch,
@@ -50,6 +53,7 @@ export function DestinationHero({
   dateLabel?: string | null;
   temperature?: number | null;
   condition?: string | null;
+  clothing?: string | null;
   onPressCity?: () => void;
   onPressProfile?: () => void;
   onPressSearch?: () => void;
@@ -106,9 +110,7 @@ export function DestinationHero({
         {/* ── Wordmark, city switch, profile ───────────────────────────── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <View style={{ flex: 1 }}>
-            <T variant="caption" color="rgba(255,255,255,0.72)" style={{ letterSpacing: 0.6 }}>
-              Interlude
-            </T>
+            <WayoaLogo variant="mark" size="sm" accessibilityLabel={BRAND.name} />
             <Pressable
               onPress={onPressCity}
               accessibilityRole="button"
@@ -166,6 +168,11 @@ export function DestinationHero({
                   {condition ? (
                     <T variant="caption" color="rgba(255,255,255,0.78)">
                       {condition}
+                    </T>
+                  ) : null}
+                  {clothing ? (
+                    <T variant="caption" color="rgba(255,255,255,0.78)">
+                      {clothing}
                     </T>
                   ) : null}
                 </View>

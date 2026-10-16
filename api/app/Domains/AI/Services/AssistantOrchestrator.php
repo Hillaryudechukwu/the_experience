@@ -6,13 +6,14 @@ namespace App\Domains\AI\Services;
 
 use App\Domains\AI\Models\AssistantConversation;
 use App\Domains\AI\Tools\AssistantToolbox;
+use App\Domains\Discovery\Services\LiveIntentStore;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The AI Interlude Guide (spec s15).
+ * The AI WAYOA Guide (spec s15).
  *
  * The orchestrator reasons *over* trusted services; it is never the factual
  * database. Two drivers share the same toolbox and the same grounding guard:
@@ -28,6 +29,7 @@ class AssistantOrchestrator
     public function __construct(
         private readonly AssistantToolbox $toolbox,
         private readonly IntentParser $intents,
+        private readonly LiveIntentStore $liveIntents,
         private readonly GroundingGuard $guard,
         private readonly HttpFactory $http,
     ) {}
@@ -41,6 +43,12 @@ class AssistantOrchestrator
             'content' => $message,
             'driver' => null,
         ]);
+
+        $this->liveIntents->rememberParsed(
+            $actor,
+            $context,
+            $this->intents->parse($message, CarbonImmutable::now()),
+        );
 
         /* config() rather than env(): env() returns null once the config cache
            is warm, which would silently drop the app back to the rules driver
@@ -135,7 +143,7 @@ class AssistantOrchestrator
     /** Tool-calling loop against the Claude API. */
     private function viaAnthropic(Actor $actor, string $message, array $context, AssistantConversation $conversation): array
     {
-        $messages = [['role' => 'user', 'content' => $message]];
+        $messages = $this->priorMessages($conversation, $message);
         $facts = [];
         $toolCalls = [];
         $experiences = [];
@@ -240,8 +248,10 @@ class AssistantOrchestrator
 
     private function systemPrompt(): string
     {
-        return <<<'PROMPT'
-        You are the Interlude Guide inside a travel app.
+        $name = (string) config('app.name');
+
+        return <<<PROMPT
+        You are the {$name} Guide inside a travel app.
 
         Rules you must follow:
         - Every price, opening time, duration, travel time and availability you state must come
@@ -302,7 +312,7 @@ class AssistantOrchestrator
 
         $weather = $facts['weather'];
 
-        return sprintf(
+        $text = sprintf(
             'Right now it is %s at %s degrees, with a %s percent chance of rain. %s',
             str_replace('_', ' ', $weather['condition']),
             rtrim(rtrim(number_format($weather['temperature_c'], 1), '0'), '.'),
@@ -311,6 +321,50 @@ class AssistantOrchestrator
                 ? 'Worth leaning towards indoor options for now.'
                 : 'Good conditions for being outside.',
         );
+
+        $clothing = $weather['clothing']['headline'] ?? null;
+        if (is_string($clothing) && $clothing !== '') {
+            $text .= ' '.$clothing;
+        }
+
+        return $text;
+    }
+
+    /**
+     * The last eight stored turns, then the sentence just sent.
+     *
+     * The current user row is already saved, so it is excluded from the prior
+     * window and appended once. Tool results stay out of this list; the model
+     * still has to call tools for facts.
+     *
+     * @return list<array{role: string, content: string}>
+     */
+    private function priorMessages(AssistantConversation $conversation, string $current): array
+    {
+        $latestUserId = $conversation->messages()
+            ->where('role', 'user')
+            ->where('content', $current)
+            ->latest('created_at')
+            ->value('id');
+
+        $prior = $conversation->messages()
+            ->when($latestUserId !== null, fn ($query) => $query->where('id', '!=', $latestUserId))
+            ->orderByDesc('created_at')
+            ->limit(8)
+            ->get()
+            ->reverse();
+
+        $messages = [];
+        foreach ($prior as $message) {
+            if (! in_array($message->role, ['user', 'assistant'], true) || $message->content === '') {
+                continue;
+            }
+            $messages[] = ['role' => $message->role, 'content' => $message->content];
+        }
+
+        $messages[] = ['role' => 'user', 'content' => $current];
+
+        return $messages;
     }
 
     private function composeEssentials(array $facts): string

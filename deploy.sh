@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Interlude production deployment.
+# WAYOA production deployment.
 #
 # api.experience.synteric.co.uk: Laravel (document root: api/public)
 # experience.synteric.co.uk:     Expo web export only
@@ -42,6 +42,7 @@ DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE="${DESTINATION_ACTIVATION_ROLLOUT_PERC
 DESTINATION_ACTIVATION_ALLOWED_CITIES="${DESTINATION_ACTIVATION_ALLOWED_CITIES:-}"
 DESTINATION_ACTIVATION_ALLOWED_CANDIDATES="${DESTINATION_ACTIVATION_ALLOWED_CANDIDATES:-}"
 DESTINATION_PREWARM_ENABLED="${DESTINATION_PREWARM_ENABLED:-}"
+APP_LINKS_IOS_TEAM_ID="${APP_LINKS_IOS_TEAM_ID:-}"
 REQUIRE_ANDROID_APP_LINKS="${REQUIRE_ANDROID_APP_LINKS:-true}"
 
 SSH_OPTIONS=(
@@ -100,7 +101,7 @@ activate_node_20() {
 
 activate_node_20
 
-printf "%bStarting split Interlude deployment...%b\n\n" "$GREEN" "$NC"
+printf "%bStarting split WAYOA deployment...%b\n\n" "$GREEN" "$NC"
 printf "%bAPI host:%b\n" "$YELLOW" "$NC"
 printf "  SSH:           %s@%s:%s\n" "$SERVER_USER" "$API_SERVER_HOST" "$SSH_PORT"
 printf "  Application:   %s\n" "$API_APP_PATH"
@@ -116,6 +117,7 @@ printf "Migrations:      %s\n" "$RUN_MIGRATIONS"
 printf "Catalogue seed:  %s\n" "$RUN_SEEDERS"
 printf "Dry run:         %s\n\n" "$DRY_RUN"
 printf "Rollout:         %s\n" "${DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE:-preserve remote value}"
+printf "iOS Team ID:     %s\n" "${APP_LINKS_IOS_TEAM_ID:-preserve remote value}"
 printf "Android links:   %s\n\n" "$REQUIRE_ANDROID_APP_LINKS"
 
 for command in node npm ssh rsync curl rg; do
@@ -270,6 +272,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
         --filter='protect .well-known/*.txt' \
         --filter='protect .well-known/assetlinks.json' \
         --filter='protect .well-known/apple-app-site-association' \
+        --filter='protect .well-known/.htaccess' \
         --filter='protect .well-known/pki-validation/***' \
         -e "$WEB_RSYNC_SHELL" \
         "$SCRIPT_DIR/mobile/dist/" \
@@ -280,7 +283,7 @@ fi
 
 printf "%bInstalling PHP dependencies and finalising Laravel...%b\n" "$YELLOW" "$NC"
 ssh "${SSH_OPTIONS[@]}" "$SERVER_USER@$API_SERVER_HOST" \
-    "bash -s -- '$API_APP_PATH' '$REMOTE_PHP' '$REMOTE_COMPOSER' '$REMOTE_RESTART_COMMAND' '$RUN_MIGRATIONS' '$RUN_SEEDERS' '$API_ORIGIN' '$WEB_ORIGIN' '$PRIVACY_URL' '$DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE' '$DESTINATION_ACTIVATION_ALLOWED_CITIES' '$DESTINATION_ACTIVATION_ALLOWED_CANDIDATES' '$DESTINATION_PREWARM_ENABLED'" <<'REMOTE_SCRIPT'
+    "bash -s -- '$API_APP_PATH' '$REMOTE_PHP' '$REMOTE_COMPOSER' '$REMOTE_RESTART_COMMAND' '$RUN_MIGRATIONS' '$RUN_SEEDERS' '$API_ORIGIN' '$WEB_ORIGIN' '$PRIVACY_URL' '$DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE' '$DESTINATION_ACTIVATION_ALLOWED_CITIES' '$DESTINATION_ACTIVATION_ALLOWED_CANDIDATES' '$DESTINATION_PREWARM_ENABLED' '$APP_LINKS_IOS_TEAM_ID'" <<'REMOTE_SCRIPT'
 set -Eeuo pipefail
 
 app_path="$1"
@@ -296,6 +299,7 @@ rollout_percentage="${10}"
 allowed_cities="${11}"
 allowed_candidates="${12}"
 prewarm_enabled="${13}"
+ios_team_id="${14}"
 
 cd "$app_path"
 
@@ -373,11 +377,12 @@ set_env_if_provided() {
     fi
 }
 
-set_env APP_NAME "Interlude"
+set_env APP_NAME "WAYOA"
 set_env APP_URL "$api_origin"
 set_env CORS_ALLOWED_ORIGINS "$web_origin"
 set_env PRIVACY_POLICY_URL "$privacy_url"
 set_env APP_LINKS_HOST "${web_origin#*://}"
+set_env_if_provided APP_LINKS_IOS_TEAM_ID "$ios_team_id"
 set_env CACHE_STORE "database"
 set_env QUEUE_CONNECTION "database"
 set_env DB_QUEUE_RETRY_AFTER "360"
@@ -439,43 +444,90 @@ destinations_json="$(curl --fail --silent --show-error --max-time 30 "${API_ORIG
 node -e 'JSON.parse(process.argv[1])' "$destinations_json"
 printf "Verified JSON: %s/api/destinations\n" "${API_ORIGIN%/}"
 
-printf "%bPublishing privacy policy and Android App Links on the web host...%b\n" "$YELLOW" "$NC"
+printf "%bPublishing privacy policy and App Link association files on the web host...%b\n" "$YELLOW" "$NC"
 mkdir -p "$SCRIPT_DIR/mobile/dist/.well-known"
 rsync --archive --compress \
     -e "$API_RSYNC_SHELL" \
     "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/privacy.html" \
     "$SCRIPT_DIR/mobile/dist/privacy"
-assetlinks_file="$SCRIPT_DIR/mobile/dist/.well-known/assetlinks.json"
-assetlinks_candidate="${assetlinks_file}.candidate"
-rm -f -- "$assetlinks_candidate"
-if ! assetlinks_status="$(curl --silent --show-error --max-time 30 \
-    --output "$assetlinks_candidate" --write-out '%{http_code}' \
-    "${API_ORIGIN%/}/.well-known/assetlinks.json")"; then
-    printf "%bCould not retrieve Android App Links from the API host.%b\n" "$RED" "$NC" >&2
-    exit 1
-fi
 
-if [[ "$assetlinks_status" == "200" ]]; then
-    if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' \
-        "$assetlinks_candidate"; then
-        printf "%bGenerated assetlinks.json is not valid JSON.%b\n" "$RED" "$NC" >&2
+publish_well_known_json() {
+    local name="$1"
+    local label="$2"
+    local required="$3"
+    local missing_hint="$4"
+    local file="$SCRIPT_DIR/mobile/dist/.well-known/$name"
+    local candidate="${file}.candidate"
+    local status
+
+    rm -f -- "$candidate"
+    if ! status="$(curl --silent --show-error --max-time 30 \
+        --output "$candidate" --write-out '%{http_code}' \
+        "${API_ORIGIN%/}/.well-known/$name")"; then
+        printf "%bCould not retrieve %s from the API host.%b\n" "$RED" "$label" "$NC" >&2
         exit 1
     fi
-    mv -- "$assetlinks_candidate" "$assetlinks_file"
-elif [[ "$assetlinks_status" == "404" ]]; then
-    rm -f -- "$assetlinks_candidate" "$assetlinks_file"
-    if [[ "$REQUIRE_ANDROID_APP_LINKS" == "true" ]]; then
-        printf "%bAndroid App Links are required but the API returned 404. Set APP_LINKS_ANDROID_SHA256 to the release signing fingerprint.%b\n" \
-            "$RED" "$NC" >&2
+
+    if [[ "$status" == "200" ]]; then
+        if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' \
+            "$candidate"; then
+            printf "%bGenerated %s is not valid JSON.%b\n" "$RED" "$name" "$NC" >&2
+            exit 1
+        fi
+        mv -- "$candidate" "$file"
+        printf "Published %s from the API host.\n" "$name"
+    elif [[ "$status" == "404" ]]; then
+        rm -f -- "$candidate" "$file"
+        if [[ "$required" == "true" ]]; then
+            printf "%b%s required but the API returned 404. %s%b\n" \
+                "$RED" "$label" "$missing_hint" "$NC" >&2
+            exit 1
+        fi
+        printf "%b%s not configured yet (API 404); skipping web publish.%b\n" \
+            "$YELLOW" "$label" "$NC"
+    else
+        rm -f -- "$candidate"
+        printf "%b%s endpoint returned HTTP %s.%b\n" \
+            "$RED" "$label" "$status" "$NC" >&2
         exit 1
     fi
-    printf "%bAndroid App Links explicitly skipped; REQUIRE_ANDROID_APP_LINKS=false.%b\n" "$YELLOW" "$NC"
-else
-    rm -f -- "$assetlinks_candidate"
-    printf "%bAndroid App Links endpoint returned HTTP %s.%b\n" \
-        "$RED" "$assetlinks_status" "$NC" >&2
-    exit 1
-fi
+}
+
+publish_well_known_json \
+    "assetlinks.json" \
+    "Android App Links" \
+    "$REQUIRE_ANDROID_APP_LINKS" \
+    "Set APP_LINKS_ANDROID_SHA256 to the release signing fingerprint."
+
+# iOS AASA is optional until APP_LINKS_IOS_TEAM_ID is set — 404 must not fail deploy.
+publish_well_known_json \
+    "apple-app-site-association" \
+    "Apple App Site Association" \
+    "false" \
+    "Set APP_LINKS_IOS_TEAM_ID to the Apple Developer Team ID."
+
+# Extensionless AASA files are served without a MIME type on LiteSpeed unless
+# ForceType is set — Apple rejects anything that is not application/json.
+cat > "$SCRIPT_DIR/mobile/dist/.well-known/.htaccess" <<'EOF'
+<Files "apple-app-site-association">
+  ForceType application/json
+  Header set Content-Type "application/json"
+</Files>
+EOF
+
+# Expo web is a single-page app: deep links like /onboarding/purpose have no
+# file on disk. Without this fallback LiteSpeed 404s the route before the
+# client router can take over — which is how fresh onboarding dies on web.
+cat > "$SCRIPT_DIR/mobile/dist/.htaccess" <<'EOF'
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+EOF
 
 printf "%bSynchronising the Expo-only web host...%b\n" "$YELLOW" "$NC"
 ssh "${SSH_OPTIONS[@]}" "$SERVER_USER@$WEB_SERVER_HOST" "mkdir -p -- '$WEB_ROOT_PATH'"
@@ -484,6 +536,7 @@ rsync "${RSYNC_OPTIONS[@]}" --delete \
     --filter='protect .well-known/*.txt' \
     --filter='protect .well-known/assetlinks.json' \
     --filter='protect .well-known/apple-app-site-association' \
+    --filter='protect .well-known/.htaccess' \
     --filter='protect .well-known/pki-validation/***' \
     -e "$WEB_RSYNC_SHELL" \
     "$SCRIPT_DIR/mobile/dist/" \

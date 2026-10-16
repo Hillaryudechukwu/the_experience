@@ -11,6 +11,7 @@ use App\Domains\Destinations\Enums\DestinationImportStatus;
 use App\Domains\Destinations\Models\DestinationImport;
 use App\Domains\Destinations\Services\DestinationCoverageStateMachine;
 use App\Domains\Destinations\Services\DestinationReadinessEvaluator;
+use App\Domains\Notifications\Services\NotificationEnqueuer;
 use App\Domains\Places\Actions\IngestPlaces;
 use App\Domains\Shared\ValueObjects\Actor;
 use Illuminate\Bus\Queueable;
@@ -121,12 +122,16 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
                 $import->refresh();
                 $this->recordOutcome($events, $import);
                 $this->log($import, 'destination import finished');
+
+                if (in_array($import->status, [DestinationImportStatus::Succeeded, DestinationImportStatus::Partial], true)) {
+                    rescue(fn () => app(NotificationEnqueuer::class)->destinationImportFinished($import), report: false);
+                }
             } catch (Throwable $exception) {
                 $import->update([
                     'error_code' => 'provider_temporarily_unavailable',
                     'retryable' => true,
                     'last_heartbeat_at' => now(),
-                    'error_context' => ['type' => $exception::class, 'message' => $exception->getMessage()],
+                    'error_context' => $this->errorContext($exception),
                 ]);
                 $this->log($import->fresh(), 'destination import attempt failed', ['error_code' => 'provider_temporarily_unavailable']);
 
@@ -153,10 +158,7 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
             'stage' => DestinationImportStage::Failed,
             'error_code' => $import->error_code ?? 'import_failed',
             'retryable' => true,
-            'error_context' => $exception === null ? $import->error_context : [
-                'type' => $exception::class,
-                'message' => $exception->getMessage(),
-            ],
+            'error_context' => $exception === null ? $import->error_context : $this->errorContext($exception),
             'finished_at' => now(),
         ]);
 
@@ -195,5 +197,18 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
             'provider_key' => $import->provider_key,
             'stage' => $import->stage->value,
         ], $extra));
+    }
+
+    /**
+     * Keep encrypted error_context inside MySQL TEXT after encryption overhead.
+     *
+     * @return array{type: class-string<Throwable>, message: string}
+     */
+    private function errorContext(Throwable $exception): array
+    {
+        return [
+            'type' => $exception::class,
+            'message' => mb_substr($exception->getMessage(), 0, 500),
+        ];
     }
 }
