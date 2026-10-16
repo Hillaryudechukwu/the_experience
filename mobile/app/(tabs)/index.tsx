@@ -29,6 +29,19 @@ import { clock, conditionLabel, timeOfDayGreeting, windowLabel } from '../../src
 import { discoveryPayload, useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
+function discoveryFailureMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status !== 0 && error.message.trim()) {
+    return error.message;
+  }
+
+  const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(API_URL);
+  if (local) {
+    return `Could not reach the API at ${API_URL}. Start it with "php artisan serve --host=0.0.0.0 --port=8099", then pull down to retry.`;
+  }
+
+  return `Could not reach the API at ${API_URL}. Check the connection, then pull down to retry.`;
+}
+
 const TIME_WINDOWS = [
   { minutes: 30, label: '30 min' },
   { minutes: 60, label: '1 hour' },
@@ -255,7 +268,7 @@ export default function Discover() {
       {discovery.isError ? (
         <Gutter style={{ marginTop: space.md }}>
           <Note tone="warning">
-            {`Could not reach the API at ${API_URL}. Start it with "php artisan serve --host=0.0.0.0 --port=8099", then pull down to retry.`}
+            {discoveryFailureMessage(discovery.error)}
           </Note>
         </Gutter>
       ) : null}
