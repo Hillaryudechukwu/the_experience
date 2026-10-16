@@ -415,6 +415,18 @@ return [
             'trim',
             explode(',', (string) env('APPLE_CLIENT_ID', '')),
         ))),
+
+        /*
+         * How long before the key set may be re-fetched again after a token
+         * arrived with a kid it did not contain.
+         *
+         * A rotation is the only honest reason for an unknown kid, and
+         * without a re-fetch it locks every sign-in out until the cached set
+         * expires. The kid comes from an unauthenticated caller, though, so
+         * the re-fetch needs a floor: otherwise a stream of tokens carrying
+         * random kids becomes a way of making us hammer the provider.
+         */
+        'jwks_refresh_cooldown' => (int) env('IDENTITY_JWKS_REFRESH_COOLDOWN', 60),
     ],
 
     'assistant' => [

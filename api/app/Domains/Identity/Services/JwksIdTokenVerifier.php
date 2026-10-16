@@ -95,9 +95,45 @@ abstract class JwksIdTokenVerifier
         );
     }
 
+    /**
+     * The signing key for a kid, re-fetching once if the cached set lacks it.
+     *
+     * Providers rotate their signing keys — Google does so regularly — and a
+     * rotation means every new token carries a kid the cached set has never
+     * seen. Rejecting on that alone took every Google and Apple sign-in down
+     * until the cache expired, which is up to a day when the provider sends a
+     * long max-age. An unknown kid is the one signal that the cache is stale,
+     * so it is worth one more request before calling the token bad.
+     *
+     * That request is on a cooldown. The kid comes from an unauthenticated
+     * caller, so without one a stream of tokens carrying random kids would
+     * turn this endpoint into a way of making us hammer Google — and get us
+     * rate limited by them, which is the same outage by a longer road. A
+     * minute bounds it: staleness goes from a day to a minute, and the
+     * provider sees at most one extra fetch per minute however hard anyone
+     * tries.
+     */
     private function pemForKid(string $kid): string
     {
-        $keys = $this->keys();
+        $key = $this->findKey($kid, $this->keys());
+
+        if ($key === null && $this->mayRefresh()) {
+            $key = $this->findKey($kid, $this->keys(fresh: true));
+        }
+
+        if ($key === null) {
+            throw new IdentityTokenRejected('unknown_key');
+        }
+
+        return $this->pem($key['n'], $key['e']);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $keys
+     * @return array{n: string, e: string}|null
+     */
+    private function findKey(string $kid, array $keys): ?array
+    {
         foreach ($keys as $key) {
             if (($key['kid'] ?? null) !== $kid || ($key['kty'] ?? null) !== 'RSA') {
                 continue;
@@ -106,19 +142,34 @@ abstract class JwksIdTokenVerifier
                 continue;
             }
 
-            return $this->pem($key['n'], $key['e']);
+            return ['n' => $key['n'], 'e' => $key['e']];
         }
 
-        throw new IdentityTokenRejected('unknown_key');
+        return null;
+    }
+
+    /** True at most once per cooldown, and claims the slot when it is. */
+    private function mayRefresh(): bool
+    {
+        $seconds = (int) config('experience.identity.jwks_refresh_cooldown', 60);
+
+        if ($seconds <= 0) {
+            return true;
+        }
+
+        return Cache::add('identity.jwks.refreshing.'.$this->provider(), true, $seconds);
     }
 
     /** @return list<array<string, mixed>> */
-    private function keys(): array
+    private function keys(bool $fresh = false): array
     {
         $cacheKey = 'identity.jwks.'.$this->provider();
-        $cached = Cache::get($cacheKey);
-        if (is_array($cached)) {
-            return $cached;
+
+        if (! $fresh) {
+            $cached = Cache::get($cacheKey);
+            if (is_array($cached)) {
+                return $cached;
+            }
         }
 
         $response = Http::timeout(8)->acceptJson()->get($this->jwksUrl());
