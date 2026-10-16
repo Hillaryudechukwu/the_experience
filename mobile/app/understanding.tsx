@@ -16,6 +16,7 @@ import {
   SectionHeader,
   T,
 } from '../src/components/primitives';
+import { confirmAction } from '../src/lib/alert';
 import { useBackTo } from '../src/lib/navigation';
 import { FAMILIARITY, JOURNEY_REASONS, MORE_REASONS, missionSuggestionsFor } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
@@ -40,7 +41,6 @@ export default function Understanding() {
   const colors = useTheme();
   const goBack = useBackTo('/(tabs)/trip');
   const journeyId = useSession((s) => s.journeyId);
-  const destinationName = useSession((s) => s.destinationName);
 
   const { data: journey, isLoading, isError, refetch } = useJourney(journeyId);
   const update = useUpdateJourney(journeyId ?? '');
@@ -57,9 +57,12 @@ export default function Understanding() {
   const currentMission = mission ?? journey?.mission_text ?? '';
   const currentFamiliarity = familiarity ?? journey?.familiarity;
 
+  /* The journey's own city, not the session's. Switching city on Home leaves
+     journeyId pointing at the old trip until onboarding creates a new one, so
+     the session can name Paris while this screen is editing London. */
   const { data: suggested, isFetching: suggesting } = useMissionSuggestions(
     currentReason,
-    destinationName,
+    journey?.destination.name,
     currentFamiliarity,
   );
   const suggestions = suggested?.suggestions?.length
@@ -82,12 +85,29 @@ export default function Understanding() {
     (mission !== undefined && mission.trim() !== (journey?.mission_text ?? '').trim()) ||
     (familiarity !== undefined && familiarity !== journey?.familiarity);
 
+  /* Leaving is still one tap when nothing has been typed; it only asks when
+     there is something to lose. The answers are short but not quick to
+     reconstruct, and back is the habitual gesture on this screen. */
+  const leave = () => {
+    if (!changed) {
+      goBack();
+      return;
+    }
+
+    confirmAction('Discard your changes?', 'What you have changed here has not been saved yet.', {
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      destructive: true,
+      onConfirm: goBack,
+    });
+  };
+
   /* Drawn in every state, including the ones that fail. A screen whose only
      way out sits below the content is a screen you cannot leave when the
      content does not arrive. */
   const header = (
     <Gutter style={{ paddingTop: space.sm }}>
-      <Pressable accessibilityRole="button" onPress={goBack} hitSlop={12} accessibilityLabel="Back">
+      <Pressable accessibilityRole="button" onPress={leave} hitSlop={12} accessibilityLabel="Back">
         <Icon name="back" size={24} color={colors.text.primary} />
       </Pressable>
       <T variant="displayL" style={{ marginTop: space.sm }}>
@@ -234,6 +254,9 @@ export default function Understanding() {
         <TextInput
           value={currentMission}
           onChangeText={setMission}
+          /* What the API accepts, so an over-long paste is stopped here rather
+             than coming back as a server validation string. */
+          maxLength={1000}
           placeholder="Eat somewhere I could not find at home."
           placeholderTextColor={colors.text.tertiary}
           multiline
