@@ -403,6 +403,30 @@ export function useCreateJourney() {
   });
 }
 
+/**
+ * Change what we were told about this trip.
+ *
+ * The API re-derives mission_goals whenever reason or mission_text moves, so
+ * "What we understood" on the trip screen is a read of the answers rather than
+ * a second copy of them — invalidating the journey is enough to redraw it.
+ * Discovery and the trip plan both read the journey, so they go too: leaving
+ * them cached would let the traveller change their mind and still be shown
+ * the old reasoning.
+ */
+export function useUpdateJourney(journeyId: string) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      wrapped(http.patch<{ data: Journey }>(`/journeys/${journeyId}`, body)),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: keys.journey(journeyId) });
+      client.invalidateQueries({ queryKey: ['discovery'] });
+      client.invalidateQueries({ queryKey: ['trip'] });
+    },
+  });
+}
+
 export function useAddAnchor(journeyId: string) {
   const client = useQueryClient();
 

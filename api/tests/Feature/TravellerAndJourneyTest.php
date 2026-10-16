@@ -149,6 +149,60 @@ class TravellerAndJourneyTest extends TestCase
         $this->assertStringContainsString('never override', $mission->json('data.note'));
     }
 
+    /**
+     * The trip screen shows what we understood, and the app now lets a
+     * traveller change the answers behind it. That is only honest if the
+     * reading is re-derived rather than left as it was first inferred.
+     */
+    public function test_changing_the_answers_reinterprets_what_we_understood(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'business',
+            'mission_text' => 'Get through the week without losing my mind.',
+        ], ['X-Guest-Token' => $token])->json('data.id');
+
+        $before = $this->getJson("/api/journeys/{$journeyId}", ['X-Guest-Token' => $token])
+            ->json('data.mission_goals');
+
+        $updated = $this->patchJson("/api/journeys/{$journeyId}", [
+            'reason' => 'family',
+            'mission_text' => 'I want my child to really experience London.',
+            'familiarity' => 'well',
+        ], ['X-Guest-Token' => $token]);
+
+        $updated->assertOk();
+        $this->assertSame('family', $updated->json('data.reason'));
+        $this->assertSame('well', $updated->json('data.familiarity'));
+
+        $after = $updated->json('data.mission_goals');
+        $this->assertNotEquals($before, $after, 'The reading must follow the answers.');
+        $this->assertContains('interactive', array_column($after, 'goal'));
+    }
+
+    /** Emptying the sentence is a deliberate retraction, not a blank one. */
+    public function test_clearing_the_mission_text_is_accepted(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'mission_text' => 'Eat somewhere I could not find at home.',
+        ], ['X-Guest-Token' => $token])->json('data.id');
+
+        $cleared = $this->patchJson("/api/journeys/{$journeyId}", [
+            'mission_text' => null,
+        ], ['X-Guest-Token' => $token]);
+
+        $cleared->assertOk();
+        $this->assertNull($cleared->json('data.mission_text'));
+    }
+
     public function test_a_journey_stores_stay_dates(): void
     {
         $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
