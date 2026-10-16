@@ -48,6 +48,56 @@ jobs:
         working-directory: api
         run: php artisan test --compact
 
+  # The same suite against MySQL, because production runs on MySQL and
+  # PostgreSQL will not tell us when something only works there: the JSON
+  # column defaults, the earthdistance fallback, and the trigram fallback in
+  # PlaceResolver all take a different path on this driver.
+  #
+  # Keep the image on the version the host runs, and the credentials
+  # unprivileged — cPanel never hands out a root account either.
+  api-mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: experience_test
+          MYSQL_USER: experience
+          MYSQL_PASSWORD: experience
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: experience_test
+      DB_USERNAME: experience
+      DB_PASSWORD: experience
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_mysql, mbstring, xml, curl, zip, bcmath, intl
+          coverage: none
+      - name: Install dependencies
+        working-directory: api
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare environment
+        working-directory: api
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Test
+        working-directory: api
+        run: php artisan test --compact
+
   mobile:
     runs-on: ubuntu-latest
     steps:

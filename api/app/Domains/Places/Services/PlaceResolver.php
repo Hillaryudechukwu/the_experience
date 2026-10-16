@@ -131,10 +131,10 @@ class PlaceResolver
          */
         $this->geo->withinRadius($query, 'places', $point, $radius);
 
-        /* Trigram similarity is a PostgreSQL extension. Where it exists it is
-           better than anything we can do in PHP, and where it does not the
-           loop below falls back to similar_text() over a candidate set the
-           radius has already made small. */
+        /* Trigram similarity is a PostgreSQL extension. Where it exists we let
+           the database do the work; where it does not, the loop below computes
+           the same measure in PHP over a candidate set the radius has already
+           made small. */
         $query->when(
             DB::getDriverName() === 'pgsql',
             fn ($q) => $q->selectRaw('places.*, similarity(normalised_name, ?) as name_similarity', [$candidate->normalisedName()]),
@@ -152,8 +152,8 @@ class PlaceResolver
                 continue;
             }
 
-            /* Trust PostgreSQL's trigram similarity where available, and fall
-               back to a string comparison elsewhere so the logic still works. */
+            /* Trust PostgreSQL's trigram similarity where available, and
+               compute the same measure in PHP elsewhere. */
             $similarity = ($place->name_similarity ?? null) !== null && $place->name_similarity > 0
                 ? (float) $place->name_similarity
                 : $this->stringSimilarity($candidate->normalisedName(), (string) $place->normalised_name);
@@ -166,15 +166,52 @@ class PlaceResolver
         return $best;
     }
 
+    /**
+     * pg_trgm's similarity(), in PHP.
+     *
+     * This used to be similar_text(), and the two do not measure the same
+     * thing. similar_text() rewards the longest common substring, so
+     * "south street seaport museum" and "south street seaport historic
+     * district" scored 0.677 — above name_similarity_match — and the resolver
+     * merged two genuinely different places. PostgreSQL scores the same pair
+     * 0.463, which falls in the review band where a human decides.
+     *
+     * A resolver that merges on PostgreSQL and on MySQL must merge the same
+     * things, so the fallback computes trigrams the way pg_trgm does: split on
+     * non-alphanumerics, pad each word with two leading and one trailing
+     * space, and take the Jaccard index of the resulting sets.
+     */
     private function stringSimilarity(string $a, string $b): float
     {
-        if ($a === '' || $b === '') {
+        $left = $this->trigrams($a);
+        $right = $this->trigrams($b);
+
+        if ($left === [] || $right === []) {
             return 0.0;
         }
 
-        similar_text($a, $b, $percent);
+        $shared = count(array_intersect_key($left, $right));
+        $union = count($left + $right);
 
-        return round($percent / 100, 3);
+        return $union === 0 ? 0.0 : round($shared / $union, 3);
+    }
+
+    /** @return array<string, true> */
+    private function trigrams(string $value): array
+    {
+        $words = preg_split('/[^a-z0-9]+/', mb_strtolower($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $trigrams = [];
+
+        foreach ($words as $word) {
+            $padded = '  '.$word.' ';
+            $length = strlen($padded);
+
+            for ($i = 0; $i + 3 <= $length; $i++) {
+                $trigrams[substr($padded, $i, 3)] = true;
+            }
+        }
+
+        return $trigrams;
     }
 
     private function recordMergeCandidate(PlaceCandidate $candidate, Place $place, float $similarity, float $distance): void
