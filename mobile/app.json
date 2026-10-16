@@ -9,6 +9,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uk.co.synteric.experience",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "associatedDomains": [
         "applinks:experience.synteric.co.uk"
       ],
