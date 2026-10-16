@@ -6,14 +6,26 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1057354438819-p9kta7utpv59qvkqhsnd74mrns7u6n31.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1057354438819-8c1h7ukdcve8fu987u14pvs7b7sbble9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1057354438819-3s104cblbau8p59clq27dpumcpnljqnv.apps.googleusercontent.com"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.experience.synteric.co.uk/api",
-        "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy"
+        "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy",
+        "EXPO_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1057354438819-p9kta7utpv59qvkqhsnd74mrns7u6n31.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1057354438819-8c1h7ukdcve8fu987u14pvs7b7sbble9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1057354438819-3s104cblbau8p59clq27dpumcpnljqnv.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -23,7 +35,11 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.experience.synteric.co.uk/api",
-        "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy"
+        "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy",
+        "EXPO_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1057354438819-p9kta7utpv59qvkqhsnd74mrns7u6n31.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1057354438819-8c1h7ukdcve8fu987u14pvs7b7sbble9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1057354438819-3s104cblbau8p59clq27dpumcpnljqnv.apps.googleusercontent.com"
       }
     }
   },

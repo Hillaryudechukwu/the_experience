@@ -162,12 +162,68 @@ if [[ "$DRY_RUN" != "true" ]]; then
     fi
 fi
 
+# Google and Apple buttons are compiled in only when this is exactly "true".
+# A deploy that forgets it ships a sign-in screen with no social buttons, and
+# the labels are stripped from the bundle, so a later config change cannot
+# reveal them without another export.
+load_google_auth_env() {
+    local file="$SCRIPT_DIR/mobile/.env"
+    local key value
+
+    [[ -f "$file" ]] || return 0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^EXPO_PUBLIC_GOOGLE_[A-Z0-9_]+= ]] || continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        value="${value%\"}"
+        value="${value#\"}"
+        value="${value%\'}"
+        value="${value#\'}"
+        if [[ -z "${!key:-}" ]]; then
+            printf -v "$key" '%s' "$value"
+            export "$key"
+        fi
+    done < "$file"
+}
+
+load_google_auth_env
+
+# Audiences the API accepts. Public client ids only; the web client secret
+# stays out of this script and out of the app.
+load_api_identity_env() {
+    local file="$SCRIPT_DIR/api/.env"
+    local key value
+
+    [[ -f "$file" ]] || return 0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^(GOOGLE_CLIENT_IDS|GOOGLE_CLIENT_ID|ANDROID_CLIENT_ID|IOS_CLIENT_ID|APPLE_CLIENT_ID)= ]] || continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        value="${value%\"}"
+        value="${value#\"}"
+        value="${value%\'}"
+        value="${value#\'}"
+        if [[ -z "${!key:-}" ]]; then
+            printf -v "$key" '%s' "$value"
+            export "$key"
+        fi
+    done < "$file"
+}
+
+load_api_identity_env
+
 printf "%bInstalling locked web dependencies and exporting Expo...%b\n" "$YELLOW" "$NC"
 npm ci --prefix "$SCRIPT_DIR/mobile"
 (
     cd "$SCRIPT_DIR/mobile"
     EXPO_PUBLIC_API_URL="$API_PUBLIC_URL" \
         EXPO_PUBLIC_PRIVACY_URL="$PRIVACY_URL" \
+        EXPO_PUBLIC_GOOGLE_AUTH_ENABLED="${EXPO_PUBLIC_GOOGLE_AUTH_ENABLED:-false}" \
+        EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID="${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:-}" \
+        EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID="${EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:-}" \
+        EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID="${EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID:-}" \
         npx expo export --platform web --output-dir dist --clear
 )
 
@@ -185,6 +241,16 @@ if ! rg --quiet --fixed-strings "$PRIVACY_URL" "$SCRIPT_DIR/mobile/dist/_expo"; 
     printf "%bThe Expo bundle does not contain the production privacy URL: %s%b\n" \
         "$RED" "$PRIVACY_URL" "$NC" >&2
     exit 1
+fi
+if [[ "${EXPO_PUBLIC_GOOGLE_AUTH_ENABLED:-}" == "true" ]]; then
+    if [[ -z "${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:-}" ]]; then
+        printf "%bGoogle sign-in is enabled but EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is empty.%b\n" "$RED" "$NC" >&2
+        exit 1
+    fi
+    if ! rg --quiet --fixed-strings "Continue with Google" "$SCRIPT_DIR/mobile/dist/_expo"; then
+        printf "%bThe Expo bundle was exported with Google sign-in on, but the button is missing.%b\n" "$RED" "$NC" >&2
+        exit 1
+    fi
 fi
 
 RSYNC_OPTIONS=(
@@ -282,8 +348,13 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 
 printf "%bInstalling PHP dependencies and finalising Laravel...%b\n" "$YELLOW" "$NC"
+GOOGLE_CLIENT_IDS="${GOOGLE_CLIENT_IDS:-}"
+GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}"
+ANDROID_CLIENT_ID="${ANDROID_CLIENT_ID:-}"
+IOS_CLIENT_ID="${IOS_CLIENT_ID:-}"
+APPLE_CLIENT_ID="${APPLE_CLIENT_ID:-}"
 ssh "${SSH_OPTIONS[@]}" "$SERVER_USER@$API_SERVER_HOST" \
-    "bash -s -- '$API_APP_PATH' '$REMOTE_PHP' '$REMOTE_COMPOSER' '$REMOTE_RESTART_COMMAND' '$RUN_MIGRATIONS' '$RUN_SEEDERS' '$API_ORIGIN' '$WEB_ORIGIN' '$PRIVACY_URL' '$DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE' '$DESTINATION_ACTIVATION_ALLOWED_CITIES' '$DESTINATION_ACTIVATION_ALLOWED_CANDIDATES' '$DESTINATION_PREWARM_ENABLED' '$APP_LINKS_IOS_TEAM_ID'" <<'REMOTE_SCRIPT'
+    "bash -s -- '$API_APP_PATH' '$REMOTE_PHP' '$REMOTE_COMPOSER' '$REMOTE_RESTART_COMMAND' '$RUN_MIGRATIONS' '$RUN_SEEDERS' '$API_ORIGIN' '$WEB_ORIGIN' '$PRIVACY_URL' '$DESTINATION_ACTIVATION_ROLLOUT_PERCENTAGE' '$DESTINATION_ACTIVATION_ALLOWED_CITIES' '$DESTINATION_ACTIVATION_ALLOWED_CANDIDATES' '$DESTINATION_PREWARM_ENABLED' '$APP_LINKS_IOS_TEAM_ID' '$GOOGLE_CLIENT_IDS' '$GOOGLE_CLIENT_ID' '$ANDROID_CLIENT_ID' '$IOS_CLIENT_ID' '$APPLE_CLIENT_ID'" <<'REMOTE_SCRIPT'
 set -Eeuo pipefail
 
 app_path="$1"
@@ -300,6 +371,11 @@ allowed_cities="${11}"
 allowed_candidates="${12}"
 prewarm_enabled="${13}"
 ios_team_id="${14}"
+google_client_ids="${15}"
+google_client_id="${16}"
+android_client_id="${17}"
+ios_client_id="${18}"
+apple_client_id="${19}"
 
 cd "$app_path"
 
@@ -383,6 +459,11 @@ set_env CORS_ALLOWED_ORIGINS "$web_origin"
 set_env PRIVACY_POLICY_URL "$privacy_url"
 set_env APP_LINKS_HOST "${web_origin#*://}"
 set_env_if_provided APP_LINKS_IOS_TEAM_ID "$ios_team_id"
+set_env_if_provided GOOGLE_CLIENT_IDS "$google_client_ids"
+set_env_if_provided GOOGLE_CLIENT_ID "$google_client_id"
+set_env_if_provided ANDROID_CLIENT_ID "$android_client_id"
+set_env_if_provided IOS_CLIENT_ID "$ios_client_id"
+set_env_if_provided APPLE_CLIENT_ID "$apple_client_id"
 set_env CACHE_STORE "database"
 set_env QUEUE_CONNECTION "database"
 set_env DB_QUEUE_RETRY_AFTER "360"
