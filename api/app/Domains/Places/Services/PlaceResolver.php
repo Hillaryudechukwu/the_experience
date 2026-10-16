@@ -9,6 +9,7 @@ use App\Domains\ExternalSources\DTO\PlaceCandidate;
 use App\Domains\ExternalSources\Models\ExternalEntity;
 use App\Domains\Places\Models\Place;
 use App\Domains\Places\Models\PlaceMergeCandidate;
+use App\Domains\Places\Support\NameSimilarity;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Illuminate\Support\Facades\DB;
 
@@ -156,7 +157,7 @@ class PlaceResolver
                compute the same measure in PHP elsewhere. */
             $similarity = ($place->name_similarity ?? null) !== null && $place->name_similarity > 0
                 ? (float) $place->name_similarity
-                : $this->stringSimilarity($candidate->normalisedName(), (string) $place->normalised_name);
+                : NameSimilarity::between($candidate->normalisedName(), (string) $place->normalised_name);
 
             if ($best === null || $similarity > $best['similarity']) {
                 $best = ['place' => $place, 'distance' => $distance, 'similarity' => $similarity];
@@ -164,54 +165,6 @@ class PlaceResolver
         }
 
         return $best;
-    }
-
-    /**
-     * pg_trgm's similarity(), in PHP.
-     *
-     * This used to be similar_text(), and the two do not measure the same
-     * thing. similar_text() rewards the longest common substring, so
-     * "south street seaport museum" and "south street seaport historic
-     * district" scored 0.677 — above name_similarity_match — and the resolver
-     * merged two genuinely different places. PostgreSQL scores the same pair
-     * 0.463, which falls in the review band where a human decides.
-     *
-     * A resolver that merges on PostgreSQL and on MySQL must merge the same
-     * things, so the fallback computes trigrams the way pg_trgm does: split on
-     * non-alphanumerics, pad each word with two leading and one trailing
-     * space, and take the Jaccard index of the resulting sets.
-     */
-    private function stringSimilarity(string $a, string $b): float
-    {
-        $left = $this->trigrams($a);
-        $right = $this->trigrams($b);
-
-        if ($left === [] || $right === []) {
-            return 0.0;
-        }
-
-        $shared = count(array_intersect_key($left, $right));
-        $union = count($left + $right);
-
-        return $union === 0 ? 0.0 : round($shared / $union, 3);
-    }
-
-    /** @return array<string, true> */
-    private function trigrams(string $value): array
-    {
-        $words = preg_split('/[^a-z0-9]+/', mb_strtolower($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $trigrams = [];
-
-        foreach ($words as $word) {
-            $padded = '  '.$word.' ';
-            $length = strlen($padded);
-
-            for ($i = 0; $i + 3 <= $length; $i++) {
-                $trigrams[substr($padded, $i, 3)] = true;
-            }
-        }
-
-        return $trigrams;
     }
 
     private function recordMergeCandidate(PlaceCandidate $candidate, Place $place, float $similarity, float $distance): void

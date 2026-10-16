@@ -12,6 +12,7 @@ use App\Domains\ExternalSources\Models\ProviderSyncFailure;
 use App\Domains\ExternalSources\Models\ProviderSyncRun;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
 use App\Domains\ExternalSources\Providers\WikimediaEnricher;
+use App\Domains\Places\Support\NameSimilarity;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
@@ -204,14 +205,17 @@ class BackfillImagery
                 continue;
             }
 
-            similar_text((string) ($normalised ?? Str::lower($name)), $candidate->normalisedName(), $percent);
+            $similarity = NameSimilarity::between(
+                (string) ($normalised ?? Str::lower($name)),
+                $candidate->normalisedName(),
+            );
 
-            if ($percent / 100 < self::NAME_SIMILARITY) {
+            if ($similarity < self::NAME_SIMILARITY) {
                 continue;
             }
 
-            if ($best === null || $percent > $best['score']) {
-                $best = ['id' => $candidate->providerId, 'score' => $percent];
+            if ($best === null || $similarity > $best['score']) {
+                $best = ['id' => $candidate->providerId, 'score' => $similarity];
             }
         }
 
