@@ -20,9 +20,16 @@ export type IdentityProof = {
 };
 
 /**
- * Google on Android and web. On iOS, Apple is offered first and Google is
- * shown only when Apple authentication is available. The flag defaults off,
- * so a build with no client ids shows nothing.
+ * Google everywhere, with Apple above it on iOS when the device offers it —
+ * App Store review expects Sign in with Apple alongside other providers.
+ *
+ * Google is not gated on Apple being available. appleAvailable starts false
+ * and is only set by an async check, so gating it meant the first render of
+ * every iOS screen had no buttons at all, and an iOS build missing the
+ * expo-apple-authentication entitlement showed an empty box permanently.
+ * Offering one provider is a degraded sign-in; offering none is a dead end.
+ *
+ * The flag defaults off, so a build with no client ids shows nothing.
  */
 export function SocialSignIn(props: {
   mode?: 'account' | 'proof';
@@ -105,7 +112,6 @@ function SocialSignInButtons({
   };
 
   const showApple = Platform.OS === 'ios' && appleAvailable;
-  const showGoogle = Platform.OS !== 'ios' || appleAvailable;
   const googleClientId = Platform.select({
     ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
@@ -117,19 +123,17 @@ function SocialSignInButtons({
       {showApple ? (
         <Button label="Continue with Apple" tone="secondary" onPress={apple} disabled={busy} />
       ) : null}
-      {showGoogle ? (
-        <Button
-          label={busy ? 'Signing in…' : 'Continue with Google'}
-          tone="secondary"
-          onPress={() => {
-            promptGoogle().catch((cause: unknown) => {
-              const type = cause && typeof cause === 'object' && 'type' in cause ? String(cause.type) : '';
-              if (type === 'cancel' || type === 'dismiss') return;
-            });
-          }}
-          disabled={!request || !googleClientId || busy}
-        />
-      ) : null}
+      <Button
+        label={busy ? 'Signing in…' : 'Continue with Google'}
+        tone="secondary"
+        onPress={() => {
+          promptGoogle().catch((cause: unknown) => {
+            const type = cause && typeof cause === 'object' && 'type' in cause ? String(cause.type) : '';
+            if (type === 'cancel' || type === 'dismiss') return;
+          });
+        }}
+        disabled={!request || !googleClientId || busy}
+      />
     </View>
   );
 }

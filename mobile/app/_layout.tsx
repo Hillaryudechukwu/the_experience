@@ -39,7 +39,7 @@ export default function RootLayout() {
   /* Sora carries the display voice, Inter the interface. Holding the first
      paint until both are ready avoids the jarring reflow of a system-font
      flash on a screen whose whole character is typographic. */
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Sora_600SemiBold,
     Sora_700Bold,
     Inter_400Regular,
@@ -52,9 +52,17 @@ export default function RootLayout() {
     hydrate();
   }, [hydrate]);
 
+  /* Settled, not loaded. useFonts leaves fontsLoaded false forever when an
+     asset fails, and the splash is hidden by nothing else — so a corrupt
+     bundle or an OTA update whose fonts did not fetch left the app on the
+     native splash with no spinner, no error and no way out but force-quit.
+     Falling back to system fonts is a worse-looking app; staying on the
+     splash is no app at all. */
+  const fontsSettled = fontsLoaded || fontError !== null;
+
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded]);
+    if (fontsSettled) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsSettled]);
 
   /*
    * Re-read the position whenever the app comes back to the foreground.
@@ -75,7 +83,7 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, [refreshLocation]);
 
-  if (!fontsLoaded) {
+  if (!fontsSettled) {
     return (
       <View
         style={{
