@@ -19,7 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0D1B2A",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -49,10 +49,30 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "WAYOA — Know where to go",
+      "shortName": "WAYOA",
+      "description": "WAYOA helps travellers discover, plan and book experiences that fit their journey.",
+      "lang": "en",
+      "themeColor": "#0D1B2A",
+      "backgroundColor": "#0D1B2A",
+      "display": "standalone",
+      "splash": {
+        "backgroundColor": "#0D1B2A",
+        "resizeMode": "contain",
+        "image": "./assets/brand/wayoa-logo.png"
+      }
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0D1B2A",
+          "image": "./assets/brand/wayoa-app-icon.png",
+          "imageWidth": 240
+        }
+      ],
       "expo-status-bar",
       "expo-notifications",
       [

@@ -3,6 +3,7 @@ import { Linking, Pressable, Share, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { API_URL, http } from '../../src/api/client';
+import { BRAND } from '../../src/brand';
 import {
   useExperienceDna,
   useExportPrivacyData,
@@ -91,7 +92,7 @@ export default function You() {
     try {
       const payload = await exportPrivacy.mutateAsync();
       await Share.share({
-        title: 'My WAYOA data',
+        title: `My ${BRAND.name} data`,
         message: JSON.stringify(payload, null, 2),
       });
     } catch {

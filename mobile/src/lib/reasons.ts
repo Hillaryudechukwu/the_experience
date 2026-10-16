@@ -188,6 +188,12 @@ export function missionSuggestionsFor(reason: string | null | undefined): string
   return MISSION_SUGGESTIONS_BY_REASON.other;
 }
 
+export function reasonLabel(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  const match = [...JOURNEY_REASONS, ...MORE_REASONS].find((item) => item.key === reason);
+  return match?.label ?? reason;
+}
+
 /** @deprecated Prefer missionSuggestionsFor(reason) — kept for any stray imports. */
 export const MISSION_SUGGESTIONS = MISSION_SUGGESTIONS_BY_REASON.other;
 

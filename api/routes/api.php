@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /*
- * Interlude — API surface (spec s21).
+ * WAYOA — API surface (spec s21).
  *
  * Everything here works for a guest: the ResolveActor middleware mints a guest
  * session on first contact and returns it in X-Guest-Token. Registering later

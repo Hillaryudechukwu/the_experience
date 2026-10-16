@@ -13,7 +13,7 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The AI Interlude Guide (spec s15).
+ * The AI WAYOA Guide (spec s15).
  *
  * The orchestrator reasons *over* trusted services; it is never the factual
  * database. Two drivers share the same toolbox and the same grounding guard:
@@ -248,8 +248,10 @@ class AssistantOrchestrator
 
     private function systemPrompt(): string
     {
-        return <<<'PROMPT'
-        You are the WAYOA Guide inside a travel app.
+        $name = (string) config('app.name');
+
+        return <<<PROMPT
+        You are the {$name} Guide inside a travel app.
 
         Rules you must follow:
         - Every price, opening time, duration, travel time and availability you state must come

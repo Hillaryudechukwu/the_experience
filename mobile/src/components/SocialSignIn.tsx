@@ -20,8 +20,8 @@ export type IdentityProof = {
 };
 
 /**
- * Google on every platform. Apple sits above it on iOS, because offering
- * Google there without Apple fails App Store review. The flag defaults off,
+ * Google on Android and web. On iOS, Apple is offered first and Google is
+ * shown only when Apple authentication is available. The flag defaults off,
  * so a build with no client ids shows nothing.
  */
 export function SocialSignIn(props: {
@@ -105,6 +105,7 @@ function SocialSignInButtons({
   };
 
   const showApple = Platform.OS === 'ios' && appleAvailable;
+  const showGoogle = Platform.OS !== 'ios' || appleAvailable;
   const googleClientId = Platform.select({
     ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
@@ -116,17 +117,19 @@ function SocialSignInButtons({
       {showApple ? (
         <Button label="Continue with Apple" tone="secondary" onPress={apple} disabled={busy} />
       ) : null}
-      <Button
-        label={busy ? 'Signing in…' : 'Continue with Google'}
-        tone="secondary"
-        onPress={() => {
-          promptGoogle().catch((cause: unknown) => {
-            const type = cause && typeof cause === 'object' && 'type' in cause ? String(cause.type) : '';
-            if (type === 'cancel' || type === 'dismiss') return;
-          });
-        }}
-        disabled={!request || !googleClientId || busy}
-      />
+      {showGoogle ? (
+        <Button
+          label={busy ? 'Signing in…' : 'Continue with Google'}
+          tone="secondary"
+          onPress={() => {
+            promptGoogle().catch((cause: unknown) => {
+              const type = cause && typeof cause === 'object' && 'type' in cause ? String(cause.type) : '';
+              if (type === 'cancel' || type === 'dismiss') return;
+            });
+          }}
+          disabled={!request || !googleClientId || busy}
+        />
+      ) : null}
     </View>
   );
 }

@@ -84,5 +84,5 @@ Then admin or traveller retry. Exit gate: no queued/running import older than
 
 ## Status
 
-Code/docs ready for the ladder. Production remains at rollout **0%** until ops
-completes the controlled proof and spend approvals (see checklist).
+Controlled proof is GO and a Google Cloud budget alert is in place. Production
+rollout is **5%** as of 2026-10-15. Observe 30 minutes before 25%.

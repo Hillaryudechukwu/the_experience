@@ -2,8 +2,10 @@ import React, { useEffect } from 'react';
 import { AppState, View } from 'react-native';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import {
   Inter_400Regular,
@@ -14,6 +16,8 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useColorScheme } from 'react-native';
 
+import { BRAND, brandDocumentTitle } from '../src/brand';
+import { WayoaLogo } from '../src/components/WayoaLogo';
 import { colorModes } from '../src/design/tokens';
 import { useSession } from '../src/store/session';
 
@@ -22,6 +26,9 @@ const queryClient = new QueryClient({
     queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 30_000 },
   },
 });
+
+/* Keep the native splash up until the wordmark can paint in the right type. */
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const hydrate = useSession((s) => s.hydrate);
@@ -45,6 +52,10 @@ export default function RootLayout() {
     hydrate();
   }, [hydrate]);
 
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
   /*
    * Re-read the position whenever the app comes back to the foreground.
    *
@@ -65,12 +76,31 @@ export default function RootLayout() {
   }, [refreshLocation]);
 
   if (!fontsLoaded) {
-    return <View style={{ flex: 1, backgroundColor: colors.background.base }} />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colorModes.light.brand.midnight,
+        }}
+      >
+        <WayoaLogo variant="full" size="lg" />
+      </View>
+    );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
+        <Head>
+          <title>{brandDocumentTitle}</title>
+          <meta name="description" content={BRAND.description} />
+          <meta property="og:title" content={brandDocumentTitle} />
+          <meta property="og:description" content={BRAND.description} />
+          <meta property="og:type" content="website" />
+          <meta name="theme-color" content={colorModes.light.brand.midnight} />
+        </Head>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <Stack
           screenOptions={{

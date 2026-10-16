@@ -4,6 +4,7 @@ import { Tabs, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BRAND } from '../../src/brand';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { T } from '../../src/components/primitives';
 import { useChrome } from '../../src/store/chrome';
@@ -164,7 +165,7 @@ function FloatingGuide({ onPress, bottomInset }: { onPress: () => void; bottomIn
     >
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Open the WAYOA Guide"
+      accessibilityLabel={`Open the ${BRAND.name} Guide`}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress();
