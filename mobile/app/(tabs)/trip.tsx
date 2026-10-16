@@ -136,24 +136,40 @@ export default function TripScreen() {
       </Gutter>
 
       {/* ── What we understood ─────────────────────────────────────────── */}
-      {journey?.mission_goals && journey.mission_goals.length > 0 ? (
+      {/* Shown whenever there is a trip, not only when we inferred something.
+          Gating the whole section on having goals hid the way back to the
+          answers from exactly the travellers who skipped them — the reading
+          was visible when we had one and unreachable when we did not. */}
+      {journey ? (
         <Gutter>
-          <SectionHeader title="What we understood" caption="From what you told us about this trip" />
-          <Card tone="warm">
-            <View style={{ padding: space.md, gap: space.sm }}>
-              {journey.mission_goals.slice(0, 4).map((goal) => (
-                <Row key={goal.goal} align="flex-start" gap={space.xs}>
-                  <Icon name="sparkle" size={15} color={colors.text.secondary} />
-                  <View style={{ flex: 1 }}>
-                    <T variant="bodyStrong">{titleCase(goal.goal)}</T>
-                    <T variant="small" color={colors.text.secondary}>
-                      {goal.evidence}
-                    </T>
-                  </View>
-                </Row>
-              ))}
-            </View>
-          </Card>
+          <SectionHeader
+            title="What we understood"
+            caption="From what you told us about this trip"
+            action="Edit"
+            onAction={() => router.push('/understanding')}
+          />
+          {journey.mission_goals.length > 0 ? (
+            <Card tone="warm">
+              <View style={{ padding: space.md, gap: space.sm }}>
+                {journey.mission_goals.slice(0, 4).map((goal) => (
+                  <Row key={goal.goal} align="flex-start" gap={space.xs}>
+                    <Icon name="sparkle" size={15} color={colors.text.secondary} />
+                    <View style={{ flex: 1 }}>
+                      <T variant="bodyStrong">{titleCase(goal.goal)}</T>
+                      <T variant="small" color={colors.text.secondary}>
+                        {goal.evidence}
+                      </T>
+                    </View>
+                  </Row>
+                ))}
+              </View>
+            </Card>
+          ) : (
+            <Note icon={<Icon name="sparkle" size={16} color={colors.text.secondary} />}>
+              You have not told us what this trip is for yet. Say so and everything we suggest is
+              reasoned from it rather than from averages.
+            </Note>
+          )}
         </Gutter>
       ) : null}
 
