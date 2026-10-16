@@ -67,7 +67,12 @@
       }
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "origin": "https://experience.synteric.co.uk"
+        }
+      ],
       [
         "expo-splash-screen",
         {
