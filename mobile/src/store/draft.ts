@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 
-/** Calendar days in the city (arrival inclusive). Matches itinerary planner presets. */
-export type StayDays = 1 | 3 | 7 | 14;
+/*
+ * The dates of the trip, as plain YYYY-MM-DD calendar strings.
+ *
+ * This was `stayDays: 1 | 3 | 7 | 14`, which could only ever describe a trip
+ * starting today — there was no way to plan one three weeks out, and the
+ * three-day default was what every traveller silently got. Null means not yet
+ * answered; style.tsx falls back to the old behaviour on skip.
+ */
 
 type Draft = {
   reason: string | null;
@@ -10,7 +16,8 @@ type Draft = {
   interests: string[];
   adults: number;
   children: number;
-  stayDays: StayDays;
+  startsOn: string | null;
+  endsOn: string | null;
   pace: 'slow' | 'moderate' | 'fast';
   budget: 'budget' | 'moderate' | 'premium' | 'luxury';
   touristStyle: number;
@@ -25,7 +32,8 @@ const initial = {
   interests: [] as string[],
   adults: 1,
   children: 0,
-  stayDays: 3 as StayDays,
+  startsOn: null as string | null,
+  endsOn: null as string | null,
   pace: 'moderate' as const,
   budget: 'moderate' as const,
   touristStyle: 60,

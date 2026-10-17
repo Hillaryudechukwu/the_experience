@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import {
@@ -130,7 +130,26 @@ export default function TripScreen() {
                   {days} day{days === 1 ? '' : 's'} ({stayRangeLabel(journey.starts_on, journey.ends_on)})
                 </T>
               </>
-            ) : null}
+            ) : (
+              /* Dateless trips used to render nothing here at all — no dot, no
+                 range, and no hint that dates were a thing you could give us.
+                 The plan quietly covered three days from today instead. */
+              <>
+                <T variant="small" color={colors.text.tertiary}>
+                  ·
+                </T>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add your trip dates"
+                  hitSlop={8}
+                  onPress={() => router.push('/understanding')}
+                >
+                  <T variant="smallStrong" color={colors.action.primary}>
+                    Add dates
+                  </T>
+                </Pressable>
+              </>
+            )}
           </Row>
         ) : null}
       </Gutter>
