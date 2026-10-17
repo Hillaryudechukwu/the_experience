@@ -52,6 +52,28 @@ let guestToken: string | null = null;
 let authToken: string | null = null;
 let hydrated = false;
 
+/**
+ * One first contact at a time.
+ *
+ * A guest is created by the request that arrives without a token. Discover
+ * fires several of those together on a cold start. Each one is a different
+ * guest, and the last response to land replaces the token the others were
+ * given. The journey was saved under the first guest; every later read asks
+ * as the last one and the API answers 404, because a journey is only returned
+ * to the actor that owns it.
+ */
+let firstContact: Promise<void> = Promise.resolve();
+
+function claimFirstGuest<T>(task: () => Promise<T>): Promise<T> {
+  const run = firstContact.then(task, task);
+  firstContact = run.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return run;
+}
+
 async function hydrate() {
   if (hydrated) return;
   const [g, a] = await Promise.all([
@@ -109,6 +131,15 @@ type RequestOptions = { method?: string; body?: unknown; headers?: Record<string
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   await hydrate();
 
+  /* Already somebody. Parallel calls share that token; only the mint is queued. */
+  if (authToken || guestToken) return perform<T>(path, options);
+
+  return claimFirstGuest(() => perform<T>(path, options));
+}
+
+async function perform<T>(path: string, options: RequestOptions): Promise<T> {
+  const sentGuest = guestToken;
+
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'X-Client-Platform': 'mobile',
@@ -136,8 +167,20 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
   const returned = response.headers.get('x-guest-token');
   if (returned && returned !== guestToken) {
-    guestToken = returned;
-    AsyncStorage.setItem(GUEST_TOKEN_KEY, returned).catch(() => {});
+    /*
+     * Accept a token from the request that went out as this guest, or from
+     * the request that minted the first one. A late response from an earlier
+     * token-less call must not overwrite a guest we have already started
+     * using — that is how a journey ends up owned by a session the app no
+     * longer sends.
+     */
+    const firstMint = sentGuest === null && guestToken === null;
+    const sameGuest = sentGuest !== null && guestToken === sentGuest;
+
+    if (firstMint || sameGuest) {
+      guestToken = returned;
+      AsyncStorage.setItem(GUEST_TOKEN_KEY, returned).catch(() => {});
+    }
   }
 
   const text = await response.text();

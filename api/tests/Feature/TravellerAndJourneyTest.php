@@ -248,6 +248,35 @@ class TravellerAndJourneyTest extends TestCase
         );
     }
 
+    public function test_current_journey_is_only_visible_to_its_owner(): void
+    {
+        $owner = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=rome', ['X-Guest-Token' => $owner])->json('data.0.id');
+
+        $created = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+        ], ['X-Guest-Token' => $owner])->assertCreated();
+
+        $journeyId = $created->json('data.id');
+        $tripId = $this->postJson('/api/trips', [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $owner])->assertCreated()->json('data.id');
+
+        $this->getJson('/api/journeys/current', ['X-Guest-Token' => $owner])
+            ->assertOk()
+            ->assertJsonPath('data.id', $journeyId)
+            ->assertJsonPath('trip_id', $tripId);
+
+        $stranger = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+
+        $this->getJson("/api/journeys/{$journeyId}", ['X-Guest-Token' => $stranger])->assertNotFound();
+        $this->getJson('/api/journeys/current', ['X-Guest-Token' => $stranger])
+            ->assertOk()
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('trip_id', null);
+    }
+
     public function test_a_journey_stores_stay_dates(): void
     {
         $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
