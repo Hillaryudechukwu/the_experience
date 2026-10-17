@@ -195,20 +195,37 @@ export default function Understanding() {
        * working from — generate-itinerary demotes the current itinerary, it
        * does not merge. So we name what is about to be lost and ask.
        */
-      if (datesChanged && tripId && trip?.itinerary && journey.starts_on && journey.ends_on) {
-        confirmAction(
-          'Rebuild your plan?',
-          `Your plan covers ${stayRangeLabel(journey.starts_on, journey.ends_on)}. Rebuilding it for the new dates replaces what is there now.`,
-          {
-            confirmLabel: 'Rebuild',
-            cancelLabel: 'Keep it for now',
-            onConfirm: async () => {
-              await rebuild.mutateAsync({}).catch(() => {});
+      if (datesChanged && tripId && trip?.itinerary) {
+        /* Name the days being replaced when we know them. A journey that had
+           no dates still has a plan — built from the planner's own fallback —
+           and skipping the prompt there would leave exactly the contradiction
+           it exists to prevent. stayRangeLabel throws on null, hence the two
+           wordings rather than one. */
+        const covers =
+          journey.starts_on && journey.ends_on
+            ? `Your plan covers ${stayRangeLabel(journey.starts_on, journey.ends_on)}.`
+            : 'Your current plan was built for different days.';
+
+        confirmAction('Rebuild your plan?', `${covers} Rebuilding it for the new dates replaces what is there now.`, {
+          confirmLabel: 'Rebuild',
+          cancelLabel: 'Keep it for now',
+          onConfirm: async () => {
+            try {
+              await rebuild.mutateAsync({});
               goBack();
-            },
-            onCancel: goBack,
+            } catch (cause) {
+              /* The dates saved; only the rebuild failed. Leaving now would
+                 put the new range above the old plan with nothing said, so
+                 stay and tell them — the rebuild is retryable from here. */
+              setError(
+                cause instanceof Error
+                  ? `Your dates are saved, but the plan did not rebuild: ${cause.message}`
+                  : 'Your dates are saved, but the plan did not rebuild. Try again from the trip screen.',
+              );
+            }
           },
-        );
+          onCancel: goBack,
+        });
 
         return;
       }
@@ -224,6 +241,13 @@ export default function Understanding() {
   };
 
   const reasonOptions = showAll ? [...JOURNEY_REASONS, ...MORE_REASONS] : JOURNEY_REASONS;
+
+  /* Today, or the day the trip began if that is already behind us. Someone on
+     day three of a trip extending it by two days must still be able to reach
+     their own start date; bounded at today it is disabled, and since any tap
+     restarts the range they could never get back to it. */
+  const today = isoDate(new Date(), journey.destination.timezone);
+  const earliest = journey.starts_on && journey.starts_on < today ? journey.starts_on : today;
 
   return (
     <Screen>
@@ -250,7 +274,7 @@ export default function Understanding() {
           startsOn={currentStartsOn}
           endsOn={currentEndsOn}
           onChange={(startsOn, endsOn) => setDates({ startsOn, endsOn })}
-          minDate={isoDate(new Date(), journey.destination.timezone)}
+          minDate={earliest}
           maxSpanDays={14}
         />
       </Gutter>
