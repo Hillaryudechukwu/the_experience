@@ -64,8 +64,16 @@ export default function TravelStyle() {
            from today — rather than creating a journey with no dates at all,
            which the planner would read the same way anyway. */
         const fallback = stayBounds(3, new Date(), session.destinationTimezone ?? undefined);
-        const starts_on = draft.startsOn ?? fallback.starts_on;
-        const ends_on = draft.endsOn ?? fallback.ends_on;
+
+        /* Both halves or neither. Falling back independently paired a chosen
+           arrival with a departure counted from today, which is an invalid
+           range whenever the arrival is further off than that — and Skip
+           reaches here without passing the disabled button that is supposed
+           to stop a half-picked range getting this far. */
+        const { starts_on, ends_on } =
+          draft.startsOn && draft.endsOn
+            ? { starts_on: draft.startsOn, ends_on: draft.endsOn }
+            : fallback;
         const journey = await createJourney.mutateAsync({
           destination_id: session.destinationId,
           reason: draft.reason,
