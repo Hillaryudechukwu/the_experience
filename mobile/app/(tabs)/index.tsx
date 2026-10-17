@@ -3,14 +3,16 @@ import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native
 import { useRouter } from 'expo-router';
 
 import { ApiError, API_URL, http } from '../../src/api/client';
-import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip } from '../../src/api/hooks';
+import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip, useUpdateJourney } from '../../src/api/hooks';
 import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
+import { DateRangeCalendar } from '../../src/components/DateRangeCalendar';
 import { DestinationHero } from '../../src/components/DestinationHero';
 import { QUICK_ACTIONS_OVERLAP, QuickActions } from '../../src/components/QuickActions';
 import { ExperienceCardView } from '../../src/components/ExperienceCard';
 import { Icon } from '../../src/components/Icon';
 import { MOOD_CREDIT, MOODS, MoodTile } from '../../src/components/MoodTile';
 import { Photo } from '../../src/components/Photo';
+import { Sheet } from '../../src/components/Sheet';
 import {
   Button,
   Card,
@@ -25,7 +27,8 @@ import {
   Skeleton,
   T,
 } from '../../src/components/primitives';
-import { clock, conditionLabel, isoDate, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
+import { clock, conditionLabel, isoDate, stayRangeLabel, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
+import { useRebuildPrompt } from '../../src/lib/useRebuildPrompt';
 import { discoveryPayload, useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -80,6 +83,13 @@ export default function Discover() {
   const [window, setWindow] = useState<number | null>(null);
   const [mood, setMood] = useState<string | null>(null);
 
+  /* Trip dates, editable from here rather than two screens away. Undefined
+     means untouched on this visit; the sheet works from the journey until
+     then. */
+  const [datesOpen, setDatesOpen] = useState(false);
+  const [draftDates, setDraftDates] = useState<{ startsOn: string | null; endsOn: string | null } | undefined>();
+  const [datesError, setDatesError] = useState<string | null>(null);
+
   const surface = window ? 'time-boxed' : mood ? 'mood' : 'now';
   /* What the API records this surface as, which is not what the route is
      called: the routes are hyphenated, the recorded names are snake_case. */
@@ -98,6 +108,51 @@ export default function Discover() {
   const { data: saved } = useSaved();
   const { data: profile } = useProfile();
   const surprise = useSurpriseMe();
+  const updateJourney = useUpdateJourney(session.journeyId ?? '');
+  const { askToRebuild } = useRebuildPrompt(session.tripId);
+
+  const draftStartsOn = draftDates ? draftDates.startsOn : (journey?.starts_on ?? null);
+  const draftEndsOn = draftDates ? draftDates.endsOn : (journey?.ends_on ?? null);
+
+  /* Today where they are going, or the day the trip began if that is already
+     behind us — a trip under way must still be able to reach its own start. */
+  const earliestDate = (() => {
+    const today = isoDate(new Date(), journey?.destination.timezone);
+
+    return journey?.starts_on && journey.starts_on < today ? journey.starts_on : today;
+  })();
+
+  /* A half-picked range is not a change: an arrival without a departure would
+     store a one-day trip nobody asked for. */
+  const datesChanged =
+    draftDates !== undefined &&
+    draftDates.startsOn !== null &&
+    draftDates.endsOn !== null &&
+    (draftDates.startsOn !== journey?.starts_on || draftDates.endsOn !== journey?.ends_on);
+
+  const saveDates = async () => {
+    if (!datesChanged || !journey) return;
+
+    setDatesError(null);
+
+    try {
+      const previous = { startsOn: journey.starts_on, endsOn: journey.ends_on };
+      await updateJourney.mutateAsync({ starts_on: draftDates!.startsOn, ends_on: draftDates!.endsOn });
+
+      const close = () => {
+        setDatesOpen(false);
+        setDraftDates(undefined);
+      };
+
+      /* The plan may now be for days that are no longer the trip. Shared with
+         the trip's edit screen so the question is asked the same way. */
+      if (!askToRebuild(previous, { onDone: close, onFailed: setDatesError })) {
+        close();
+      }
+    } catch (cause) {
+      setDatesError(cause instanceof Error ? cause.message : 'That did not save. Try again.');
+    }
+  };
   const importProgress = useDestinationImport(session.destinationImportId);
 
   const setDestinationImport = session.setDestinationImport;
@@ -277,7 +332,8 @@ export default function Discover() {
 
       {/* ── Quick time ─────────────────────────────────────────────────── */}
       <Gutter>
-        <SectionHeader title="How long have you got?" />
+        {/* Two questions now: how long today, and when the trip is. */}
+        <SectionHeader title="What are you working with?" />
       </Gutter>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.xs }}>
         <Chip
@@ -307,6 +363,27 @@ export default function Discover() {
             }}
           />
         ))}
+
+        {/* An action, not a filter. Every other chip here toggles something
+            and stays lit; this one opens a sheet, so it never takes the
+            selected state — a chip that looked switched on and was not would
+            read as broken. */}
+        {journey ? (
+          <Chip
+            label={
+              journey.starts_on && journey.ends_on
+                ? stayRangeLabel(journey.starts_on, journey.ends_on)
+                : 'Add dates'
+            }
+            tone="accent"
+            icon={<Icon name="calendar" size={14} color={colors.action.primary} />}
+            onPress={() => {
+              setDatesError(null);
+              setDraftDates(undefined);
+              setDatesOpen(true);
+            }}
+          />
+        ) : null}
       </ScrollView>
 
       {/* ── Top picks (Figma: 3) ───────────────────────────────────────
@@ -624,6 +701,34 @@ export default function Discover() {
             Ranked by {context.engine_version}
           </T>
         </Gutter>
+      ) : null}
+
+      {journey ? (
+        <Sheet visible={datesOpen} onClose={() => setDatesOpen(false)} title="When are you going">
+          <View style={{ padding: space.lg, gap: space.md }}>
+            <DateRangeCalendar
+              startsOn={draftStartsOn}
+              endsOn={draftEndsOn}
+              onChange={(startsOn, endsOn) => setDraftDates({ startsOn, endsOn })}
+              minDate={earliestDate}
+              maxSpanDays={14}
+            />
+
+            {datesError ? <Note tone="warning">{datesError}</Note> : null}
+
+            <Button
+              label={updateJourney.isPending ? 'Saving…' : 'Save dates'}
+              onPress={saveDates}
+              disabled={!datesChanged || updateJourney.isPending}
+              loading={updateJourney.isPending}
+            />
+            <T variant="caption" color={colors.text.tertiary} align="center">
+              {draftStartsOn && !draftEndsOn
+                ? 'Pick the day you leave.'
+                : 'Changing these rebuilds nothing until you say so.'}
+            </T>
+          </View>
+        </Sheet>
       ) : null}
     </Screen>
   );
