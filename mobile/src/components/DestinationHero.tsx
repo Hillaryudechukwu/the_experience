@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ImageAttribution } from '../api/types';
 import { BRAND } from '../brand';
 import { Icon } from './Icon';
+import { Artwork } from './Photo';
+import { remoteImage } from '../lib/images';
 import { WayoaLogo } from './WayoaLogo';
 import { T } from './primitives';
 import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
@@ -71,6 +73,21 @@ export function DestinationHero({
 }) {
   const colors = useTheme();
   const insets = useSafeAreaInsets();
+  /* Every other remote image in the app falls back when it fails; this one
+     did not, so when Wikimedia refused the request the header simply went
+     dark and nothing said why. Photo has done it this way all along.
+
+     Which picture failed, not whether one did. This component is mounted once
+     and switching city only changes the prop, so a boolean would have let a
+     single dropped request suppress every later city's photograph too. */
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+
+  /* undefined is "we have not been told yet"; null is "there is none". Only
+     the second deserves the wash — painting it while the request is still in
+     flight claims there is no photograph before we know, and then takes it
+     back a moment later. Until we know, the midnight background stands in,
+     which is close enough to the photograph's own scrim to go unnoticed. */
+  const showWash = imageUri === null || (imageUri != null && failedUri === imageUri);
   /*
    * The reserved strip is extra photograph, not less room for the text.
    *
@@ -101,16 +118,24 @@ export function DestinationHero({
      * padding, so the card below still rides up over photograph either way.
      */
     <View style={{ minHeight: total, width: '100%', backgroundColor: colors.brand.midnight }}>
-      {imageUri ? (
+      {imageUri && failedUri !== imageUri ? (
         <Image
-          source={{ uri: imageUri }}
+          source={remoteImage(imageUri)}
           /* Pinned to all four edges, so it follows the header when the
              content makes it taller than `total`. A percentage height would be
              measured against a parent that no longer has a fixed one. */
           style={{ position: 'absolute', inset: 0 as never }}
           resizeMode="cover"
+          onError={() => setFailedUri(imageUri)}
           accessibilityIgnoresInvertColors
         />
+      ) : showWash ? (
+        /* The wash needs a box with a height of its own to fill. Handing the
+           absolute position to Artwork instead would leave its own `100%`
+           measuring against a header that is min-height, not fixed. */
+        <View style={{ position: 'absolute', inset: 0 as never }}>
+          <Artwork id={city} height="100%" glyph={false} />
+        </View>
       ) : null}
 
       {/* Two scrims: one from the top so the status bar and controls stay

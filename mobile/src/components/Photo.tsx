@@ -3,6 +3,7 @@ import { Image, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Icon, type IconName } from './Icon';
+import { remoteImage } from '../lib/images';
 import { artworkFor, radius, space, useTheme } from '../theme';
 import { T } from './primitives';
 
@@ -121,7 +122,7 @@ export function Photo({
     <View style={{ height, width: '100%', borderRadius: rounded, overflow: rounded ? 'hidden' : 'visible' }}>
       {usePhoto ? (
         <Image
-          source={{ uri }}
+          source={remoteImage(uri)}
           style={{ width: '100%', height, backgroundColor: colors.background.sunken }}
           resizeMode="cover"
           onError={() => setFailed(true)}
@@ -196,7 +197,7 @@ export function Thumb({
     >
       {uri && !failed ? (
         <Image
-          source={{ uri }}
+          source={remoteImage(uri)}
           style={{ width: size, height: size }}
           resizeMode="cover"
           onError={() => setFailed(true)}
