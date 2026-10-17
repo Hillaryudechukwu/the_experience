@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 
 import { ApiError } from '../src/api/client';
-import { useJourney, useMissionSuggestions, useUpdateJourney } from '../src/api/hooks';
+import {
+  useGenerateItinerary,
+  useJourney,
+  useMissionSuggestions,
+  useTrip,
+  useUpdateJourney,
+} from '../src/api/hooks';
+import { DateRangeCalendar } from '../src/components/DateRangeCalendar';
 import { Icon } from '../src/components/Icon';
 import {
   Button,
@@ -17,6 +24,7 @@ import {
   T,
 } from '../src/components/primitives';
 import { confirmAction } from '../src/lib/alert';
+import { isoDate, stayRangeLabel } from '../src/lib/format';
 import { useBackTo } from '../src/lib/navigation';
 import { FAMILIARITY, JOURNEY_REASONS, MORE_REASONS, missionSuggestionsFor } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
@@ -41,21 +49,27 @@ export default function Understanding() {
   const colors = useTheme();
   const goBack = useBackTo('/(tabs)/trip');
   const journeyId = useSession((s) => s.journeyId);
+  const tripId = useSession((s) => s.tripId);
 
   const { data: journey, isLoading, isError, refetch } = useJourney(journeyId);
+  const { data: trip } = useTrip(tripId);
   const update = useUpdateJourney(journeyId ?? '');
+  const rebuild = useGenerateItinerary(tripId ?? '');
 
   /* Undefined means "not touched on this screen", which is what keeps the
      request to the fields that actually moved. */
   const [reason, setReason] = useState<string | undefined>();
   const [mission, setMission] = useState<string | undefined>();
   const [familiarity, setFamiliarity] = useState<string | undefined>();
+  const [dates, setDates] = useState<{ startsOn: string | null; endsOn: string | null } | undefined>();
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const currentReason = reason ?? journey?.reason;
   const currentMission = mission ?? journey?.mission_text ?? '';
   const currentFamiliarity = familiarity ?? journey?.familiarity;
+  const currentStartsOn = dates ? dates.startsOn : (journey?.starts_on ?? null);
+  const currentEndsOn = dates ? dates.endsOn : (journey?.ends_on ?? null);
 
   /* The journey's own city, not the session's. Switching city on Home leaves
      journeyId pointing at the old trip until onboarding creates a new one, so
@@ -80,7 +94,17 @@ export default function Understanding() {
   const showAll =
     expanded || (currentReason != null && !JOURNEY_REASONS.some((r) => r.key === currentReason));
 
+  /* A half-picked range is not a change yet — the traveller has tapped an
+     arrival and not yet a departure, and sending that would store a one-day
+     trip they did not ask for. */
+  const datesChanged =
+    dates !== undefined &&
+    dates.startsOn !== null &&
+    dates.endsOn !== null &&
+    (dates.startsOn !== journey?.starts_on || dates.endsOn !== journey?.ends_on);
+
   const changed =
+    datesChanged ||
     (reason !== undefined && reason !== journey?.reason) ||
     (mission !== undefined && mission.trim() !== (journey?.mission_text ?? '').trim()) ||
     (familiarity !== undefined && familiarity !== journey?.familiarity);
@@ -162,7 +186,52 @@ export default function Understanding() {
            accepts as null — sending '' would store a blank sentence and leave
            the goals derived from one. */
         ...(mission !== undefined ? { mission_text: mission.trim() || null } : {}),
+        ...(datesChanged ? { starts_on: dates!.startsOn, ends_on: dates!.endsOn } : {}),
       });
+
+      /*
+       * A plan built for 9-11 October means nothing once the trip is 20-27,
+       * but rebuilding silently throws away days the traveller may have been
+       * working from — generate-itinerary demotes the current itinerary, it
+       * does not merge. So we name what is about to be lost and ask.
+       */
+      if (datesChanged && tripId && trip?.itinerary) {
+        /* Name the days being replaced when we know them. A journey that had
+           no dates still has a plan — built from the planner's own fallback —
+           and skipping the prompt there would leave exactly the contradiction
+           it exists to prevent. stayRangeLabel throws on null, hence the two
+           wordings rather than one. */
+        const covers =
+          journey.starts_on && journey.ends_on
+            ? `Your plan covers ${stayRangeLabel(journey.starts_on, journey.ends_on)}.`
+            : 'Your current plan was built for different days.';
+
+        confirmAction('Rebuild your plan?', `${covers} Rebuilding it for the new dates replaces what is there now.`, {
+          confirmLabel: 'Rebuild',
+          cancelLabel: 'Keep it for now',
+          onConfirm: async () => {
+            try {
+              await rebuild.mutateAsync({});
+              goBack();
+            } catch (cause) {
+              /* The dates saved; only the rebuild failed. Leaving silently
+                 would put the new range above the old plan with nothing said.
+                 Nothing on this screen can retry it either — once the journey
+                 refetches, the dates match and Save goes inert — so the
+                 message has to name the control that can: Rebuild, on the
+                 trip screen. */
+              const why = cause instanceof Error ? ` (${cause.message})` : '';
+
+              setError(
+                `Your dates are saved, but the plan did not rebuild${why}. Go back and use Rebuild on your trip to try again.`,
+              );
+            }
+          },
+          onCancel: goBack,
+        });
+
+        return;
+      }
 
       goBack();
     } catch (cause) {
@@ -176,6 +245,13 @@ export default function Understanding() {
 
   const reasonOptions = showAll ? [...JOURNEY_REASONS, ...MORE_REASONS] : JOURNEY_REASONS;
 
+  /* Today, or the day the trip began if that is already behind us. Someone on
+     day three of a trip extending it by two days must still be able to reach
+     their own start date; bounded at today it is disabled, and since any tap
+     restarts the range they could never get back to it. */
+  const today = isoDate(new Date(), journey.destination.timezone);
+  const earliest = journey.starts_on && journey.starts_on < today ? journey.starts_on : today;
+
   return (
     <Screen>
       {header}
@@ -185,6 +261,25 @@ export default function Understanding() {
           These are the answers behind what we suggest. Change any of them and the plan is reasoned
           again from the new ones — nothing you have booked or fixed is touched.
         </Note>
+      </Gutter>
+
+      {/* ── Dates ────────────────────────────────────────────────────── */}
+      <Gutter>
+        <SectionHeader
+          title="When are you going"
+          caption={
+            currentStartsOn && currentEndsOn
+              ? stayRangeLabel(currentStartsOn, currentEndsOn)
+              : 'Pick the days you will be there'
+          }
+        />
+        <DateRangeCalendar
+          startsOn={currentStartsOn}
+          endsOn={currentEndsOn}
+          onChange={(startsOn, endsOn) => setDates({ startsOn, endsOn })}
+          minDate={earliest}
+          maxSpanDays={14}
+        />
       </Gutter>
 
       {/* ── Purpose ──────────────────────────────────────────────────── */}

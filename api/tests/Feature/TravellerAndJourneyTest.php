@@ -203,6 +203,51 @@ class TravellerAndJourneyTest extends TestCase
         $this->assertNull($cleared->json('data.mission_text'));
     }
 
+    /**
+     * The app now lets a traveller say when they are going, and change it
+     * later. That is only worth anything if the planner builds the days they
+     * asked for — without dates it quietly plans three days from today, which
+     * is the behaviour this replaces.
+     */
+    public function test_changing_the_dates_moves_the_days_that_get_planned(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => '2026-11-02',
+            'ends_on' => '2026-11-04',
+        ], ['X-Guest-Token' => $token])->json('data.id');
+
+        $tripId = $this->postJson('/api/trips', [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $token])->json('data.id');
+
+        $moved = $this->patchJson("/api/journeys/{$journeyId}", [
+            'starts_on' => '2026-12-10',
+            'ends_on' => '2026-12-14',
+        ], ['X-Guest-Token' => $token]);
+
+        $moved->assertOk();
+        $this->assertSame('2026-12-10', $moved->json('data.starts_on'));
+        $this->assertSame('2026-12-14', $moved->json('data.ends_on'));
+
+        $itinerary = $this->postJson("/api/trips/{$tripId}/generate-itinerary", [], [
+            'X-Guest-Token' => $token,
+        ]);
+
+        $itinerary->assertCreated();
+        $dates = array_column($itinerary->json('data.days'), 'date');
+
+        $this->assertSame(
+            ['2026-12-10', '2026-12-11', '2026-12-12', '2026-12-13', '2026-12-14'],
+            $dates,
+            'The plan must cover the days the traveller asked for.',
+        );
+    }
+
     public function test_a_journey_stores_stay_dates(): void
     {
         $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');

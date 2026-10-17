@@ -26,6 +26,9 @@ export function confirmAction(
     cancelLabel?: string;
     destructive?: boolean;
     onConfirm: () => void | Promise<void>;
+    /* Declining is a decision too, and the caller sometimes has to act on it
+       — a screen that asks on the way out still has to leave either way. */
+    onCancel?: () => void;
   },
 ): void {
   const cancelLabel = options.cancelLabel ?? 'Cancel';
@@ -34,12 +37,14 @@ export function confirmAction(
     const text = `${title}\n\n${message}`;
     if (typeof window !== 'undefined' && window.confirm(text)) {
       void options.onConfirm();
+    } else {
+      options.onCancel?.();
     }
     return;
   }
 
   Alert.alert(title, message, [
-    { text: cancelLabel, style: 'cancel' },
+    { text: cancelLabel, style: 'cancel', onPress: () => options.onCancel?.() },
     {
       text: options.confirmLabel,
       style: options.destructive ? 'destructive' : 'default',

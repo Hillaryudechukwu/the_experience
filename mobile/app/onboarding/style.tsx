@@ -6,8 +6,9 @@ import { useCreateJourney, useCreateTrip, useUpdateProfile } from '../../src/api
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Gutter, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
-import { stayBounds } from '../../src/lib/format';
-import { useOnboardingDraft, type StayDays } from '../../src/store/draft';
+import { DateRangeCalendar } from '../../src/components/DateRangeCalendar';
+import { isoDate, stayBounds, stayDayCount, stayRangeLabel } from '../../src/lib/format';
+import { useOnboardingDraft } from '../../src/store/draft';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -28,13 +29,6 @@ const TOURIST_STYLE = [
   { value: 85, label: 'Iconic first' },
   { value: 60, label: 'Balanced' },
   { value: 25, label: 'Mostly local' },
-];
-
-const STAY: { days: StayDays; label: string; hint: string }[] = [
-  { days: 1, label: 'Just today', hint: 'One day' },
-  { days: 3, label: 'A few days', hint: 'About 3 days' },
-  { days: 7, label: 'About a week', hint: '7 days' },
-  { days: 14, label: 'Up to two weeks', hint: '14 days' },
 ];
 
 /** Travel style (Figma: 14.6), then everything is submitted at once. */
@@ -65,11 +59,21 @@ export default function TravelStyle() {
       });
 
       if (session.destinationId && draft.reason) {
-        const { starts_on, ends_on } = stayBounds(
-          draft.stayDays,
-          new Date(),
-          session.destinationTimezone ?? undefined,
-        );
+        /* Skipping this screen is still allowed, and still has to produce a
+           trip. Without dates we fall back to the old behaviour — three days
+           from today — rather than creating a journey with no dates at all,
+           which the planner would read the same way anyway. */
+        const fallback = stayBounds(3, new Date(), session.destinationTimezone ?? undefined);
+
+        /* Both halves or neither. Falling back independently paired a chosen
+           arrival with a departure counted from today, which is an invalid
+           range whenever the arrival is further off than that — and Skip
+           reaches here without passing the disabled button that is supposed
+           to stop a half-picked range getting this far. */
+        const { starts_on, ends_on } =
+          draft.startsOn && draft.endsOn
+            ? { starts_on: draft.startsOn, ends_on: draft.endsOn }
+            : fallback;
         const journey = await createJourney.mutateAsync({
           destination_id: session.destinationId,
           reason: draft.reason,
@@ -94,8 +98,17 @@ export default function TravelStyle() {
     }
   };
 
+  /* One day or several, read from the dates themselves now that we have them
+     rather than from a preset that no longer exists. */
+  const plannedDays = stayDayCount(draft.startsOn, draft.endsOn);
+
+  /* An arrival with no departure is not an answer. The edit screen refuses to
+     save one for the same reason; here the CTA sits directly under the
+     calendar, so without this a stray tap books a one-day trip. */
+  const rangeIncomplete = !!draft.startsOn && !draft.endsOn;
+
   const finishLabel = busy
-    ? draft.stayDays > 1
+    ? (plannedDays ?? 3) > 1
       ? 'Building your itinerary…'
       : 'Building your day…'
     : 'Show me what is worth doing';
@@ -143,18 +156,21 @@ export default function TravelStyle() {
           ))}
         </Row>
 
-        <SectionHeader title="How long are you staying?" caption="Shapes how many days we plan" />
-        <Row gap={space.xs} wrap>
-          {STAY.map((option) => (
-            <Choice
-              key={option.days}
-              label={option.label}
-              hint={option.hint}
-              selected={draft.stayDays === option.days}
-              onPress={() => draft.set({ stayDays: option.days })}
-            />
-          ))}
-        </Row>
+        <SectionHeader
+          title="When are you going?"
+          caption={
+            draft.startsOn && draft.endsOn
+              ? stayRangeLabel(draft.startsOn, draft.endsOn)
+              : 'Pick the days you will be there'
+          }
+        />
+        <DateRangeCalendar
+          startsOn={draft.startsOn}
+          endsOn={draft.endsOn}
+          onChange={(startsOn, endsOn) => draft.set({ startsOn, endsOn })}
+          minDate={isoDate(new Date(), session.destinationTimezone ?? undefined)}
+          maxSpanDays={14}
+        />
 
         <SectionHeader title="Who is travelling?" />
         <Row gap={space.xl}>
@@ -175,8 +191,14 @@ export default function TravelStyle() {
           size="large"
           onPress={finish}
           loading={busy}
+          disabled={busy || rangeIncomplete}
           haptic="medium"
         />
+        {rangeIncomplete ? (
+          <T variant="caption" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
+            Pick the day you leave. Tap the same day again for a single-day trip.
+          </T>
+        ) : null}
       </Gutter>
     </Screen>
   );
