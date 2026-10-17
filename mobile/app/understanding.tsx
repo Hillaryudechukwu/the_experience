@@ -20,7 +20,7 @@ import {
 import { confirmAction } from '../src/lib/alert';
 import { isoDate, stayRangeLabel } from '../src/lib/format';
 import { useBackTo } from '../src/lib/navigation';
-import { useRebuildPrompt } from '../src/lib/useRebuildPrompt';
+import { usePlanForDates } from '../src/lib/usePlanForDates';
 import { FAMILIARITY, JOURNEY_REASONS, MORE_REASONS, missionSuggestionsFor } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
@@ -48,7 +48,7 @@ export default function Understanding() {
 
   const { data: journey, isLoading, isError, refetch } = useJourney(journeyId);
   const update = useUpdateJourney(journeyId ?? '');
-  const { askToRebuild } = useRebuildPrompt(tripId);
+  const { syncPlanToDates, working } = usePlanForDates(journeyId, tripId);
 
   /* Undefined means "not touched on this screen", which is what keeps the
      request to the fields that actually moved. */
@@ -183,16 +183,16 @@ export default function Understanding() {
         ...(datesChanged ? { starts_on: dates!.startsOn, ends_on: dates!.endsOn } : {}),
       });
 
-      /* Moving the dates can outdate the plan; the prompt lives in one place
-         because Home can move them too. It takes over when there is a plan to
-         disturb, and says so. */
-      if (
-        datesChanged &&
-        askToRebuild(
+      /* Moving the dates leaves the plan describing days that are no longer
+         the trip. One place decides what to do about that, because Home can
+         move them too: rebuild after asking when there is a plan, and simply
+         build one when there is not. */
+      if (datesChanged) {
+        syncPlanToDates(
           { startsOn: journey.starts_on, endsOn: journey.ends_on },
           { onDone: goBack, onFailed: setError },
-        )
-      ) {
+        );
+
         return;
       }
 
@@ -392,10 +392,10 @@ export default function Understanding() {
 
       <Gutter style={{ marginTop: space.md, marginBottom: space.xxl }}>
         <Button
-          label={update.isPending ? 'Saving…' : 'Save changes'}
+          label={working ? 'Building your plan…' : update.isPending ? 'Saving…' : 'Save changes'}
           onPress={save}
-          disabled={!changed || update.isPending}
-          loading={update.isPending}
+          disabled={!changed || update.isPending || working}
+          loading={update.isPending || working}
         />
         <T variant="caption" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
           {changed

@@ -28,7 +28,7 @@ import {
   T,
 } from '../../src/components/primitives';
 import { clock, conditionLabel, isoDate, stayRangeLabel, timeOfDayGreeting, windowLabel } from '../../src/lib/format';
-import { useRebuildPrompt } from '../../src/lib/useRebuildPrompt';
+import { usePlanForDates } from '../../src/lib/usePlanForDates';
 import { discoveryPayload, useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -109,7 +109,7 @@ export default function Discover() {
   const { data: profile } = useProfile();
   const surprise = useSurpriseMe();
   const updateJourney = useUpdateJourney(session.journeyId ?? '');
-  const { askToRebuild } = useRebuildPrompt(session.tripId);
+  const { syncPlanToDates, working: buildingPlan } = usePlanForDates(session.journeyId, session.tripId);
 
   const draftStartsOn = draftDates ? draftDates.startsOn : (journey?.starts_on ?? null);
   const draftEndsOn = draftDates ? draftDates.endsOn : (journey?.ends_on ?? null);
@@ -144,11 +144,9 @@ export default function Discover() {
         setDraftDates(undefined);
       };
 
-      /* The plan may now be for days that are no longer the trip. Shared with
-         the trip's edit screen so the question is asked the same way. */
-      if (!askToRebuild(previous, { onDone: close, onFailed: setDatesError })) {
-        close();
-      }
+      /* Shared with the trip's edit screen: rebuild after asking when there
+         is a plan, and build one outright when there is not. */
+      syncPlanToDates(previous, { onDone: close, onFailed: setDatesError });
     } catch (cause) {
       setDatesError(cause instanceof Error ? cause.message : 'That did not save. Try again.');
     }
@@ -717,10 +715,10 @@ export default function Discover() {
             {datesError ? <Note tone="warning">{datesError}</Note> : null}
 
             <Button
-              label={updateJourney.isPending ? 'Saving…' : 'Save dates'}
+              label={buildingPlan ? 'Building your plan…' : updateJourney.isPending ? 'Saving…' : 'Save dates'}
               onPress={saveDates}
-              disabled={!datesChanged || updateJourney.isPending}
-              loading={updateJourney.isPending}
+              disabled={!datesChanged || updateJourney.isPending || buildingPlan}
+              loading={updateJourney.isPending || buildingPlan}
             />
             <T variant="caption" color={colors.text.tertiary} align="center">
               {draftStartsOn && !draftEndsOn

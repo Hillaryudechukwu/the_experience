@@ -463,6 +463,23 @@ export function useGenerateItinerary(tripId: string | null) {
   });
 }
 
+/**
+ * Build a plan for a trip whose id is only known at call time.
+ *
+ * useGenerateItinerary binds its id when the component renders, which is no
+ * use when the trip is created a moment before the plan is asked for — the
+ * request would go to /trips/null/generate-itinerary.
+ */
+export function useBuildItinerary() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ tripId, body = {} }: { tripId: string; body?: Record<string, unknown> }) =>
+      wrapped(http.post<{ data: Itinerary }>(`/trips/${tripId}/generate-itinerary`, body)),
+    onSuccess: (_result, { tripId }) => client.invalidateQueries({ queryKey: keys.trip(tripId) }),
+  });
+}
+
 export type ReplanResult = {
   message: string;
   trigger: { type: string; condition?: string; affects?: string } | null;
