@@ -15,18 +15,32 @@ WebBrowser.maybeCompleteAuthSession();
 const enabled = process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
 /**
- * Google's iOS client rejects every redirect except the reversed client id.
+ * Google rejects every installed-app redirect except the reversed client id.
  *
- * The auth library otherwise sends `{bundle id}:/oauthredirect`, which is a
- * redirect_uri_mismatch. Google Sign-In for iOS uses this exact form:
- * `com.googleusercontent.apps.<id>:/oauth2callback`. The scheme half is
- * registered in app.json so the browser can return to the app.
+ * expo-auth-session otherwise sends `{applicationId}:/oauthredirect`
+ * (`uk.co.synteric.experience:/oauthredirect` on Android). Google treats that
+ * as a custom scheme, which Android clients refuse with 400 invalid_request
+ * (“WAYOA's request is invalid”).
+ *
+ * iOS Sign-In uses `com.googleusercontent.apps.<id>:/oauth2callback`.
+ * Android's installed-app flow uses `…:/oauth2redirect`. The scheme half of
+ * each is registered in app.json so the browser can return to the app.
+ *
+ * The Android OAuth client also needs “Enable custom URI scheme” in
+ * Google Cloud Console → Credentials → that client → Advanced settings.
  */
-function googleIosRedirectUri(clientId: string | undefined): string | undefined {
-  if (Platform.OS !== 'ios' || !clientId?.endsWith('.apps.googleusercontent.com')) return undefined;
+function googleNativeRedirectUri(): string | undefined {
+  const clientId = Platform.select({
+    ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  });
+  if ((Platform.OS !== 'ios' && Platform.OS !== 'android') || !clientId?.endsWith('.apps.googleusercontent.com')) {
+    return undefined;
+  }
 
   const scheme = clientId.split('.').reverse().join('.');
-  return `${scheme}:/oauth2callback`;
+  const path = Platform.OS === 'ios' ? 'oauth2callback' : 'oauth2redirect';
+  return `${scheme}:/${path}`;
 }
 
 export type IdentityProof = {
@@ -69,13 +83,13 @@ function SocialSignInButtons({
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const iosRedirectUri = googleIosRedirectUri(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
+  const nativeRedirectUri = googleNativeRedirectUri();
   const [request, response, promptGoogle] = Google.useIdTokenAuthRequest({
     clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'disabled',
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'disabled',
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || 'disabled',
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || 'disabled',
-    ...(iosRedirectUri ? { redirectUri: iosRedirectUri } : {}),
+    ...(nativeRedirectUri ? { redirectUri: nativeRedirectUri } : {}),
   });
 
   const finish = async (provider: 'google' | 'apple', idToken: string, name: string | null) => {
