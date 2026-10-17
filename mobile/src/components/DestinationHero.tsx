@@ -75,8 +75,12 @@ export function DestinationHero({
   const insets = useSafeAreaInsets();
   /* Every other remote image in the app falls back when it fails; this one
      did not, so when Wikimedia refused the request the header simply went
-     dark and nothing said why. Photo has done it this way all along. */
-  const [imageFailed, setImageFailed] = useState(false);
+     dark and nothing said why. Photo has done it this way all along.
+
+     Which picture failed, not whether one did. This component is mounted once
+     and switching city only changes the prop, so a boolean would have let a
+     single dropped request suppress every later city's photograph too. */
+  const [failedUri, setFailedUri] = useState<string | null>(null);
   /*
    * The reserved strip is extra photograph, not less room for the text.
    *
@@ -107,7 +111,7 @@ export function DestinationHero({
      * padding, so the card below still rides up over photograph either way.
      */
     <View style={{ minHeight: total, width: '100%', backgroundColor: colors.brand.midnight }}>
-      {imageUri && !imageFailed ? (
+      {imageUri && failedUri !== imageUri ? (
         <Image
           source={remoteImage(imageUri)}
           /* Pinned to all four edges, so it follows the header when the
@@ -115,7 +119,7 @@ export function DestinationHero({
              measured against a parent that no longer has a fixed one. */
           style={{ position: 'absolute', inset: 0 as never }}
           resizeMode="cover"
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedUri(imageUri)}
           accessibilityIgnoresInvertColors
         />
       ) : (
