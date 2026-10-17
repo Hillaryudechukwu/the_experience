@@ -65,7 +65,7 @@ export default function TravelStyle() {
            which the planner would read the same way anyway. */
         const fallback = stayBounds(3, new Date(), session.destinationTimezone ?? undefined);
         const starts_on = draft.startsOn ?? fallback.starts_on;
-        const ends_on = draft.endsOn ?? draft.startsOn ?? fallback.ends_on;
+        const ends_on = draft.endsOn ?? fallback.ends_on;
         const journey = await createJourney.mutateAsync({
           destination_id: session.destinationId,
           reason: draft.reason,
@@ -93,6 +93,11 @@ export default function TravelStyle() {
   /* One day or several, read from the dates themselves now that we have them
      rather than from a preset that no longer exists. */
   const plannedDays = stayDayCount(draft.startsOn, draft.endsOn);
+
+  /* An arrival with no departure is not an answer. The edit screen refuses to
+     save one for the same reason; here the CTA sits directly under the
+     calendar, so without this a stray tap books a one-day trip. */
+  const rangeIncomplete = !!draft.startsOn && !draft.endsOn;
 
   const finishLabel = busy
     ? (plannedDays ?? 3) > 1
@@ -178,8 +183,14 @@ export default function TravelStyle() {
           size="large"
           onPress={finish}
           loading={busy}
+          disabled={busy || rangeIncomplete}
           haptic="medium"
         />
+        {rangeIncomplete ? (
+          <T variant="caption" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
+            Pick the day you leave. Tap the same day again for a single-day trip.
+          </T>
+        ) : null}
       </Gutter>
     </Screen>
   );

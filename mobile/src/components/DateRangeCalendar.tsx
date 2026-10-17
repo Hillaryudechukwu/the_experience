@@ -99,7 +99,13 @@ export function DateRangeCalendar({
     return cells;
   }, [cursor]);
 
+  /* Set when a tap was shortened to fit the limit, so the substitution is
+     explained where it happened rather than inferred from a note that reads
+     as though the shorter range was chosen. */
+  const [clampedFrom, setClampedFrom] = useState<string | null>(null);
+
   const select = (iso: string) => {
+    setClampedFrom(null);
     /* First tap sets the start. Second extends it. A third starts again, which
        is how every booking calendar behaves and saves an explicit "clear". */
     if (!startsOn || (startsOn && endsOn)) {
@@ -113,6 +119,7 @@ export function DateRangeCalendar({
     }
 
     if (maxSpanDays && daysBetween(startsOn, iso) + 1 > maxSpanDays) {
+      setClampedFrom(iso);
       onChange(startsOn, toIsoAfter(startsOn, maxSpanDays - 1));
       return;
     }
@@ -223,7 +230,13 @@ export function DateRangeCalendar({
         </T>
       ) : null}
 
-      {atMax ? (
+      {clampedFrom ? (
+        <Note tone="warning">
+          {parts(clampedFrom).day} {MONTHS[parts(clampedFrom).month - 1]} is more than {maxSpanDays}{' '}
+          days away, so we stopped at the {maxSpanDays}th day. Pick a later arrival for the rest of
+          the trip.
+        </Note>
+      ) : atMax ? (
         <Note>
           We plan up to {maxSpanDays} days at a time. Pick the stretch you want planned — you can
           move it later.

@@ -214,13 +214,16 @@ export default function Understanding() {
               await rebuild.mutateAsync({});
               goBack();
             } catch (cause) {
-              /* The dates saved; only the rebuild failed. Leaving now would
-                 put the new range above the old plan with nothing said, so
-                 stay and tell them — the rebuild is retryable from here. */
+              /* The dates saved; only the rebuild failed. Leaving silently
+                 would put the new range above the old plan with nothing said.
+                 Nothing on this screen can retry it either — once the journey
+                 refetches, the dates match and Save goes inert — so the
+                 message has to name the control that can: Rebuild, on the
+                 trip screen. */
+              const why = cause instanceof Error ? ` (${cause.message})` : '';
+
               setError(
-                cause instanceof Error
-                  ? `Your dates are saved, but the plan did not rebuild: ${cause.message}`
-                  : 'Your dates are saved, but the plan did not rebuild. Try again from the trip screen.',
+                `Your dates are saved, but the plan did not rebuild${why}. Go back and use Rebuild on your trip to try again.`,
               );
             }
           },
