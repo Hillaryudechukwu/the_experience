@@ -44,6 +44,12 @@ export function usePlanForDates(journeyId: string | null, tripId: string | null)
     previous: { startsOn: string | null; endsOn: string | null },
     handlers: { onDone: () => void; onFailed: (message: string) => void },
   ): void => {
+    /* Which control to send them to if this fails. The trip screen only offers
+       Rebuild once an itinerary exists, so naming it to someone whose first
+       build just failed would point at nothing. Unknown counts as a plan, the
+       same way the branch below treats it. */
+    const hadPlan = !!trip?.itinerary || planUnknown;
+
     const run = async () => {
       try {
         let id = tripId;
@@ -69,7 +75,9 @@ export function usePlanForDates(journeyId: string | null, tripId: string | null)
         const why = cause instanceof Error ? ` (${cause.message})` : '';
 
         handlers.onFailed(
-          `Your dates are saved, but the plan did not build${why}. Use Rebuild on your trip to try again.`,
+          `Your dates are saved, but the plan did not build${why}. ${
+            hadPlan ? 'Use Rebuild on your trip to try again.' : 'Open your trip to build it there.'
+          }`,
         );
       }
     };

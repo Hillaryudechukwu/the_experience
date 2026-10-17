@@ -723,7 +723,9 @@ export default function Discover() {
             <T variant="caption" color={colors.text.tertiary} align="center">
               {draftStartsOn && !draftEndsOn
                 ? 'Pick the day you leave.'
-                : 'Changing these rebuilds nothing until you say so.'}
+                : trip?.itinerary
+                  ? 'Your plan is only replaced after we ask.'
+                  : 'We will build your plan for these days.'}
             </T>
           </View>
         </Sheet>
