@@ -2,13 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 
 import { ApiError } from '../src/api/client';
-import {
-  useGenerateItinerary,
-  useJourney,
-  useMissionSuggestions,
-  useTrip,
-  useUpdateJourney,
-} from '../src/api/hooks';
+import { useJourney, useMissionSuggestions, useUpdateJourney } from '../src/api/hooks';
 import { DateRangeCalendar } from '../src/components/DateRangeCalendar';
 import { Icon } from '../src/components/Icon';
 import {
@@ -26,6 +20,7 @@ import {
 import { confirmAction } from '../src/lib/alert';
 import { isoDate, stayRangeLabel } from '../src/lib/format';
 import { useBackTo } from '../src/lib/navigation';
+import { usePlanForDates } from '../src/lib/usePlanForDates';
 import { FAMILIARITY, JOURNEY_REASONS, MORE_REASONS, missionSuggestionsFor } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
@@ -52,9 +47,8 @@ export default function Understanding() {
   const tripId = useSession((s) => s.tripId);
 
   const { data: journey, isLoading, isError, refetch } = useJourney(journeyId);
-  const { data: trip } = useTrip(tripId);
   const update = useUpdateJourney(journeyId ?? '');
-  const rebuild = useGenerateItinerary(tripId ?? '');
+  const { syncPlanToDates, working } = usePlanForDates(journeyId, tripId);
 
   /* Undefined means "not touched on this screen", which is what keeps the
      request to the fields that actually moved. */
@@ -189,46 +183,15 @@ export default function Understanding() {
         ...(datesChanged ? { starts_on: dates!.startsOn, ends_on: dates!.endsOn } : {}),
       });
 
-      /*
-       * A plan built for 9-11 October means nothing once the trip is 20-27,
-       * but rebuilding silently throws away days the traveller may have been
-       * working from — generate-itinerary demotes the current itinerary, it
-       * does not merge. So we name what is about to be lost and ask.
-       */
-      if (datesChanged && tripId && trip?.itinerary) {
-        /* Name the days being replaced when we know them. A journey that had
-           no dates still has a plan — built from the planner's own fallback —
-           and skipping the prompt there would leave exactly the contradiction
-           it exists to prevent. stayRangeLabel throws on null, hence the two
-           wordings rather than one. */
-        const covers =
-          journey.starts_on && journey.ends_on
-            ? `Your plan covers ${stayRangeLabel(journey.starts_on, journey.ends_on)}.`
-            : 'Your current plan was built for different days.';
-
-        confirmAction('Rebuild your plan?', `${covers} Rebuilding it for the new dates replaces what is there now.`, {
-          confirmLabel: 'Rebuild',
-          cancelLabel: 'Keep it for now',
-          onConfirm: async () => {
-            try {
-              await rebuild.mutateAsync({});
-              goBack();
-            } catch (cause) {
-              /* The dates saved; only the rebuild failed. Leaving silently
-                 would put the new range above the old plan with nothing said.
-                 Nothing on this screen can retry it either — once the journey
-                 refetches, the dates match and Save goes inert — so the
-                 message has to name the control that can: Rebuild, on the
-                 trip screen. */
-              const why = cause instanceof Error ? ` (${cause.message})` : '';
-
-              setError(
-                `Your dates are saved, but the plan did not rebuild${why}. Go back and use Rebuild on your trip to try again.`,
-              );
-            }
-          },
-          onCancel: goBack,
-        });
+      /* Moving the dates leaves the plan describing days that are no longer
+         the trip. One place decides what to do about that, because Home can
+         move them too: rebuild after asking when there is a plan, and simply
+         build one when there is not. */
+      if (datesChanged) {
+        syncPlanToDates(
+          { startsOn: journey.starts_on, endsOn: journey.ends_on },
+          { onDone: goBack, onFailed: setError },
+        );
 
         return;
       }
@@ -429,10 +392,10 @@ export default function Understanding() {
 
       <Gutter style={{ marginTop: space.md, marginBottom: space.xxl }}>
         <Button
-          label={update.isPending ? 'Saving…' : 'Save changes'}
+          label={working ? 'Building your plan…' : update.isPending ? 'Saving…' : 'Save changes'}
           onPress={save}
-          disabled={!changed || update.isPending}
-          loading={update.isPending}
+          disabled={!changed || update.isPending || working}
+          loading={update.isPending || working}
         />
         <T variant="caption" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
           {changed
