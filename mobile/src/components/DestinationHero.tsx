@@ -81,6 +81,13 @@ export function DestinationHero({
      and switching city only changes the prop, so a boolean would have let a
      single dropped request suppress every later city's photograph too. */
   const [failedUri, setFailedUri] = useState<string | null>(null);
+
+  /* undefined is "we have not been told yet"; null is "there is none". Only
+     the second deserves the wash — painting it while the request is still in
+     flight claims there is no photograph before we know, and then takes it
+     back a moment later. Until we know, the midnight background stands in,
+     which is close enough to the photograph's own scrim to go unnoticed. */
+  const showWash = imageUri === null || (imageUri != null && failedUri === imageUri);
   /*
    * The reserved strip is extra photograph, not less room for the text.
    *
@@ -122,14 +129,14 @@ export function DestinationHero({
           onError={() => setFailedUri(imageUri)}
           accessibilityIgnoresInvertColors
         />
-      ) : (
+      ) : showWash ? (
         /* The wash needs a box with a height of its own to fill. Handing the
            absolute position to Artwork instead would leave its own `100%`
            measuring against a header that is min-height, not fixed. */
         <View style={{ position: 'absolute', inset: 0 as never }}>
           <Artwork id={city} height="100%" glyph={false} />
         </View>
-      )}
+      ) : null}
 
       {/* Two scrims: one from the top so the status bar and controls stay
           legible over a bright sky, one from the bottom for the greeting. */}
