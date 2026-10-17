@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { clearIdentity, http, setAuthToken } from './client';
+import { ApiError, clearIdentity, http, setAuthToken } from './client';
 import { showAlert } from '../lib/alert';
 import type {
   AssistantReply,
@@ -386,11 +386,87 @@ export function useExportPrivacyData() {
   });
 }
 
+function isMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+type CurrentJourney = { data: Journey | null; trip_id: string | null };
+
+/**
+ * Point the device at the journey this actor still has.
+ *
+ * Sign-in moves a guest journey onto the account without changing its id, but
+ * a device that signed out — or lost its guest token — is now somebody else.
+ * The stored id 404s. The account's journey is still there; this is how the
+ * device finds it again. A miss is ignored so an API that predates the route
+ * does not wipe a journey adoption already kept.
+ */
+async function restoreOwnedJourney(): Promise<void> {
+  try {
+    const current = await http.get<CurrentJourney>('/journeys/current');
+    const nextJourney = current.data?.id ?? null;
+    const nextTrip = current.trip_id ?? null;
+    const state = useSession.getState();
+
+    if (state.journeyId !== nextJourney) await state.setJourney(nextJourney);
+    if (state.tripId !== nextTrip) await state.setTrip(nextTrip);
+  } catch {
+    /* Leave the stored ids. The caller decides whether a 404 should drop them. */
+  }
+}
+
+let releasing: Promise<void> | null = null;
+
+/** The stored journey 404'd. Take this actor's real one, or forget the id. */
+function releaseStaleJourney(): Promise<void> {
+  if (releasing) return releasing;
+
+  releasing = (async () => {
+    const before = useSession.getState().journeyId;
+
+    try {
+      const current = await http.get<CurrentJourney>('/journeys/current');
+      const nextJourney = current.data?.id ?? null;
+      const nextTrip = nextJourney === null ? null : (current.trip_id ?? null);
+
+      /* show() refused an id current still names. The two reads disagree;
+         wiping here would drop a journey this actor does have. */
+      if (nextJourney === before) return;
+      if (useSession.getState().journeyId !== before) return;
+
+      await useSession.getState().setJourney(nextJourney);
+      await useSession.getState().setTrip(nextTrip);
+    } catch {
+      /* Could not ask. The id already 404'd, so keeping it only repeats that. */
+      if (useSession.getState().journeyId === before) {
+        await useSession.getState().setJourney(null);
+        await useSession.getState().setTrip(null);
+      }
+    }
+  })().finally(() => {
+    releasing = null;
+  });
+
+  return releasing;
+}
+
 export function useJourney(id: string | null) {
   return useQuery({
     enabled: !!id,
     queryKey: keys.journey(id ?? ''),
-    queryFn: () => wrapped(http.get<{ data: Journey }>(`/journeys/${id}`)),
+    /* A missing journey will not appear on the second try. Retrying just
+       repeats the 404 the console is already full of. */
+    retry: (failureCount, error) => !isMissing(error) && failureCount < 1,
+    queryFn: async () => {
+      try {
+        return await wrapped(http.get<{ data: Journey }>(`/journeys/${id}`));
+      } catch (error) {
+        if (isMissing(error) && id && useSession.getState().journeyId === id) {
+          await releaseStaleJourney();
+        }
+        throw error;
+      }
+    },
   });
 }
 
@@ -443,7 +519,17 @@ export function useTrip(id: string | null) {
   return useQuery({
     enabled: !!id,
     queryKey: keys.trip(id ?? ''),
-    queryFn: () => wrapped(http.get<{ data: Trip }>(`/trips/${id}`)),
+    retry: (failureCount, error) => !isMissing(error) && failureCount < 1,
+    queryFn: async () => {
+      try {
+        return await wrapped(http.get<{ data: Trip }>(`/trips/${id}`));
+      } catch (error) {
+        if (isMissing(error) && id && useSession.getState().tripId === id) {
+          await useSession.getState().setTrip(null);
+        }
+        throw error;
+      }
+    },
   });
 }
 
@@ -588,7 +674,8 @@ export function useRegister() {
       await setAuthToken(result.token);
       return result.user;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await restoreOwnedJourney();
       client.invalidateQueries();
     },
     /* Screens surface field errors inline; a second system alert stacks badly
@@ -605,7 +692,8 @@ export function useLogin() {
       await setAuthToken(result.token);
       return result.user;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await restoreOwnedJourney();
       client.invalidateQueries();
     },
   });
@@ -623,7 +711,8 @@ export function useIdentitySignIn() {
       await setAuthToken(result.token);
       return result.user;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await restoreOwnedJourney();
       client.invalidateQueries();
     },
   });
@@ -638,6 +727,13 @@ export function useLogout() {
         await http.post('/auth/logout');
       } finally {
         await clearIdentity();
+        /*
+         * The journey stays on the account. This device is about to be a new
+         * guest, and the id in the session is the account's — the next read
+         * is the 404 "No query results for model Journey".
+         */
+        await useSession.getState().setJourney(null);
+        await useSession.getState().setTrip(null);
       }
     },
     onSuccess: () => {
