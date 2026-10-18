@@ -22,9 +22,9 @@ const enabled = process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
  * as a custom scheme, which Android clients refuse with 400 invalid_request
  * (“WAYOA's request is invalid”).
  *
- * iOS Sign-In uses `com.googleusercontent.apps.<id>:/oauth2callback`.
- * Android's installed-app flow uses `…:/oauth2redirect`. The scheme half of
- * each is registered in app.json so the browser can return to the app.
+ * Both installed-app flows return to `com.googleusercontent.apps.<id>:/oauth2redirect`.
+ * The scheme half is registered in app.json so the browser can return to the
+ * app. Expo Router must not treat that path as a screen — see +native-intent.
  *
  * The Android OAuth client also needs “Enable custom URI scheme” in
  * Google Cloud Console → Credentials → that client → Advanced settings.
@@ -39,8 +39,8 @@ function googleNativeRedirectUri(): string | undefined {
   }
 
   const scheme = clientId.split('.').reverse().join('.');
-  const path = Platform.OS === 'ios' ? 'oauth2callback' : 'oauth2redirect';
-  return `${scheme}:/${path}`;
+
+  return `${scheme}:/oauth2redirect`;
 }
 
 export type IdentityProof = {
