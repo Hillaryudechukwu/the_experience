@@ -88,7 +88,10 @@ export function DateRangeCalendar({
     return { year: parts(anchor).year, month: parts(anchor).month };
   });
 
-  const grid = useMemo(() => {
+  /* One row of seven equal columns, same as the weekday headings. A single
+     wrapping row of `100/7 %` cells does not survive iPhone layout rounding:
+     the seventh cell wraps, and every date after it sits under the wrong day. */
+  const weeks = useMemo(() => {
     const total = daysInMonth(cursor.year, cursor.month);
     const blanks = leadingBlanks(cursor.year, cursor.month);
     const cells: (string | null)[] = Array.from({ length: blanks }, () => null);
@@ -96,7 +99,10 @@ export function DateRangeCalendar({
     for (let day = 1; day <= total; day++) cells.push(toIso(cursor.year, cursor.month, day));
     while (cells.length % 7 !== 0) cells.push(null);
 
-    return cells;
+    const rows: (string | null)[][] = [];
+    for (let index = 0; index < cells.length; index += 7) rows.push(cells.slice(index, index + 7));
+
+    return rows;
   }, [cursor]);
 
   /* Set when a tap was shortened to fit the limit, so the substitution is
@@ -158,7 +164,7 @@ export function DateRangeCalendar({
         </Pressable>
       </Row>
 
-      <Row>
+      <Row gap={0}>
         {WEEKDAYS.map((label, index) => (
           <View key={`${label}-${index}`} style={{ flex: 1, alignItems: 'center' }}>
             <T variant="caption" color={colors.text.tertiary}>
@@ -168,60 +174,64 @@ export function DateRangeCalendar({
         ))}
       </Row>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {grid.map((iso, index) => {
-          if (iso === null) {
-            return <View key={`blank-${index}`} style={{ width: `${100 / 7}%`, height: TOUCH_TARGET }} />;
-          }
+      <View>
+        {weeks.map((week, weekIndex) => (
+          <View key={weekIndex} style={{ flexDirection: 'row' }}>
+            {week.map((iso, index) => {
+              if (iso === null) {
+                return <View key={`blank-${weekIndex}-${index}`} style={{ flex: 1, height: TOUCH_TARGET }} />;
+              }
 
-          const past = iso < minDate;
-          const isStart = iso === startsOn;
-          const isEnd = iso === endsOn;
-          const within = !!startsOn && !!endsOn && iso > startsOn && iso < endsOn;
-          const edge = isStart || isEnd;
+              const past = iso < minDate;
+              const isStart = iso === startsOn;
+              const isEnd = iso === endsOn;
+              const within = !!startsOn && !!endsOn && iso > startsOn && iso < endsOn;
+              const edge = isStart || isEnd;
 
-          return (
-            <View
-              key={iso}
-              style={{
-                width: `${100 / 7}%`,
-                height: TOUCH_TARGET,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: within ? colors.background.sunken : 'transparent',
-              }}
-            >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: edge || within, disabled: past }}
-                accessibilityLabel={`${parts(iso).day} ${MONTHS[parts(iso).month - 1]}`}
-                disabled={past}
-                onPress={() => select(iso)}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: radius.pill,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: edge ? colors.action.primary : 'transparent',
-                }}
-              >
-                <T
-                  variant={edge ? 'smallStrong' : 'small'}
-                  color={
-                    past
-                      ? colors.text.tertiary
-                      : edge
-                        ? colors.text.onAccent
-                        : colors.text.primary
-                  }
+              return (
+                <View
+                  key={iso}
+                  style={{
+                    flex: 1,
+                    height: TOUCH_TARGET,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: within ? colors.background.sunken : 'transparent',
+                  }}
                 >
-                  {parts(iso).day}
-                </T>
-              </Pressable>
-            </View>
-          );
-        })}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: edge || within, disabled: past }}
+                    accessibilityLabel={`${parts(iso).day} ${MONTHS[parts(iso).month - 1]}`}
+                    disabled={past}
+                    onPress={() => select(iso)}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: radius.pill,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: edge ? colors.action.primary : 'transparent',
+                    }}
+                  >
+                    <T
+                      variant={edge ? 'smallStrong' : 'small'}
+                      color={
+                        past
+                          ? colors.text.tertiary
+                          : edge
+                            ? colors.text.onAccent
+                            : colors.text.primary
+                      }
+                    >
+                      {parts(iso).day}
+                    </T>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ))}
       </View>
 
       {startsOn && !endsOn ? (
