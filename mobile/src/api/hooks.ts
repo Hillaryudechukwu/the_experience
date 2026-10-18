@@ -38,6 +38,7 @@ export const keys = {
   destination: (slug: string) => ['destination', slug] as const,
   destinationImport: (id: string) => ['destination-import', id] as const,
   profile: () => ['profile'] as const,
+  entitlement: () => ['entitlement'] as const,
   dna: () => ['dna'] as const,
   journey: (id: string) => ['journey', id] as const,
   trip: (id: string) => ['trip', id] as const,
@@ -159,6 +160,41 @@ function reportFailure(what: string) {
       cause instanceof Error ? cause.message : 'The connection dropped. Please try again.',
     );
   };
+}
+
+export type Entitlement = {
+  can_use: boolean;
+  state: 'pending' | 'active' | 'active_until_period_end' | 'paused' | 'expired' | 'revoked' | 'inactive';
+  paid_until: string | null;
+  auto_renew: boolean;
+  pause_resumes_at: string | null;
+  store: 'apple' | 'google' | null;
+};
+
+/**
+ * Whether a paid month covers now (Subscription JEM §11 P4).
+ *
+ * The server decides; this is a read of that decision. The screen uses it to
+ * show a paywall instead of an error, which is the only reason the client
+ * knows about it at all — a client that decided for itself would be bypassed
+ * by anyone willing to edit a response.
+ *
+ * Deliberately not gated: a traveller with no month has to be able to ask
+ * whether they have one.
+ */
+export function useEntitlement() {
+  return useQuery({
+    queryKey: keys.entitlement(),
+    queryFn: () => wrapped(http.get<{ data: Entitlement }>('/billing/entitlement')),
+    /*
+     * Re-asked whenever the app comes back, against the global default.
+     * A month bought on another device, or a renewal that landed overnight,
+     * should not need the app killed and reopened to be noticed — and a
+     * denial that lingers is somebody locked out of what they just paid for.
+     */
+    refetchOnWindowFocus: true,
+    staleTime: 30 * 1000,
+  });
 }
 
 export function useProfile() {

@@ -16,6 +16,8 @@ export const ROUTES = [
   '/passport',
   '/essentials',
   '/anchors',
+  '/paywall',
+  '/understanding',
   '/account/delete',
   '/account/login',
   '/account/register',

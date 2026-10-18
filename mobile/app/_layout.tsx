@@ -19,6 +19,7 @@ import { useColorScheme } from 'react-native';
 import { BRAND, brandDocumentTitle } from '../src/brand';
 import { WayoaLogo } from '../src/components/WayoaLogo';
 import { colorModes } from '../src/design/tokens';
+import { usePaywallOn402 } from '../src/lib/usePaywallOn402';
 import { useSession } from '../src/store/session';
 
 const queryClient = new QueryClient({
@@ -109,6 +110,7 @@ export default function RootLayout() {
           <meta property="og:type" content="website" />
           <meta name="theme-color" content={colorModes.light.brand.midnight} />
         </Head>
+        <SubscriptionWatch />
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
@@ -127,4 +129,16 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </QueryClientProvider>
   );
+}
+
+/**
+ * Inside the provider, because it watches the query cache.
+ *
+ * Renders nothing: it is here so that one refused request anywhere in the app
+ * lands on the paywall rather than on a screen full of empty states.
+ */
+function SubscriptionWatch() {
+  usePaywallOn402();
+
+  return null;
 }
