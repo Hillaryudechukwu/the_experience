@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\BillingNotificationController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
@@ -33,6 +34,16 @@ use Illuminate\Support\Facades\Route;
  * session on first contact and returns it in X-Guest-Token. Registering later
  * adopts whatever the guest already did.
  */
+
+/*
+ * The stores call these, so they carry no guest session and no bearer token.
+ * They are outside the actor group for that reason, and each verifies its own
+ * caller before anything is applied.
+ */
+Route::post('billing/apple/notifications', [BillingNotificationController::class, 'apple'])
+    ->middleware('throttle:120,1');
+Route::post('billing/google/notifications', [BillingNotificationController::class, 'google'])
+    ->middleware('throttle:120,1');
 
 Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);

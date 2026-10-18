@@ -331,6 +331,30 @@ return [
             'apple' => env('BILLING_APPLE_PRODUCT', 'wayoa.monthly'),
             'google' => env('BILLING_GOOGLE_PRODUCT', 'wayoa_monthly'),
         ],
+
+        /*
+         * Store credentials. Every one of these is absent by default, and
+         * every verifier refuses when its own is missing — a billing endpoint
+         * that degrades to trusting its input when misconfigured is worse
+         * than one that stops.
+         */
+        'apple' => [
+            'bundle_id' => env('APPLE_BUNDLE_ID'),
+            'issuer_id' => env('APPLE_ISSUER_ID'),
+            'key_id' => env('APPLE_KEY_ID'),
+            'private_key' => env('APPLE_PRIVATE_KEY'),
+            'app_apple_id' => env('APPLE_APP_APPLE_ID'),
+            /* Apple's own root. Without it a chain can be checked for
+               self-consistency and nothing more, which proves only that
+               somebody signed the token. */
+            'root_certificate' => env('APPLE_ROOT_CERTIFICATE'),
+        ],
+
+        'google' => [
+            'package_name' => env('GOOGLE_PLAY_PACKAGE_NAME'),
+            'service_account_json' => env('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'),
+            'pubsub_audience' => env('GOOGLE_PUBSUB_AUDIENCE'),
+        ],
     ],
 
     'http' => [
