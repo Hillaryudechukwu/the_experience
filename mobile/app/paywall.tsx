@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Linking, Platform, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -34,10 +34,16 @@ export default function Paywall() {
   const pending = entitlement?.state === 'pending';
 
   /* Already paid while this screen was open — a restore landing, or a
-     notification arriving. Do not make them tap anything. */
-  if (entitlement?.can_use) {
-    router.replace('/(tabs)');
-  }
+     notification arriving. Do not make them tap anything.
+
+     In an effect, because navigating is a side effect: called while
+     rendering it warns, builds the rest of this screen anyway, and fires
+     twice under StrictMode. */
+  const entitled = entitlement?.can_use ?? false;
+
+  useEffect(() => {
+    if (entitled) router.replace('/(tabs)');
+  }, [entitled, router]);
 
   const openUrl = async (url: string, failure: string) => {
     try {

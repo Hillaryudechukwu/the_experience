@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
@@ -31,12 +32,40 @@ return new class extends Migration
             $table->string('environment', 16)->default('production');
             $table->timestamps();
 
-            /* One store subscription, one WAYOA account. A revoked row keeps
-               its id for history, so uniqueness is over the live ones. */
-            $table->unique(['store', 'original_transaction_id']);
+            $table->index(['store', 'original_transaction_id']);
             $table->index(['user_id', 'state']);
             $table->index('paid_until');
         });
+
+        /*
+         * One store subscription, one WAYOA account — among the live rows.
+         *
+         * A revoked row keeps its transaction id as history, and Apple reuses
+         * that id when the same traveller subscribes again. A unique index
+         * over every row would therefore let a refund permanently bar
+         * somebody from buying again, so the uniqueness has to exclude the
+         * revoked ones. PostgreSQL says that with a partial index; MySQL and
+         * MariaDB have none, but treat NULLs as always distinct, so a stored
+         * column that is NULL exactly when the row is revoked says the same
+         * thing.
+         */
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement(
+                'CREATE UNIQUE INDEX subscriptions_live_transaction_idx
+                 ON subscriptions (store, original_transaction_id)
+                 WHERE state <> \'revoked\''
+            );
+        } else {
+            DB::statement(
+                "ALTER TABLE subscriptions
+                 ADD COLUMN live_transaction_id VARCHAR(255)
+                 AS (CASE WHEN state = 'revoked' THEN NULL ELSE original_transaction_id END) STORED"
+            );
+            DB::statement(
+                'CREATE UNIQUE INDEX subscriptions_live_transaction_idx
+                 ON subscriptions (store, live_transaction_id)'
+            );
+        }
 
         Schema::create('subscription_events', function (Blueprint $table) {
             $table->uuid('id')->primary();

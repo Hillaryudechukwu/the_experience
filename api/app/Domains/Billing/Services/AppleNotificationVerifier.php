@@ -53,8 +53,8 @@ class AppleNotificationVerifier
             return null;
         }
 
-        if (! $this->chainTerminatesAtRoot($chain, $root)) {
-            Log::warning('Apple notification refused: certificate chain did not reach the configured root.');
+        if (! $this->chainIsApples($chain, $root)) {
+            Log::warning('Apple notification refused: certificate chain did not verify to the configured root.');
 
             return null;
         }
@@ -91,15 +91,60 @@ class AppleNotificationVerifier
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function chainTerminatesAtRoot(array $chain, string $root): bool
+    /**
+     * Every link, not just the far end.
+     *
+     * Apple's root is published, so "the last certificate is Apple's root"
+     * proves nothing on its own: anyone can append it to a chain of their own
+     * making. The leaf has to be signed by the next certificate, that one by
+     * the one after it, and the last has to *be* the root we were configured
+     * with — otherwise a self-signed leaf alongside a genuine root verifies a
+     * notification Apple never sent, which on this endpoint is a paid month
+     * nobody bought.
+     */
+    private function chainIsApples(array $chain, string $root): bool
     {
-        $last = $this->pem((string) end($chain));
-        $rootPem = str_contains($root, 'BEGIN CERTIFICATE') ? $root : $this->pem($root);
+        $certificates = [];
 
-        $given = openssl_x509_read($last);
+        foreach ($chain as $entry) {
+            $certificate = openssl_x509_read($this->pem((string) $entry));
+
+            if ($certificate === false) {
+                return false;
+            }
+
+            /* An expired or not-yet-valid certificate is not a trusted one,
+               and openssl_x509_verify does not look at dates. */
+            $parsed = openssl_x509_parse($certificate);
+
+            if (! is_array($parsed)) {
+                return false;
+            }
+
+            $now = time();
+
+            if ($now < (int) ($parsed['validFrom_time_t'] ?? 0) || $now > (int) ($parsed['validTo_time_t'] ?? 0)) {
+                return false;
+            }
+
+            $certificates[] = $certificate;
+        }
+
+        if (count($certificates) < 2) {
+            return false;
+        }
+
+        /* Each certificate signed by the next one along. */
+        for ($i = 0; $i < count($certificates) - 1; $i++) {
+            if (openssl_x509_verify($certificates[$i], $certificates[$i + 1]) !== 1) {
+                return false;
+            }
+        }
+
+        $rootPem = str_contains($root, 'BEGIN CERTIFICATE') ? $root : $this->pem($root);
         $expected = openssl_x509_read($rootPem);
 
-        if ($given === false || $expected === false) {
+        if ($expected === false) {
             return false;
         }
 
@@ -108,7 +153,7 @@ class AppleNotificationVerifier
            certificate. */
         return hash_equals(
             (string) openssl_x509_fingerprint($expected, 'sha256'),
-            (string) openssl_x509_fingerprint($given, 'sha256'),
+            (string) openssl_x509_fingerprint(end($certificates), 'sha256'),
         );
     }
 

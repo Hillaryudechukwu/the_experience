@@ -55,6 +55,27 @@ class GooglePubSubVerifier
             return false;
         }
 
+        /*
+         * Who minted it, not merely that Google did.
+         *
+         * The audience is a string we chose and put on our own subscription;
+         * it is not a secret. Anyone with a Cloud project can point their own
+         * push subscription at this URL with the same audience and have
+         * Google sign a token for it. Requiring the service account that our
+         * subscription actually uses pins the token to a sender.
+         */
+        $account = (string) config('experience.billing.google.pubsub_service_account');
+
+        if (trim($account) === '') {
+            Log::warning('Google notification refused: no Pub/Sub service account configured.');
+
+            return false;
+        }
+
+        if (! hash_equals($account, (string) ($claims['email'] ?? '')) || ($claims['email_verified'] ?? false) !== true) {
+            return false;
+        }
+
         return (int) ($claims['exp'] ?? 0) > time();
     }
 
