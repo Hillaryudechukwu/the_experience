@@ -140,6 +140,16 @@ export default function Paywall() {
         )}
       </Gutter>
 
+      {entitlement?.paid_until ? (
+        <Gutter style={{ marginTop: space.md }}>
+          <Button
+            label="Your subscription"
+            tone="secondary"
+            onPress={() => router.push('/subscription')}
+          />
+        </Gutter>
+      ) : null}
+
       <Gutter style={{ marginTop: space.lg }}>
         <T variant="caption" color={colors.text.tertiary}>
           Billed by {STORE_NAME}. Cancel any time in your {STORE_NAME} account — the month you have

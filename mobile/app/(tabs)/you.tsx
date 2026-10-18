@@ -335,6 +335,12 @@ export default function You() {
           />
           <Divider />
           <LinkRow
+            icon="sparkle"
+            label="Subscription"
+            onPress={() => router.push('/subscription')}
+          />
+          <Divider />
+          <LinkRow
             icon="info"
             label="Terms of use"
             onPress={async () => {
