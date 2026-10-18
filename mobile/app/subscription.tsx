@@ -164,6 +164,22 @@ export default function Subscription() {
         />
       </Gutter>
 
+      {/* The review notes tell a reviewer deletion is here, so it is here.
+          Both stores check that an account can be ended from inside the app,
+          and a paywalled traveller must not be trapped with a subscription
+          screen that offers no way out. */}
+      <Gutter style={{ marginTop: space.lg }}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/account/delete')}
+          hitSlop={8}
+        >
+          <T variant="small" color={colors.text.tertiary}>
+            Delete your account
+          </T>
+        </Pressable>
+      </Gutter>
+
       <Gutter style={{ marginTop: space.lg, marginBottom: space.xxl }}>
         <Row gap={space.md}>
           <Pressable
