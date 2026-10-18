@@ -354,6 +354,9 @@ return [
             'package_name' => env('GOOGLE_PLAY_PACKAGE_NAME'),
             'service_account_json' => env('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'),
             'pubsub_audience' => env('GOOGLE_PUBSUB_AUDIENCE'),
+            /* The service account on the push subscription. The audience says
+               which endpoint a token is for; this says who sent it. */
+            'pubsub_service_account' => env('GOOGLE_PUBSUB_SERVICE_ACCOUNT'),
         ],
     ],
 

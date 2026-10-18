@@ -30,11 +30,31 @@ class EntitlementService
             return null;
         }
 
+        /*
+         * The furthest-reaching paid period, and a row that has none can
+         * never be it.
+         *
+         * `orderByDesc` alone was not portable: PostgreSQL sorts NULLs first
+         * on a descending order and MySQL sorts them last, so a traveller
+         * holding both a pending row and an active one resolved to a
+         * different subscription on the database we test against than on the
+         * one we deploy to — and on PostgreSQL that meant refusing somebody
+         * who had paid. Excluding the rows with no period removes the
+         * question rather than answering it per driver.
+         */
         return Subscription::query()
             ->where('user_id', $actor->userId)
             ->where('state', '!=', SubscriptionState::Revoked)
+            ->whereNotNull('paid_until')
             ->orderByDesc('paid_until')
-            ->first();
+            ->first()
+            /* Nothing paid for yet, but there may still be a purchase in
+               flight, and the paywall says "still confirming" from it. */
+            ?? Subscription::query()
+                ->where('user_id', $actor->userId)
+                ->where('state', '!=', SubscriptionState::Revoked)
+                ->orderByDesc('created_at')
+                ->first();
     }
 
     public function canUse(Actor $actor, ?CarbonImmutable $now = null): bool
