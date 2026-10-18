@@ -16,8 +16,23 @@ Route::get('/legal/privacy', function () {
     return view('legal.privacy', [
         'updated' => config('experience.legal.privacy_updated', 'September 2026'),
         'contact' => config('experience.legal.privacy_contact') ?: 'privacy@example.com',
+        'termsUrl' => config('experience.legal.terms_url') ?: route('legal.terms'),
     ]);
 })->name('legal.privacy');
+
+/*
+ * Terms are required in the listing and in the app for a subscription, and
+ * Apple checks that both links open. Same reasoning as the policy above: no
+ * authentication, and reachable when there is no app to open it in.
+ */
+Route::get('/legal/terms', function () {
+    return view('legal.terms', [
+        'updated' => config('experience.legal.terms_updated', 'October 2026'),
+        'contact' => config('experience.legal.privacy_contact') ?: 'privacy@example.com',
+        'price' => config('experience.legal.subscription_price'),
+        'privacyUrl' => config('experience.legal.privacy_url') ?: route('legal.privacy'),
+    ]);
+})->name('legal.terms');
 
 /*
  * ── Deep-link association (Android App Links, iOS Universal Links) ────────

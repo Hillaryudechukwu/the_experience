@@ -594,6 +594,18 @@ return [
          * the app-served copy at /legal/privacy remains the fallback.
          */
         'privacy_url' => env('PRIVACY_POLICY_URL'),
+
+        /*
+         * The terms move on their own schedule: a price change rewrites them
+         * and leaves the privacy copy untouched, and the app shows each date
+         * where it shows each link.
+         */
+        'terms_updated' => env('EXPERIENCE_TERMS_UPDATED', '18 October 2026'),
+        'terms_url' => env('TERMS_URL'),
+
+        /* What the terms say the month costs. The store is what actually
+           charges, and shows its own localised price before confirming. */
+        'subscription_price' => env('BILLING_PRICE_LABEL', '£1.99'),
     ],
 
     /*

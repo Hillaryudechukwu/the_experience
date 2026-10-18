@@ -131,6 +131,25 @@
     complain to your data protection authority — in the UK, the Information Commissioner's Office.
   </p>
 
+  <h2>Subscriptions</h2>
+  <p>
+    If you pay for {{ config('app.name') }}, the payment itself happens in Apple's or Google's
+    systems. <strong>We never receive your card.</strong> What we store is only what is needed to
+    decide whether your month is currently paid for:
+  </p>
+  <ul>
+    <li>which store the subscription came from, and the product you bought;</li>
+    <li>the store's own identifier for the subscription, so a reinstall finds the same month;</li>
+    <li>the start and end of the period you have paid for;</li>
+    <li>its state — active, ending at the period end, paused, expired or refunded.</li>
+  </ul>
+  <p>
+    We keep that for as long as you have an account, because it is the record of what you are
+    entitled to. Deleting your account removes it. It does not cancel the subscription itself, which
+    lives in your Apple or Google account — see the
+    <a href="{{ $termsUrl }}">Terms of Use</a> for how to stop that.
+  </p>
+
   <h2>Changes</h2>
   <p>
     If this policy changes in a way that affects what we collect or who sees it, the app will tell you
