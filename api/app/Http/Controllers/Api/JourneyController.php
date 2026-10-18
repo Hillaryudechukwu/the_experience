@@ -8,6 +8,7 @@ use App\Domains\JourneyIntelligence\Services\MissionInterpreter;
 use App\Domains\JourneyIntelligence\Services\MissionSuggestionGenerator;
 use App\Domains\Journeys\Models\Journey;
 use App\Domains\Journeys\Models\JourneyAnchor;
+use App\Domains\Trips\Models\Trip;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,6 +59,33 @@ class JourneyController extends ApiController
     public function show(Request $request, string $journey): JsonResponse
     {
         return response()->json(['data' => $this->present($this->find($request, $journey))]);
+    }
+
+    /**
+     * The trip this actor actually has, which may not be the id stored on the device.
+     *
+     * The phone keeps a journey id across sign-out. The next request is a new
+     * guest, ownedBy hides the old row, and show() answers 404 — "No query
+     * results for model Journey". Asking for the id again cannot succeed.
+     * Asking who this actor is can: their latest active journey, or nothing.
+     */
+    public function current(Request $request): JsonResponse
+    {
+        $actor = $this->actor($request);
+        $journey = Journey::with(['destination', 'anchors'])
+            ->ownedBy($actor)
+            ->where('status', 'active')
+            ->latest('updated_at')
+            ->first();
+
+        $tripId = $journey === null
+            ? null
+            : Trip::query()->ownedBy($actor)->where('journey_id', $journey->id)->latest('updated_at')->value('id');
+
+        return response()->json([
+            'data' => $journey === null ? null : $this->present($journey),
+            'trip_id' => $tripId,
+        ]);
     }
 
     public function update(Request $request, string $journey): JsonResponse

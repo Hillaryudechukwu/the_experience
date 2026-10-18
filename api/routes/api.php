@@ -50,6 +50,8 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('journeys', [JourneyController::class, 'store']);
     Route::get('journeys/mission-suggestions', [JourneyController::class, 'missionSuggestions'])
         ->middleware('throttle:30,1');
+    /* Before {journey}: "current" would otherwise be looked up as an id. */
+    Route::get('journeys/current', [JourneyController::class, 'current']);
     Route::get('journeys/{journey}', [JourneyController::class, 'show']);
     Route::patch('journeys/{journey}', [JourneyController::class, 'update']);
     Route::post('journeys/{journey}/mission', [JourneyController::class, 'mission']);
