@@ -1,4 +1,4 @@
-import type { ImageURISource } from 'react-native';
+import { Platform, type ImageSourcePropType } from 'react-native';
 
 import { BRAND } from '../brand';
 
@@ -19,12 +19,33 @@ import { BRAND } from '../brand';
  * The API has always done this for its own calls to the same host — see
  * `experience.http.user_agent`. This is the client catching up, not a new
  * policy.
- *
- * Headers on an image source are honoured by Android and iOS and ignored by
- * the web build, which already sends an agent of its own.
  */
 export const IMAGE_USER_AGENT = `${BRAND.name}/1.0 (+https://experience.synteric.co.uk)`;
 
-export function remoteImage(uri: string): ImageURISource {
-  return { uri, headers: { 'User-Agent': IMAGE_USER_AGENT } };
+/**
+ * The shape differs by platform, and it has to.
+ *
+ * Android only forwards headers from an **array** source. Image.android.js
+ * lifts `headers` into a native prop in its `Array.isArray(source)` branch and
+ * nowhere else; the single-object branch destructures `{uri, width, height}`
+ * and drops the rest. On the native side ReactImageView.setSource reads only
+ * `uri` and `cache` from each entry, and the one path to a header is the field
+ * set by the `headers` ReactProp — the prop that branch never fills. Passing
+ * `{uri, headers}` there is silently a plain request, which is how the first
+ * attempt at this fix shipped doing nothing at all.
+ *
+ * The web build is the mirror image: react-native-web's `resolveAssetUri`
+ * handles a number, a string or `source.uri`, with no array case, so an array
+ * resolves to no URI and every photograph vanishes. Its `getAssetSize` guards
+ * with `!Array.isArray(source)` for the same reason.
+ *
+ * iOS accepts either and does not need the header, its own agent being one
+ * Wikimedia serves. So the array is used where it is required and nowhere
+ * else, rather than uniformly in a way that would trade one broken platform
+ * for another.
+ */
+export function remoteImage(uri: string): ImageSourcePropType {
+  const source = { uri, headers: { 'User-Agent': IMAGE_USER_AGENT } };
+
+  return Platform.OS === 'android' ? [source] : source;
 }
