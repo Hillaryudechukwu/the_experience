@@ -8,6 +8,7 @@ use App\Domains\ExternalSources\Services\ProviderRegistry;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AssistantController;
+use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
@@ -58,49 +59,63 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('journeys/{journey}/anchors', [JourneyController::class, 'storeAnchor']);
     Route::delete('journeys/{journey}/anchors/{anchor}', [JourneyController::class, 'destroyAnchor']);
 
+    /* Outside the gate on purpose: the paywall has to be able to ask
+       whether there is a paid month before there is one. */
+    Route::get('billing/entitlement', [BillingController::class, 'entitlement']);
+
     Route::get('destinations', [DestinationController::class, 'index']);
-    Route::post('destinations/activate', [DestinationController::class, 'activate'])->middleware('throttle:6,1');
+    Route::post('destinations/activate', [DestinationController::class, 'activate'])->middleware(['subscribed', 'throttle:6,1']);
     Route::get('destination-imports/{import}', [DestinationImportController::class, 'show'])->middleware('throttle:30,1');
-    Route::post('destination-imports/{import}/retry', [DestinationImportController::class, 'retry'])->middleware('throttle:10,1');
+    Route::post('destination-imports/{import}/retry', [DestinationImportController::class, 'retry'])->middleware(['subscribed', 'throttle:10,1']);
     Route::get('destinations/{destination}', [DestinationController::class, 'show']);
 
-    Route::post('discovery/now', [DiscoveryController::class, 'now']);
+    /*
+     * Everything behind the paywall (Subscription JEM §11 P2).
+     *
+     * Grouped rather than tagged route by route so the boundary can be read
+     * in one place: setup is free, the product is not. Each of these spends
+     * money at Google, Viator or Anthropic, and the middleware runs before
+     * the controller so an unentitled request spends none of it.
+     */
+    Route::middleware('subscribed')->group(function () {
+        Route::post('discovery/now', [DiscoveryController::class, 'now']);
     Route::post('discovery/time-boxed', [DiscoveryController::class, 'timeBoxed']);
     Route::post('discovery/mood', [DiscoveryController::class, 'mood']);
     Route::post('discovery/intent', [DiscoveryController::class, 'intent']);
     Route::post('discovery/search', [DiscoveryController::class, 'search']);
-    Route::post('discovery/surprise-me', [DiscoveryController::class, 'surpriseMe']);
+        Route::post('discovery/surprise-me', [DiscoveryController::class, 'surpriseMe']);
 
-    Route::get('experiences/saved', [ExperienceController::class, 'saved']);
-    Route::get('experiences/{experience}', [ExperienceController::class, 'show']);
-    Route::get('experiences/{experience}/availability', [ExperienceController::class, 'availability']);
-    Route::get('experiences/{experience}/offers', [ExperienceController::class, 'offers']);
-    Route::post('experiences/{experience}/save', [ExperienceController::class, 'save']);
-    Route::delete('experiences/{experience}/save', [ExperienceController::class, 'unsave']);
-    Route::post('experiences/{experience}/complete', [ExperienceController::class, 'complete']);
+        Route::get('experiences/saved', [ExperienceController::class, 'saved']);
+        Route::get('experiences/{experience}', [ExperienceController::class, 'show']);
+        Route::get('experiences/{experience}/availability', [ExperienceController::class, 'availability']);
+        Route::get('experiences/{experience}/offers', [ExperienceController::class, 'offers']);
+        Route::post('experiences/{experience}/save', [ExperienceController::class, 'save']);
+        Route::delete('experiences/{experience}/save', [ExperienceController::class, 'unsave']);
+        Route::post('experiences/{experience}/complete', [ExperienceController::class, 'complete']);
 
-    Route::post('trips', [TripController::class, 'store']);
-    Route::get('trips/{trip}', [TripController::class, 'show']);
-    Route::post('trips/{trip}/generate-itinerary', [TripController::class, 'generateItinerary']);
-    Route::post('trips/{trip}/replan', [TripController::class, 'replan']);
-    Route::post('trips/{trip}/itineraries/{itinerary}/accept', [TripController::class, 'acceptReplan']);
+        Route::post('trips', [TripController::class, 'store']);
+        Route::get('trips/{trip}', [TripController::class, 'show']);
+        Route::post('trips/{trip}/generate-itinerary', [TripController::class, 'generateItinerary']);
+        Route::post('trips/{trip}/replan', [TripController::class, 'replan']);
+        Route::post('trips/{trip}/itineraries/{itinerary}/accept', [TripController::class, 'acceptReplan']);
 
-    Route::post('itineraries/{itinerary}/items', [ItineraryItemController::class, 'store']);
-    Route::patch('itinerary-items/{item}', [ItineraryItemController::class, 'update']);
-    Route::delete('itinerary-items/{item}', [ItineraryItemController::class, 'destroy']);
+        Route::post('itineraries/{itinerary}/items', [ItineraryItemController::class, 'store']);
+        Route::patch('itinerary-items/{item}', [ItineraryItemController::class, 'update']);
+        Route::delete('itinerary-items/{item}', [ItineraryItemController::class, 'destroy']);
 
-    Route::get('bookings', [BookingController::class, 'index']);
-    Route::post('bookings', [BookingController::class, 'store']);
-    Route::get('bookings/{booking}', [BookingController::class, 'show']);
-    Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+        Route::get('bookings', [BookingController::class, 'index']);
+        Route::post('bookings', [BookingController::class, 'store']);
+        Route::get('bookings/{booking}', [BookingController::class, 'show']);
+        Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel']);
+
+        Route::post('assistant/message', [AssistantController::class, 'message']);
+        Route::get('assistant/conversations/{conversation}', [AssistantController::class, 'history']);
+    });
 
     Route::get('passport', [PassportController::class, 'index']);
     Route::get('passport/journal/{experience}', [PassportController::class, 'showJournal']);
     Route::post('passport/journal/{experience}', [PassportController::class, 'journal']);
     Route::get('passport/recap/{journey}', [PassportController::class, 'recap']);
-
-    Route::post('assistant/message', [AssistantController::class, 'message']);
-    Route::get('assistant/conversations/{conversation}', [AssistantController::class, 'history']);
 
     Route::post('events', [AnalyticsController::class, 'store']);
 
