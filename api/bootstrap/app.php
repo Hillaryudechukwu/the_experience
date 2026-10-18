@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'guest.actor' => \App\Http\Middleware\ResolveActor::class,
+            'subscribed' => \App\Http\Middleware\RequireSubscription::class,
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         ]);
     })

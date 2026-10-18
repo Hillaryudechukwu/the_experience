@@ -312,6 +312,27 @@ return [
      * free, community-run infrastructure whose usage policies require an
      * identifying agent string and restrained request rates.
      */
+    /*
+     * The paywall, and whether it is actually closed.
+     *
+     * The gate ships before the store products exist — Apple and Google
+     * cannot be set up against code that is not deployed, and P6 proves the
+     * rule on a release build long after P2 lands. Enforcing on deploy would
+     * shut every existing traveller out of a product they can have no way to
+     * pay for yet, so enforcement is a switch and it starts off.
+     *
+     * Turn it on when both stores can actually sell the month.
+     */
+    'billing' => [
+        'enforced' => (bool) env('BILLING_ENFORCED', false),
+        'price_minor' => (int) env('BILLING_PRICE_MINOR', 199),
+        'currency' => env('BILLING_CURRENCY', 'GBP'),
+        'products' => [
+            'apple' => env('BILLING_APPLE_PRODUCT', 'wayoa.monthly'),
+            'google' => env('BILLING_GOOGLE_PRODUCT', 'wayoa_monthly'),
+        ],
+    ],
+
     'http' => [
         'user_agent' => env('EXPERIENCE_HTTP_USER_AGENT', 'WAYOA/1.0'),
         'contact_email' => env('CONTACT_EMAIL'),
