@@ -32,23 +32,39 @@ class ExportLegalPagesCommand extends Command
 
         File::ensureDirectoryExists($directory);
 
-        $html = view('legal.privacy', [
-            'updated' => config('experience.legal.privacy_updated'),
-            'contact' => config('experience.legal.privacy_contact') ?: 'privacy@example.com',
-        ])->render();
+        $contact = config('experience.legal.privacy_contact') ?: 'privacy@example.com';
 
-        $file = $directory . '/privacy.html';
-        File::put($file, $html);
+        $pages = [
+            'privacy.html' => view('legal.privacy', [
+                'updated' => config('experience.legal.privacy_updated'),
+                'contact' => $contact,
+                'termsUrl' => config('experience.legal.terms_url') ?: route('legal.terms'),
+            ]),
+            'terms.html' => view('legal.terms', [
+                'updated' => config('experience.legal.terms_updated'),
+                'contact' => $contact,
+                'price' => config('experience.legal.subscription_price'),
+                'privacyUrl' => config('experience.legal.privacy_url') ?: route('legal.privacy'),
+            ]),
+        ];
 
-        $this->info('Wrote ' . $file);
+        foreach ($pages as $name => $view) {
+            $file = $directory . '/' . $name;
+            File::put($file, $view->render());
+            $this->info('Wrote ' . $file);
+        }
+
         $this->line('');
-        $this->line('Publish it at the URL in PRIVACY_POLICY_URL, then give that URL to both store listings.');
+        $this->line('Publish both, then give both URLs to the store listings. A subscription needs the terms link as well as the policy.');
 
-        $configured = config('experience.legal.privacy_url');
-        if (blank($configured)) {
-            $this->warn('PRIVACY_POLICY_URL is not set, so the app still links to this server\'s own copy.');
-        } else {
-            $this->line('Currently configured: ' . $configured);
+        foreach (['PRIVACY_POLICY_URL' => 'privacy_url', 'TERMS_URL' => 'terms_url'] as $variable => $key) {
+            $configured = config('experience.legal.' . $key);
+
+            if (blank($configured)) {
+                $this->warn($variable . ' is not set, so the app still links to this server\'s own copy.');
+            } else {
+                $this->line($variable . ': ' . $configured);
+            }
         }
 
         return self::SUCCESS;

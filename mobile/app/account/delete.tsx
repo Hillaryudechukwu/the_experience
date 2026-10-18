@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Linking, Pressable, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useDeleteAccount, useProfile } from '../../src/api/hooks';
@@ -7,6 +7,7 @@ import { SocialSignIn, type IdentityProof } from '../../src/components/SocialSig
 import { Icon } from '../../src/components/Icon';
 import { Button, Card, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { confirmAction, showAlert } from '../../src/lib/alert';
+import { PRIVACY_POLICY_URL, STORE_NAME, SUBSCRIPTION_SETTINGS_URL, TERMS_URL } from '../../src/lib/legal';
 import { useSession } from '../../src/store/session';
 import { radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
 import { useBackTo } from '../../src/lib/navigation';
@@ -115,6 +116,46 @@ export default function DeleteAccount() {
           that record, so we keep the amount and the reference — and delete the traveller names and every
           link back to you. Bookings that never reached payment are deleted with everything else.
         </Note>
+
+        {/* ── The subscription is not ours to cancel ───────────────────── */}
+        <Note tone="warning" icon={<Icon name="info" size={16} color={colors.status.warning} />}>
+          Deleting this account does not cancel a subscription. It belongs to your {STORE_NAME}{' '}
+          account, and only you can stop it there — otherwise the charges carry on after your data
+          here is gone.
+        </Note>
+
+        <Button
+          label={`Manage subscriptions in ${STORE_NAME}`}
+          tone="secondary"
+          onPress={async () => {
+            try {
+              await Linking.openURL(SUBSCRIPTION_SETTINGS_URL);
+            } catch {
+              showAlert('Could not open your subscriptions', SUBSCRIPTION_SETTINGS_URL);
+            }
+          }}
+        />
+
+        <Row gap={space.md} justify="center" style={{ marginTop: space.xs }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              Linking.openURL(TERMS_URL).catch(() => showAlert('Could not open the terms', TERMS_URL))
+            }
+          >
+            <T variant="small" color={colors.action.primary}>Terms</T>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              Linking.openURL(PRIVACY_POLICY_URL).catch(() =>
+                showAlert('Could not open the policy', PRIVACY_POLICY_URL),
+              )
+            }
+          >
+            <T variant="small" color={colors.action.primary}>Privacy</T>
+          </Pressable>
+        </Row>
 
         {/* ── Proof of identity ────────────────────────────────────────── */}
         {!isGuest && !providerOnly ? (
