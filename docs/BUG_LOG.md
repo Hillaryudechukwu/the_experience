@@ -22,7 +22,6 @@ recorded so nobody rediscovers it as a bug.
 | [F3](#f3) | Onboarding creates a trip and never builds a plan | medium | open |
 | [F4](#f4) | Four journey reasons exist on the API, unreachable in the app | low | open |
 | [F5](#f5) | `dayLabel` computes tomorrow as +24h | low | open |
-| [F6](#f6) | Android image headers unconfirmed on a device | high | unverified |
 | [F7](#f7) | A failed image stays failed for that URL | low | by design |
 | [F8](#f8) | Discovery cannot answer a date range | — | by design |
 
@@ -110,14 +109,6 @@ shows no selection in the edit grid.
 **`dayLabel` computes tomorrow as `today.getTime() + 86_400_000`**
 (`mobile/src/lib/format.ts`). That is not a calendar day across a DST boundary,
 so "Tomorrow" is wrong twice a year. Pre-existing.
-
-### F6
-**Android image headers are unconfirmed on a device.** Wikimedia answers 403 to
-`okhttp/4.x` and 200 to an identifying agent — measured against the live host.
-RN only forwards `source.headers` for an *array* source (`Image.android.js`),
-and react-native-web cannot read an array at all, so `remoteImage()` returns an
-array on Android only. Both halves are read from `node_modules`; neither has
-been observed working in a build. The first attempt at this fix shipped inert.
 
 ### F7
 **A failed image stays failed for that URL.** `DestinationHero` records the URL
