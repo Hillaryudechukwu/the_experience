@@ -62,14 +62,29 @@ let hydrated = false;
  * as the last one and the API answers 404, because a journey is only returned
  * to the actor that owns it.
  */
-let firstContact: Promise<void> = Promise.resolve();
+let minting: Promise<void> | null = null;
 
 function claimFirstGuest<T>(task: () => Promise<T>): Promise<T> {
-  const run = firstContact.then(task, task);
-  firstContact = run.then(
+  /* Wait for the mint, then go — alongside the other waiters rather than
+     behind them. Chaining each request onto the last made the whole cold-start
+     burst run end to end in series, which is a slow first paint in exchange
+     for a guarantee only the first request needs. */
+  if (minting) return minting.then(task, task);
+
+  const run = task();
+  const settled = run.then(
     () => undefined,
     () => undefined,
   );
+
+  minting = settled;
+
+  /* Cleared once it settles, so a later burst with still no token mints once
+     rather than racing again — a failed first contact leaves us where we
+     started. */
+  void settled.finally(() => {
+    if (minting === settled) minting = null;
+  });
 
   return run;
 }
