@@ -16,6 +16,7 @@ import { Icon, type IconName } from '../../src/components/Icon';
 import { Button, Card, CardPress, Chip, Divider, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
 import { confirmAction, showAlert } from '../../src/lib/alert';
 import { titleCase } from '../../src/lib/format';
+import { PRIVACY_POLICY_URL, TERMS_URL } from '../../src/lib/legal';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -29,9 +30,6 @@ import { radius, space, useTheme } from '../../src/theme';
  * copy served beside the API is the fallback for development and for any build
  * that has not been given the public address.
  */
-const PRIVACY_POLICY_URL =
-  process.env.EXPO_PUBLIC_PRIVACY_URL ?? `${API_URL.replace(/\/api\/?$/, '')}/legal/privacy`;
-
 const INTERESTS = [
   'history', 'food', 'culture', 'architecture', 'nature', 'art', 'music',
   'shopping', 'nightlife', 'sport', 'photography', 'wellness', 'family',
@@ -332,6 +330,20 @@ export default function You() {
                 await Linking.openURL(PRIVACY_POLICY_URL);
               } catch {
                 showAlert('Could not open the policy', PRIVACY_POLICY_URL);
+              }
+            }}
+          />
+          <Divider />
+          <LinkRow
+            icon="info"
+            label="Terms of use"
+            onPress={async () => {
+              /* Required in the listing and in the app once there is a
+                 subscription, and a reviewer presses both. */
+              try {
+                await Linking.openURL(TERMS_URL);
+              } catch {
+                showAlert('Could not open the terms', TERMS_URL);
               }
             }}
           />
