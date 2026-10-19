@@ -252,8 +252,12 @@ export default function You() {
           {(['precise', 'approximate', 'off'] as const).map((mode) => (
             <Chip
               key={mode}
-              label={mode === 'precise' ? 'Precise' : mode === 'approximate' ? 'Approximate' : 'Off'}
-              selected={session.locationPrecision === mode}
+              label={mode === 'precise' ? 'Precise' : mode === 'approximate' ? 'Approximate' : 'City only'}
+              selected={
+                mode === 'off'
+                  ? session.locationSource === 'destination'
+                  : session.locationSource === 'device' && session.locationPrecision === mode
+              }
               onPress={() => session.setLocationPrecision(mode)}
             />
           ))}

@@ -3,6 +3,12 @@ import * as Location from 'expo-location';
 import { create } from 'zustand';
 
 export type Coords = { lat: number; lng: number } | null;
+export type LocationSource = 'destination' | 'device';
+
+type DestinationSelectionOptions = {
+  /** Keep using the device position because this city was chosen via "I'm already here". */
+  useDeviceLocation?: boolean;
+};
 
 type SessionState = {
   ready: boolean;
@@ -17,10 +23,15 @@ type SessionState = {
   /** When `coords` was captured, so a stale position can be discarded. */
   coordsAt: number | null;
   locationPrecision: 'precise' | 'approximate' | 'off';
+  /** Whether discovery is about the chosen city or the traveller's live position. */
+  locationSource: LocationSource;
   onboarded: boolean;
 
   hydrate: () => Promise<void>;
-  setDestination: (d: { id: string; slug: string; name: string; timezone?: string }) => Promise<void>;
+  setDestination: (
+    d: { id: string; slug: string; name: string; timezone?: string },
+    options?: DestinationSelectionOptions,
+  ) => Promise<void>;
   setDestinationImport: (id: string | null) => Promise<void>;
   setJourney: (journeyId: string | null) => Promise<void>;
   setTrip: (tripId: string | null) => Promise<void>;
@@ -36,7 +47,12 @@ const KEY = 'experience.session';
 type Persisted = Pick<
   SessionState,
   'destinationSlug' | 'destinationId' | 'destinationName' | 'destinationTimezone' | 'destinationImportId' | 'journeyId' | 'tripId' | 'locationPrecision' | 'onboarded'
-> & { coords: Coords; coordsAt: number | null };
+> & {
+  coords: Coords;
+  coordsAt: number | null;
+  /** Optional because installed builds wrote sessions before the source existed. */
+  locationSource?: LocationSource;
+};
 
 /**
  * How long a stored position is worth reusing.
@@ -77,6 +93,7 @@ export const useSession = create<SessionState>((set, get) => {
       journeyId: s.journeyId,
       tripId: s.tripId,
       locationPrecision: s.locationPrecision,
+      locationSource: s.locationSource,
       onboarded: s.onboarded,
       coords: s.coords,
       coordsAt: s.coordsAt,
@@ -96,6 +113,7 @@ export const useSession = create<SessionState>((set, get) => {
     coords: null,
     coordsAt: null,
     locationPrecision: 'precise',
+    locationSource: 'destination',
     onboarded: false,
 
     hydrate: async () => {
@@ -108,17 +126,37 @@ export const useSession = create<SessionState>((set, get) => {
              and then poison the arithmetic. */
           const fresh =
             typeof stored.coordsAt === 'number' && Date.now() - stored.coordsAt < COORDS_TTL_MS;
+          const locationSource: LocationSource = stored.locationSource === 'device'
+            ? 'device'
+            : 'destination';
+          const useStoredCoords = locationSource === 'device' && fresh;
 
           set({
             ...stored,
             destinationImportId: stored.destinationImportId ?? null,
+            locationSource,
             /* A stale position is discarded rather than trusted. Falling back
                to the city centre is a known approximation; a coordinate from
-               another city is a wrong answer delivered with confidence. */
-            coords: fresh ? stored.coords : null,
-            coordsAt: fresh ? stored.coordsAt : null,
+               another city is a wrong answer delivered with confidence.
+
+               Sessions written before locationSource existed are deliberately
+               migrated to destination mode. We cannot know whether their
+               cached coordinate belonged to the city they later selected, so
+               retaining it would preserve the weather bug and make the less
+               private interpretation without the traveller choosing it. */
+            coords: useStoredCoords ? stored.coords : null,
+            coordsAt: useStoredCoords ? stored.coordsAt : null,
             ready: true,
           });
+
+          /* Rewrite migrated/stale sessions once so the discarded device
+             position is removed from durable storage as well as memory. */
+          if (
+            stored.locationSource === undefined ||
+            (!useStoredCoords && (stored.coords !== null || stored.coordsAt !== null))
+          ) {
+            await persist();
+          }
 
           return;
         } catch {
@@ -128,8 +166,21 @@ export const useSession = create<SessionState>((set, get) => {
       set({ ready: true });
     },
 
-    setDestination: async (d) => {
-      set({ destinationId: d.id, destinationSlug: d.slug, destinationName: d.name, destinationTimezone: d.timezone ?? null, destinationImportId: null });
+    setDestination: async (d, options) => {
+      const useDeviceLocation = options?.useDeviceLocation === true;
+
+      set({
+        destinationId: d.id,
+        destinationSlug: d.slug,
+        destinationName: d.name,
+        destinationTimezone: d.timezone ?? null,
+        destinationImportId: null,
+        locationSource: useDeviceLocation ? 'device' : 'destination',
+        /* Choosing a city means "show me that city", even if the traveller
+           previously used GPS elsewhere. Removing the cached coordinate also
+           prevents it from surviving in local storage unnecessarily. */
+        ...(useDeviceLocation ? {} : { coords: null, coordsAt: null }),
+      });
       await persist();
     },
     setDestinationImport: async (destinationImportId) => {
@@ -148,6 +199,7 @@ export const useSession = create<SessionState>((set, get) => {
       set({
         coords,
         coordsAt: coords === null ? null : Date.now(),
+        ...(coords !== null ? { locationSource: 'device' as const } : {}),
         ...(precision ? { locationPrecision: precision } : {}),
       });
       await persist();
@@ -169,7 +221,7 @@ export const useSession = create<SessionState>((set, get) => {
     refreshLocation: async () => {
       const state = get();
 
-      if (state.locationPrecision === 'off') return;
+      if (state.locationSource !== 'device' || state.locationPrecision === 'off') return;
 
       /* Recent enough to still be true. */
       if (
@@ -198,11 +250,17 @@ export const useSession = create<SessionState>((set, get) => {
     setLocationPrecision: async (locationPrecision) => {
       set({
         locationPrecision,
+        locationSource: locationPrecision === 'off' ? 'destination' : 'device',
         /* The timestamp goes with the coordinate. Leaving it behind would let
            a later hydrate treat a null position as freshly captured. */
         ...(locationPrecision === 'off' ? { coords: null, coordsAt: null } : {}),
       });
       await persist();
+
+      /* This reads an existing permission only; it never opens a permission
+         prompt from the settings screen. If there is no grant, discovery
+         continues to fall back to the selected city's centre. */
+      if (locationPrecision !== 'off') await get().refreshLocation();
     },
     completeOnboarding: async () => {
       set({ onboarded: true });
@@ -220,6 +278,7 @@ export const useSession = create<SessionState>((set, get) => {
         journeyId: null,
         tripId: null,
         coords: null,
+        locationSource: 'destination',
         onboarded: false,
       });
     },
@@ -234,7 +293,7 @@ export function discoveryPayload(extra: Record<string, unknown> = {}) {
     ...(s.destinationId ? { destination_id: s.destinationId } : {}),
     ...(s.destinationSlug ? { destination: s.destinationSlug } : {}),
     ...(s.journeyId ? { journey_id: s.journeyId } : {}),
-    ...(s.coords && s.locationPrecision !== 'off'
+    ...(s.locationSource === 'device' && s.coords && s.locationPrecision !== 'off'
       ? { lat: s.coords.lat, lng: s.coords.lng, location_precision: s.locationPrecision }
       : {}),
     ...extra,

@@ -24,6 +24,7 @@ async function storedImport(page: Page, importId = 'import-1') {
         journeyId: null,
         tripId: null,
         locationPrecision: 'precise',
+        locationSource: 'destination',
         onboarded: false,
       }),
     ] as const,

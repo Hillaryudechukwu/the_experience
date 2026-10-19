@@ -83,6 +83,7 @@ export const test = base.extend<{ seeded: Page }, { destination: Destination | n
           journeyId: null,
           tripId: null,
           locationPrecision: 'precise',
+          locationSource: 'destination',
           onboarded: true,
         }),
       ] as const,

@@ -152,7 +152,7 @@ export default function Destination() {
         .sort((a, b) => a.distance - b.distance)[0]?.destination;
 
       if (nearest) {
-        await setDestination(nearest);
+        await setDestination(nearest, { useDeviceLocation: true });
         setLocationNote(`Located near ${nearest.name}.`);
         router.push('/onboarding/purpose');
       } else {
