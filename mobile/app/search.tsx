@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 
+import { ApiError, API_URL } from '../src/api/client';
 import { useSearch } from '../src/api/hooks';
 import { ExperienceCardView } from '../src/components/ExperienceCard';
 import { Icon } from '../src/components/Icon';
@@ -8,6 +9,7 @@ import {
   Chip,
   EmptyState,
   Gutter,
+  LoadFailure,
   Loading,
   Note,
   Row,
@@ -27,6 +29,14 @@ const EXAMPLES = [
   'Free things near me',
   'Good rainy-day picks',
 ];
+
+function searchFailureMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status !== 0 && error.message.trim()) {
+    return error.message;
+  }
+
+  return `Could not reach the search service at ${API_URL}. Check your connection and try again.`;
+}
 
 /**
  * Natural-language search (Figma: 18).
@@ -135,7 +145,17 @@ export default function Search() {
 
       {search.isLoading ? <Loading label="Reading your request" /> : null}
 
-      {interpreted ? (
+      {search.isError ? (
+        <Gutter>
+          <LoadFailure
+            title="Search did not load"
+            body={searchFailureMessage(search.error)}
+            onRetry={() => search.refetch()}
+          />
+        </Gutter>
+      ) : null}
+
+      {interpreted && !search.isError ? (
         <Gutter style={{ marginTop: space.lg }}>
           <View
             style={{
@@ -189,7 +209,7 @@ export default function Search() {
         </Gutter>
       ) : null}
 
-      {results.length > 0 ? (
+      {results.length > 0 && !search.isError ? (
         <Gutter>
           <SectionHeader
             title={`${results.length} experience${results.length === 1 ? '' : 's'} fit this`}
@@ -207,7 +227,7 @@ export default function Search() {
         </Gutter>
       ) : null}
 
-      {submitted.length > 2 && !search.isLoading && results.length === 0 ? (
+      {submitted.length > 2 && !search.isLoading && !search.isError && results.length === 0 ? (
         <Gutter>
           <EmptyState
             title="Nothing strong fits all your filters"
