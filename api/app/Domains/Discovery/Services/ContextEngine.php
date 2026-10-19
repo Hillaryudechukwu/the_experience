@@ -38,7 +38,17 @@ class ContextEngine
     {
         $journey = $this->resolveJourney($actor, $input);
         $profile = $this->resolveProfile($actor);
-        $destination = $journey?->destination ?? $this->resolveDestination($input);
+        $destination = $this->resolveDestination($input);
+
+        /* A city chosen explicitly is the current request's authority. An old
+           active journey may still exist while the traveller starts setting
+           up another city; keeping that mismatched journey would source the
+           clock, weather, anchors and budget from the previous destination. */
+        if ($destination !== null && $journey !== null && $journey->destination_id !== $destination->id) {
+            $journey = null;
+        }
+
+        $destination ??= $journey?->destination;
 
         $timezone = $destination?->timezone ?? 'UTC';
         $now = isset($input['now'])

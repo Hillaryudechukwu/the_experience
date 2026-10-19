@@ -139,6 +139,11 @@ async function mockAppApi(
       return;
     }
 
+    if (path === '/billing/entitlement') {
+      await route.fulfill({ json: { data: { can_use: true, state: 'active' } } });
+      return;
+    }
+
     await route.fulfill({ json: { data: null } });
   });
 }
@@ -164,6 +169,7 @@ function callsFor(calls: DiscoveryCall[], path: string) {
 function expectDestinationOnly(call: DiscoveryCall) {
   expect(call.body.destination_id).toBe(tokyo.id);
   expect(call.body.destination).toBe(tokyo.slug);
+  expect(call.body).not.toHaveProperty('journey_id');
   expect(call.body).not.toHaveProperty('lat');
   expect(call.body).not.toHaveProperty('lng');
   expect(call.body).not.toHaveProperty('location_precision');
@@ -181,6 +187,8 @@ test('a chosen city drives weather and every discovery surface, not cached devic
   const calls: DiscoveryCall[] = [];
   await seedSession(page, {
     ...baseSession(london),
+    journeyId: 'london-journey',
+    tripId: 'london-trip',
     coords: { lat: london.lat, lng: london.lng },
     coordsAt: Date.now(),
     locationSource: 'device',
@@ -196,8 +204,16 @@ test('a chosen city drives weather and every discovery surface, not cached devic
       destination: session.destinationSlug,
       source: session.locationSource,
       coords: session.coords,
+      journey: session.journeyId,
+      trip: session.tripId,
     };
-  }, SESSION_KEY)).toEqual({ destination: tokyo.slug, source: 'destination', coords: null });
+  }, SESSION_KEY)).toEqual({
+    destination: tokyo.slug,
+    source: 'destination',
+    coords: null,
+    journey: null,
+    trip: null,
+  });
 
   await page.goto('/');
 

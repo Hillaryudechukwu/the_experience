@@ -168,6 +168,7 @@ export const useSession = create<SessionState>((set, get) => {
 
     setDestination: async (d, options) => {
       const useDeviceLocation = options?.useDeviceLocation === true;
+      const destinationChanged = get().destinationId !== d.id;
 
       set({
         destinationId: d.id,
@@ -180,6 +181,11 @@ export const useSession = create<SessionState>((set, get) => {
            previously used GPS elsewhere. Removing the cached coordinate also
            prevents it from surviving in local storage unnecessarily. */
         ...(useDeviceLocation ? {} : { coords: null, coordsAt: null }),
+        /* A journey and trip belong to one destination. Keeping their ids
+           while the selected city changes makes the API correctly restore
+           the previous journey's context — including its weather. The server
+           records remain intact; only this device's active selection moves. */
+        ...(destinationChanged ? { journeyId: null, tripId: null } : {}),
       });
       await persist();
     },
