@@ -9,11 +9,13 @@ use App\Domains\Discovery\Models\LiveIntent;
 use App\Domains\ExternalSources\Contracts\WeatherProvider;
 use App\Domains\ExternalSources\DTO\WeatherSnapshot;
 use App\Domains\Identity\Models\GuestSession;
+use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\Freshness;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\Support\BuildsTravelScenarios;
 use Tests\TestCase;
 
@@ -170,6 +172,72 @@ class ContextualGuidanceTest extends TestCase
         $this->postJson('/api/discovery/now', $this->body($destination))
             ->assertOk()
             ->assertJsonMissingPath('context.weather.clothing');
+    }
+
+    public function test_explicit_destination_replaces_a_conflicting_active_journey_for_weather(): void
+    {
+        $weather = new class implements WeatherProvider
+        {
+            /** @var list<array{float, float}> */
+            public array $points = [];
+
+            public function key(): string
+            {
+                return 'test';
+            }
+
+            public function forecast(GeoPoint $point, CarbonImmutable $from, int $hours = 24): WeatherSnapshot
+            {
+                $this->points[] = [$point->lat, $point->lng];
+
+                return new WeatherSnapshot(
+                    condition: 'clear',
+                    temperatureC: round($point->lat, 1),
+                    precipitationProbability: 0,
+                    hourly: [],
+                    freshness: new Freshness('test', $from, Freshness::HIGHLY_DYNAMIC),
+                );
+            }
+        };
+        $this->app->instance(WeatherProvider::class, $weather);
+
+        $london = $this->destination([
+            'slug' => 'london-test',
+            'name' => 'London',
+            'lat' => 51.5074,
+            'lng' => -0.1278,
+        ]);
+        $tokyo = $this->destination([
+            'slug' => 'tokyo-test',
+            'name' => 'Tokyo',
+            'country' => 'Japan',
+            'country_code' => 'JP',
+            'timezone' => 'Asia/Tokyo',
+            'lat' => 35.6762,
+            'lng' => 139.6503,
+            'currency' => 'JPY',
+        ]);
+        $this->experience($tokyo, [
+            'slug' => 'tokyo-museum',
+            'title' => 'Tokyo Museum',
+            'lat' => 35.6762,
+            'lng' => 139.6503,
+        ]);
+        $guest = GuestSession::create(['token' => Str::random(40)]);
+        $journey = $this->journey($london, new Actor(guestSessionId: $guest->id));
+
+        $response = $this->withHeader('X-Guest-Token', $guest->token)
+            ->postJson('/api/discovery/now', [
+                'destination_id' => $tokyo->id,
+                'destination' => $tokyo->slug,
+                'journey_id' => $journey->id,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('context.location_precision', 'city')
+            ->assertJsonPath('context.weather.temperature_c', 35.7)
+            ->assertJsonPath('context.journey', null);
+        $this->assertSame([[35.6762, 139.6503]], $weather->points);
     }
 
     public function test_an_empty_result_has_no_primary_action(): void
