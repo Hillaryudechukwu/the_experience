@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "WAYOA",
-    "slug": "interlude",
+    "slug": "wayoa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -93,6 +93,7 @@
       "expo-apple-authentication"
     ],
     "scheme": [
+      "wayoa",
       "interlude",
       "com.googleusercontent.apps.1057354438819-3s104cblbau8p59clq27dpumcpnljqnv",
       "com.googleusercontent.apps.1057354438819-8c1h7ukdcve8fu987u14pvs7b7sbble9"

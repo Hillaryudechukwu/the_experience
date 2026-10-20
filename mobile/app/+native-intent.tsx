@@ -4,7 +4,8 @@
  * That URL carries the auth code. It is not a screen.
  *
  * Expo Router otherwise matches it as a route, and the unmatched page
- * (`interlude://oauth2redirect?...`) covers the sign-in that the auth
+ * (`wayoa://oauth2redirect?...`, or `interlude://` from a link made before
+ * the rename) covers the sign-in that the auth
  * session is still finishing. Returning null leaves the app where it was.
  */
 const OAUTH_RETURN = /(?:^|[/])oauth2?redirect(?:[/?#]|$)|(?:^|[/])oauth2callback(?:[/?#]|$)/;
