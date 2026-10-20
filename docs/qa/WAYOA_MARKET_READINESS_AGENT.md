@@ -64,7 +64,13 @@ Stack          Laravel 13 / PHP 8.4 / MariaDB 11.4 in production
                Expo SDK 57 / React Native 0.86, iOS + Android + web export
 API            https://api.experience.synteric.co.uk
 Web            https://experience.synteric.co.uk
-Store id       uk.co.synteric.experience  (app.json slug is still "interlude")
+Store id       uk.co.synteric.experience
+Expo slug      still "interlude", and it cannot be changed here alone: EAS
+               matches it against the project registered under projectId
+               588b5410-..., so renaming locally breaks the build until the
+               project is renamed on expo.dev first. Owner action.
+Deep links     wayoa:// is primary, interlude:// still resolves for links
+               already in the wild.
 Live drivers   assistant=anthropic, weather=open_meteo, queue=database
 Destinations   39 live in production
 ```
