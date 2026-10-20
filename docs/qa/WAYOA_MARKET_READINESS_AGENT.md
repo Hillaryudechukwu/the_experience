@@ -65,10 +65,12 @@ Stack          Laravel 13 / PHP 8.4 / MariaDB 11.4 in production
 API            https://api.experience.synteric.co.uk
 Web            https://experience.synteric.co.uk
 Store id       uk.co.synteric.experience
-Expo slug      still "interlude", and it cannot be changed here alone: EAS
-               matches it against the project registered under projectId
-               588b5410-..., so renaming locally breaks the build until the
-               project is renamed on expo.dev first. Owner action.
+Expo slug      "wayoa" in app.json. EAS matches this against the project
+               registered under projectId 588b5410-..., so the project must
+               carry the same name on expo.dev or the build is refused. The
+               projectId itself is unchanged and must stay that way: a new
+               project resets the remote build counter, and both stores reject
+               a build number no higher than the last one they took.
 Deep links     wayoa:// is primary, interlude:// still resolves for links
                already in the wild.
 Live drivers   assistant=anthropic, weather=open_meteo, queue=database
