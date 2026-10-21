@@ -65,9 +65,16 @@ export default function Subscription() {
   const paidUntil = entitlement?.paid_until ?? null;
   const ending = state === 'active_until_period_end';
 
-  /* Nothing to manage. Sending them to the paywall is the honest answer —
-     this screen would otherwise describe a subscription that is not there. */
-  if (!entitlement?.can_use && !paidUntil) {
+  /*
+   * Nothing to manage. Sending them to the paywall is the honest answer —
+   * this screen would otherwise describe a subscription that is not there.
+   *
+   * Asked of the subscription rather than of can_use, which answers a
+   * different question: whether the server will let them in. While billing is
+   * unenforced that is true for everybody, so reading it here showed a price
+   * and a cancel button to travellers who had never subscribed.
+   */
+  if (state === 'inactive' && !paidUntil) {
     return (
       <Screen>
         {header}

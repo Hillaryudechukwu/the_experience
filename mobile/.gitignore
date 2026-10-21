@@ -41,6 +41,9 @@ yarn-error.*
 /android
 dist/
 dist-store/
-interlude-play-*.json
+# Play service account keys. Named after the Cloud project, so the glob is
+# deliberately loose: a key re-downloaded after the wayoa rename arrives under
+# a different name and must not reach the history either.
+*-play-*.json
 test-results/
 playwright-report/

@@ -490,14 +490,20 @@ Terms: <terms url>
 
 ## 17. Status tracking
 
+Code state as of 21 October 2026. Everything below is merged to `main`.
+
 | Phase | Name | Status | Waiting on you |
 |---|---|---|---|
-| P0 | Legal shell | Not started | Publish privacy and terms; listing URLs |
-| P1 | Entitlement | Not started | Console product ids before sandbox |
-| P2 | Server gate | Not started | — |
-| P3 | Store notifications | Not started | Apple key, Play service account, Pub/Sub, env vars |
-| P4 | Paywall and purchase | Not started | EAS / TestFlight / internal track builds |
-| P5 | Pause | Not started | Play pause enabled |
-| P6 | Sandbox proof and submit | Not started | Section 14 walk, then submit |
+| P0 | Legal shell | Code complete; both pages answer 200 on the public domain | Both URLs into both store listings |
+| P1 | Entitlement | Code complete | Console product ids before sandbox |
+| P2 | Server gate | Code complete, **enforcement off** (`BILLING_ENFORCED=false`) | Nothing. Turn it on when the stores can sell a month |
+| P3 | Store notifications | Mapping, idempotency and fail-closed verification complete. **Not built:** the Play Developer API read, and the refresh endpoints | Apple key and notification URL, Play service account, Pub/Sub topic, and the env vars — including `GOOGLE_PUBSUB_SERVICE_ACCOUNT`, which section 10.D does not list yet |
+| P4 | Paywall and purchase | Paywall, entitlement read, foreground refetch and the 402 redirect complete. **Not built:** the purchase itself; `expo-iap` is not installed | EAS build, TestFlight and the Play internal track |
+| P5 | Pause | Code complete; the period-boundary rule is asserted on both engines | Play pause enabled on the base plan |
+| P6 | Sandbox proof and submit | Gate coverage pinned; the app matches the section 16 review notes | All of section 10, the walk, then submit |
+
+**Two code gaps block the walk itself**, and both wait on the consoles: a
+traveller cannot buy a month (P4), and a device cannot post a receipt (P3).
+Neither was written blind.
 
 Update this table as phases exit.
