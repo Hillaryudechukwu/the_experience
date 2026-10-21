@@ -43,6 +43,20 @@ class SubscriptionEntitlementTest extends TestCase
         ], $attributes));
     }
 
+    public function test_disabled_enforcement_keeps_the_product_open_without_an_entitlement(): void
+    {
+        config(['experience.billing.enforced' => false]);
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+
+        $this->getJson('/api/billing/entitlement', ['X-Guest-Token' => $token])
+            ->assertOk()
+            ->assertJsonPath('data.can_use', true)
+            ->assertJsonPath('data.state', 'inactive');
+
+        $this->postJson('/api/discovery/now', [], ['X-Guest-Token' => $token])
+            ->assertOk();
+    }
+
     public function test_a_paid_period_that_covers_now_opens_the_product(): void
     {
         $user = User::factory()->create();

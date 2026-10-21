@@ -63,9 +63,19 @@ class SubscriptionPortabilityTest extends TestCase
         $this->assertTrue(app(EntitlementService::class)->canUse(new Actor(userId: $user->id)));
     }
 
-    /** With nothing paid for, the pending row is still what the paywall reads. */
+    /**
+     * With nothing paid for, the pending row is still what the paywall reads.
+     *
+     * Enforcement is pinned on, because this is a test of the entitlement
+     * rule rather than of the switch. With it off, present() deliberately
+     * reports can_use true whatever the subscription says, so that the client
+     * does not raise a paywall the server has already decided not to apply —
+     * and this assertion would be measuring that instead.
+     */
     public function test_a_lone_pending_row_is_still_found(): void
     {
+        config(['experience.billing.enforced' => true]);
+
         $user = User::factory()->create();
         $this->row($user, ['state' => SubscriptionState::Pending, 'paid_until' => null]);
 

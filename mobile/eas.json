@@ -45,6 +45,10 @@
   },
   "submit": {
     "production": {
+      "android": {
+        "serviceAccountKeyPath": "./interlude-play-4409a1b7c631.json",
+        "track": "internal"
+      },
       "ios": {
         "ascAppId": "6822037408"
       }
