@@ -70,10 +70,14 @@ class EntitlementService
     public function present(Actor $actor, ?CarbonImmutable $now = null): array
     {
         $subscription = $this->current($actor);
+        $accessIsOpen = ! config('experience.billing.enforced');
 
         if ($subscription === null) {
             return [
-                'can_use' => false,
+                /* The API gate is deliberately open until store billing is
+                   enabled. Report the same effective access decision to the
+                   client so it does not impose a paywall the server disabled. */
+                'can_use' => $accessIsOpen,
                 'state' => SubscriptionState::Inactive->value,
                 'paid_until' => null,
                 'auto_renew' => false,
@@ -83,7 +87,7 @@ class EntitlementService
         }
 
         return [
-            'can_use' => $subscription->canUse($now),
+            'can_use' => $accessIsOpen || $subscription->canUse($now),
             'state' => $subscription->state->value,
             'paid_until' => $subscription->paid_until?->toIso8601String(),
             'auto_renew' => (bool) $subscription->auto_renew,

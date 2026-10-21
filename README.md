@@ -185,3 +185,4 @@ content. Ingestion fills their gaps and never overwrites them.
 - [`docs/PROVIDER_SMOKE_RUNBOOK.md`](docs/PROVIDER_SMOKE_RUNBOOK.md) — live provider status, staging/prod smoke, key rotation, queue heartbeat.
 - [`docs/DESTINATION_ACTIVATION_GA_RUNBOOK.md`](docs/DESTINATION_ACTIVATION_GA_RUNBOOK.md) — P5 controlled city proof and rollout ladder.
 - [`docs/TRIP_STAY_DURATION_JEM.md`](docs/TRIP_STAY_DURATION_JEM.md) — stay length in onboarding → journey dates → multi-day itinerary.
+- [`docs/SUBSCRIPTION_JEM.md`](docs/SUBSCRIPTION_JEM.md) — £1.99 monthly access, pause at the period boundary, and the store, legal, and account steps outside the code.

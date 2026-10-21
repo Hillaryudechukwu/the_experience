@@ -40,5 +40,7 @@ yarn-error.*
 /ios
 /android
 dist/
+dist-store/
+interlude-play-*.json
 test-results/
 playwright-report/

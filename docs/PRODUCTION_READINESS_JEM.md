@@ -787,6 +787,7 @@ Schema rollbacks are last resort; prefer flags.
 
 - [`TRIP_STAY_DURATION_JEM.md`](TRIP_STAY_DURATION_JEM.md) — collect stay length in onboarding, persist journey `starts_on` / `ends_on`, and name multi-day Plan CTAs (orthogonal to P0–P10 commercial readiness).
 - [`CONTEXTUAL_GUIDANCE_JEM.md`](CONTEXTUAL_GUIDANCE_JEM.md) — next-action ranking from location and prior choices, mood pictures, weather clothing, plan sharing, and Google/Apple sign-in. Builds on P2 auth and P3 single-experience share; does not reopen those phases.
+- [`SUBSCRIPTION_JEM.md`](SUBSCRIPTION_JEM.md) — £1.99 monthly entitlement, pause at the period boundary, and the App Store, Play Console, legal, and secret steps that gate each phase. Store release (P6) should not ship a public binary without it.
 
 ## 20. Status tracking
 
