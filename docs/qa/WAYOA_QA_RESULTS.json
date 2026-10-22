@@ -1,0 +1,87 @@
+{
+  "verdict": "CONDITIONAL_GO",
+  "summary": {
+    "branch": "main",
+    "head": "2328b07",
+    "baseline": "6eb88bc",
+    "scope": "Merged PRs #44, #46 and #47 plus QA fixes",
+    "open_p0": 0,
+    "open_p1": 0,
+    "open_p2": 2,
+    "fixed_findings": 5,
+    "billing_mode_tested": "BILLING_ENFORCED=false"
+  },
+  "test_counts": {
+    "passed": 898,
+    "failed": 0,
+    "skipped": 0,
+    "notes": "Aggregate final executions: 383 local PostgreSQL API, 383 CI MariaDB API, 130 full browser, and 2 added subscription browser tests. CI PostgreSQL and focused reruns are corroborative and not double-counted. Expected mutation failures are excluded."
+  },
+  "findings": [
+    {
+      "id": "WAYOA-QA-001",
+      "severity": "P1",
+      "area": "subscription_entitlement",
+      "title": "Disabled server billing gate still paywalled every client",
+      "status": "fixed"
+    },
+    {
+      "id": "WAYOA-QA-002",
+      "severity": "P2",
+      "area": "destination_weather",
+      "title": "Stale journey context overrode the newly selected city's weather",
+      "status": "fixed"
+    },
+    {
+      "id": "WAYOA-QA-003",
+      "severity": "P2",
+      "area": "php_dependencies",
+      "title": "league/commonmark 2.10.1 had two published advisories",
+      "status": "fixed"
+    },
+    {
+      "id": "WAYOA-QA-004",
+      "severity": "P2",
+      "area": "mobile_dependencies",
+      "title": "npm production graph reports 27 advisories",
+      "status": "open"
+    },
+    {
+      "id": "WAYOA-QA-005",
+      "severity": "P2",
+      "area": "ci",
+      "title": "Playwright regression suite is not run in CI",
+      "status": "open",
+      "known_bug": "V1"
+    },
+    {
+      "id": "WAYOA-QA-006",
+      "severity": "P2",
+      "area": "release_configuration",
+      "title": "Working tree changed the Expo slug back to interlude",
+      "status": "fixed"
+    },
+    {
+      "id": "WAYOA-QA-007",
+      "severity": "P2",
+      "area": "test_reliability",
+      "title": "API tests depended on the live public OSRM router",
+      "status": "fixed"
+    }
+  ],
+  "coverage_gaps": [
+    "No Playwright CI job",
+    "No mobile unit-test runner",
+    "No native iOS or Android device E2E",
+    "No complete WCAG or native screen-reader audit",
+    "No load, soak, cold-start or offline test",
+    "In-app purchase and receipt refresh are not implemented"
+  ],
+  "untested_risks": [
+    "Expo project rename and remote build-number state",
+    "Apple and Google store purchase lifecycle",
+    "Live provider inventory, quotas and confirmations",
+    "Production queue worker and scheduler lifetime",
+    "Native deep-link, push and permission behaviour"
+  ]
+}

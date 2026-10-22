@@ -13,10 +13,9 @@ recorded so nobody rediscovers it as a bug.
 
 | ID | What | Severity | Status |
 |---|---|---|---|
+| [S1](#s1) | Production dependency graph has 27 npm advisories | high | open |
 | [V1](#v1) | The browser suite is not in CI | high | open |
-| [V2](#v2) | `/understanding` is missing from the route list | high | open |
 | [V3](#v3) | No unit runner for mobile; `usePlanForDates` untested | medium | open |
-| [U1](#u1) | 19 mobile surfaces changed, none rendered | high | open |
 | [F1](#f1) | Itineraries cap at 14 days | medium | mitigated |
 | [F2](#f2) | `build()` posts to `/trips/null/generate-itinerary` | medium | open |
 | [F3](#f3) | Onboarding creates a trip and never builds a plan | medium | open |
@@ -28,6 +27,18 @@ recorded so nobody rediscovers it as a bug.
 ---
 
 ## Verification
+
+### S1
+**The production npm dependency graph reports 27 advisories:** 1 critical,
+20 high and 6 moderate. The critical advisory is in `shell-quote`; the other
+reported packages include `braces`, `node-forge`, `source-map-js`,
+`decode-uri-component` and `uuid`. These are transitive dependencies of React
+Native, Expo, Metro and Expo Router. `npm audit fix --force` proposes breaking
+framework downgrades, while a non-forced lockfile refresh rewrites a large Expo
+dependency surface, so this was not auto-fixed during QA. Assess runtime/build
+reachability, take compatible upstream Expo/React Native patches, and keep the
+audit as a release condition until the critical advisory is removed or formally
+accepted.
 
 ### V1
 **The browser suite is not in CI.** `mobile/playwright.config.ts` and
@@ -47,34 +58,11 @@ export. The `api` job already does the first three.
 *Known limit:* it catches crushed text, not every overflow. It would not have
 caught the search pill sliding under the Quick Actions card.
 
-### V2
-**`/understanding` is missing from `mobile/tests/browser/routes.ts`.** The
-file's own comment: *"A screen missing from this list is a screen nothing looks
-at."* One line, and worth adding before V1 so the new screen is covered the
-moment the suite runs.
-
 ### V3
 **No unit runner for mobile.** `package.json` scripts are `typecheck` and
 `test:browser`. `usePlanForDates` branches three ways — plan, no plan, and
 *unknown* — where the unknown case exists specifically to avoid silently
 destroying an itinerary while a query is in flight. Nothing tests any of it.
-
-## Unrendered work
-
-### U1
-**Nineteen mobile surfaces changed in the 2026-10-16/18 run of work, and none
-has been seen rendering.** Typecheck and reading only. Highest risk first:
-
-- `DateRangeCalendar` — new, hand-written, seven columns at `14.28%` against
-  36pt day circles. Inside Home's sheet the content padding is applied twice
-  (the sheet's `ScrollView` already pads, and the sheet content pads again), so
-  on a ~320pt screen the columns compute near 34pt. Unresolved without a screen.
-- `DestinationHero` — fixed height became `minHeight`, the inner column's flex
-  basis changed, the wordmark replaced a caption, and an `Artwork` fallback
-  arrived. Four interacting changes to the first thing anyone sees.
-- Home's dates chip and sheet — a chip that deliberately never looks selected,
-  sitting in a row where every neighbour does.
-- `understanding.tsx` — a whole screen, and see V2.
 
 ## Functional
 
@@ -127,8 +115,9 @@ dates chip sits in a row of filters and looks like it should filter.
 
 ## Suggested order
 
-1. **V2** then **V1** — the cheapest line, then the job that makes it matter.
-   This converts "nothing is watching" into something that watches every push,
-   and retroactively covers U1.
-2. **F1** — the only gap a traveller experiences as a refusal.
-3. **F2** — small, and closes a confirmed null-id request.
+1. **S1** — remove or formally accept the critical npm advisory, then take the
+   compatible Expo/React Native fixes for the remaining transitive advisories.
+2. **V1** — run the existing browser suite in CI so rendered regressions cannot
+   merge unseen.
+3. **F1** — the only gap a traveller experiences as a refusal.
+4. **F2** — small, and closes a confirmed null-id request.
