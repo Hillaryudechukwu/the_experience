@@ -40,7 +40,10 @@
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="EXPERIENCE_WEATHER_DRIVER" value="seeded" force="true"/>
         <env name="EXPERIENCE_ASSISTANT_DRIVER" value="rules" force="true"/>
-        <env name="EXPERIENCE_ROUTING_DRIVER" value="osrm" force="true"/>
+        <!-- Keep the suite hermetic. OSRM's concrete contract tests opt into
+             the provider and fake HTTP; discovery tests must never depend on
+             the availability or latency of the public demo router. -->
+        <env name="EXPERIENCE_ROUTING_DRIVER" value="estimator" force="true"/>
         <env name="EXPERIENCE_PLACE_DATA_DRIVER" value="osm" force="true"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
