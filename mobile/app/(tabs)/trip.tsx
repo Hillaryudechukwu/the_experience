@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router';
 
 import {
   useAcceptReplan,
+  useBuildItinerary,
   useCreateTrip,
-  useGenerateItinerary,
   useJourney,
   useReplan,
   useTrip,
@@ -58,7 +58,7 @@ export default function TripScreen() {
   const { data: trip, isLoading } = useTrip(session.tripId);
   const tz = journey?.destination.timezone;
 
-  const generate = useGenerateItinerary(session.tripId);
+  const generate = useBuildItinerary();
   const replan = useReplan(session.tripId);
   const accept = useAcceptReplan(session.tripId);
   const createTrip = useCreateTrip();
@@ -82,11 +82,15 @@ export default function TripScreen() {
 
   const build = async () => {
     try {
-      if (!session.tripId) {
+      let tripId = session.tripId;
+
+      if (!tripId) {
         const created = await createTrip.mutateAsync(session.journeyId!);
         await session.setTrip(created.id);
+        tripId = created.id;
       }
-      await generate.mutateAsync({});
+
+      await generate.mutateAsync({ tripId });
     } catch (cause) {
       Alert.alert('Could not build the plan', cause instanceof Error ? cause.message : 'Try again.');
     }
