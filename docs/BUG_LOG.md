@@ -13,11 +13,11 @@ recorded so nobody rediscovers it as a bug.
 
 | ID | What | Severity | Status |
 |---|---|---|---|
-| [S1](#s1) | Production dependency graph has 27 npm advisories | high | open |
-| [V1](#v1) | The browser suite is not in CI | high | open |
+| [S1](#s1) | Production dependency graph has accepted transitive npm advisories | high | unverified |
+| [V1](#v1) | The browser suite is not in CI | high | unverified |
 | [V3](#v3) | No unit runner for mobile; `usePlanForDates` untested | medium | open |
-| [F1](#f1) | Itineraries cap at 14 days | medium | mitigated |
-| [F2](#f2) | `build()` posts to `/trips/null/generate-itinerary` | medium | open |
+| [F1](#f1) | Itineraries cap at 14 days | medium | unverified |
+| [F2](#f2) | `build()` posts to `/trips/null/generate-itinerary` | medium | unverified |
 | [F3](#f3) | Onboarding creates a trip and never builds a plan | medium | open |
 | [F4](#f4) | Four journey reasons exist on the API, unreachable in the app | low | open |
 | [F5](#f5) | `dayLabel` computes tomorrow as +24h | low | open |
@@ -29,31 +29,28 @@ recorded so nobody rediscovers it as a bug.
 ## Verification
 
 ### S1
-**The production npm dependency graph reports 27 advisories:** 1 critical,
-20 high and 6 moderate. The critical advisory is in `shell-quote`; the other
-reported packages include `braces`, `node-forge`, `source-map-js`,
-`decode-uri-component` and `uuid`. These are transitive dependencies of React
-Native, Expo, Metro and Expo Router. `npm audit fix --force` proposes breaking
-framework downgrades, while a non-forced lockfile refresh rewrites a large Expo
-dependency surface, so this was not auto-fixed during QA. Assess runtime/build
-reachability, take compatible upstream Expo/React Native patches, and keep the
-audit as a release condition until the critical advisory is removed or formally
-accepted.
+**Resolution pending merge:** the critical `shell-quote` advisory is removed,
+and the compatible SDK 57 patch set also removes the `source-map-js` and
+`uuid` roots. The remaining production report is 21 affected packages (18
+high, 3 moderate) resolving to three upstream advisories. Those risks are
+time-bounded and documented in `docs/SECURITY_ACCEPTANCES.md`.
+
+`npm run audit:production` now fails CI on a critical or any advisory outside
+that exact baseline, while `npx expo install --check` prevents the compatible
+Expo packages drifting behind again. Do not run `npm audit fix --force`: npm's
+proposal crosses the supported Expo/React Native compatibility boundary.
 
 ### V1
-**The browser suite is not in CI.** `mobile/playwright.config.ts` and
-`mobile/tests/browser/` exist and `npm run test:browser` runs them, but
-`.github/workflows/ci.yml` has only `api`, `api-mariadb` and `mobile` — and
-`mobile` is `tsc --noEmit`. Nothing looks at a rendered screen on any push.
+**Resolution pending merge:** `.github/workflows/ci.yml` now has a blocking
+`browser` job. It provisions PostgreSQL and PHP, migrates and seeds the API,
+starts it with deterministic providers, exports the Expo web bundle, installs
+Chromium and runs the complete Playwright suite in both phone viewports.
 
 This matters more than it sounds. `layout.spec.ts` detects text crushed below a
 legible height, and its own comment records why it exists: *"the five tab bar
 labels at 0px, and a Creative Commons photo credit at 2px"*. That credit was in
 `DestinationHero` — the component whose height model changed in #27, which had
 to be diagnosed by hand against Yoga because nothing was watching.
-
-Not a one-liner: the job needs PHP, a database, migrations and an Expo web
-export. The `api` job already does the first three.
 
 *Known limit:* it catches crushed text, not every overflow. It would not have
 caught the search pill sliding under the Quick Actions card.
@@ -67,19 +64,15 @@ destroying an itinerary while a query is in flight. Nothing tests any of it.
 ## Functional
 
 ### F1
-**Itineraries cap at 14 days.** `ItineraryPlanner::dateRange` stops at
-`count($dates) < 14`. The range picker enforces the same limit so a journey
-never claims days the planner silently drops — a mitigation, not a fix. A
-three-week trip cannot be planned. This is the only entry here a traveller
-meets as the product refusing them.
+**Resolution pending merge:** the planner now covers the journey's full stored
+date range and all three calendar entry points accept longer stays. A feature
+regression generates 21 days and verifies the departure day is present.
 
 ### F2
-**`build()` posts to `/trips/null/generate-itinerary`.**
-`mobile/app/(tabs)/trip.tsx:85-89` creates a trip and then calls `generate`,
-which `useGenerateItinerary(session.tripId)` bound at render — when there was no
-trip, that id is null. Confirmed on `main`. `useBuildItinerary` (added in #32)
-takes the id at call time and is the ready-made fix; this call site was left
-alone rather than widening that PR.
+**Resolution pending merge:** the trip screen now keeps the newly created trip
+ID in the build handler and passes it to `useBuildItinerary` at call time. A
+browser regression records both requests and rejects any `/trips/null/...`
+request.
 
 ### F3
 **Onboarding creates a trip and never builds a plan.**
@@ -113,11 +106,9 @@ dates chip sits in a row of filters and looks like it should filter.
 
 ---
 
-## Suggested order
+## Pending verification
 
-1. **S1** — remove or formally accept the critical npm advisory, then take the
-   compatible Expo/React Native fixes for the remaining transitive advisories.
-2. **V1** — run the existing browser suite in CI so rendered regressions cannot
-   merge unseen.
-3. **F1** — the only gap a traveller experiences as a refusal.
-4. **F2** — small, and closes a confirmed null-id request.
+S1, V1, F1 and F2 can leave this log after this branch is merged and its CI run
+passes. The local reproduction passed the production audit baseline, 384 API
+tests (1,293 assertions), and 134 browser tests across both configured phone
+viewports.
