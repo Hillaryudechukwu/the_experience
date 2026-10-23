@@ -169,7 +169,6 @@ export default function TravelStyle() {
           endsOn={draft.endsOn}
           onChange={(startsOn, endsOn) => draft.set({ startsOn, endsOn })}
           minDate={isoDate(new Date(), session.destinationTimezone ?? undefined)}
-          maxSpanDays={14}
         />
 
         <SectionHeader title="Who is travelling?" />

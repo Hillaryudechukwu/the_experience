@@ -248,6 +248,34 @@ class TravellerAndJourneyTest extends TestCase
         );
     }
 
+    /** A normal long holiday must not lose its final week to an internal cap. */
+    public function test_a_three_week_trip_is_planned_through_its_departure_day(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => '2026-11-01',
+            'ends_on' => '2026-11-21',
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        $tripId = $this->postJson('/api/trips', [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        $itinerary = $this->postJson("/api/trips/{$tripId}/generate-itinerary", [], [
+            'X-Guest-Token' => $token,
+        ])->assertCreated();
+
+        $dates = array_column($itinerary->json('data.days'), 'date');
+
+        $this->assertCount(21, $dates);
+        $this->assertSame('2026-11-01', $dates[0]);
+        $this->assertSame('2026-11-21', $dates[20]);
+    }
+
     public function test_current_journey_is_only_visible_to_its_owner(): void
     {
         $owner = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');

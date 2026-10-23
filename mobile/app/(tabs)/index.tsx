@@ -709,7 +709,6 @@ export default function Discover() {
               endsOn={draftEndsOn}
               onChange={(startsOn, endsOn) => setDraftDates({ startsOn, endsOn })}
               minDate={earliestDate}
-              maxSpanDays={14}
             />
 
             {datesError ? <Note tone="warning">{datesError}</Note> : null}
