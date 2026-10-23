@@ -118,6 +118,93 @@ jobs:
       - name: Install dependencies
         working-directory: mobile
         run: npm ci
+      - name: Check Expo dependency compatibility
+        working-directory: mobile
+        run: npx expo install --check
+      - name: Check production dependency audit baseline
+        working-directory: mobile
+        run: npm run audit:production
       - name: Typecheck
         working-directory: mobile
         run: npx tsc --noEmit
+
+  browser:
+    needs: [api, mobile]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: experience_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d experience_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_URL: http://127.0.0.1:8099
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: experience_test
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      CACHE_STORE: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      BILLING_ENFORCED: "false"
+      EXPERIENCE_WEATHER_DRIVER: seeded
+      EXPERIENCE_ASSISTANT_DRIVER: rules
+      EXPERIENCE_ROUTING_DRIVER: estimator
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:8099/api
+      EXPO_PUBLIC_PRIVACY_URL: https://experience.synteric.co.uk/privacy
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql, mbstring, xml, curl, zip, bcmath, intl
+          coverage: none
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install API dependencies
+        working-directory: api
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+      - name: Prepare and seed browser API
+        working-directory: api
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan migrate:fresh --seed --force
+      - name: Start browser API
+        working-directory: api
+        run: |
+          php artisan serve --host=127.0.0.1 --port=8099 > storage/logs/browser-ci.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent "http://127.0.0.1:8099/api/destinations?q=london" > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat storage/logs/browser-ci.log
+          exit 1
+      - name: Install Chromium
+        working-directory: mobile
+        run: npx playwright install --with-deps chromium
+      - name: Run browser regression suite
+        working-directory: mobile
+        run: npm run test:browser
+      - name: Print API log on failure
+        if: failure()
+        run: cat api/storage/logs/browser-ci.log
