@@ -1,0 +1,69 @@
+import { spawnSync } from 'node:child_process';
+
+/*
+ * Expo SDK 57 has three unresolved upstream advisories in its production
+ * dependency graph. They are accepted until the review date recorded in
+ * docs/SECURITY_ACCEPTANCES.md. Pinning the exact advisory URLs makes this a
+ * baseline, not an instruction to ignore every future high finding.
+ */
+const accepted = new Set([
+  'https://github.com/advisories/GHSA-86w9-cpqp-85rv',
+  'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
+  'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
+]);
+
+const audit = spawnSync('npm', ['audit', '--omit=dev', '--json'], {
+  encoding: 'utf8',
+  shell: process.platform === 'win32',
+});
+
+if (!audit.stdout.trim()) {
+  process.stderr.write(audit.stderr || 'npm audit returned no report.\n');
+  process.exit(1);
+}
+
+let report;
+
+try {
+  report = JSON.parse(audit.stdout);
+} catch {
+  process.stderr.write(`npm audit returned invalid JSON:\n${audit.stdout}\n`);
+  process.exit(1);
+}
+
+if (report.error) {
+  process.stderr.write(`npm audit failed: ${report.error.summary ?? JSON.stringify(report.error)}\n`);
+  process.exit(1);
+}
+
+const reported = new Set();
+
+for (const vulnerability of Object.values(report.vulnerabilities ?? {})) {
+  for (const cause of vulnerability.via ?? []) {
+    if (typeof cause === 'object' && cause !== null && typeof cause.url === 'string') {
+      reported.add(cause.url);
+    }
+  }
+}
+
+const unexpected = [...reported].filter((url) => !accepted.has(url));
+const missing = [...accepted].filter((url) => !reported.has(url));
+const critical = report.metadata?.vulnerabilities?.critical ?? 0;
+
+if (critical > 0 || unexpected.length > 0) {
+  if (critical > 0) process.stderr.write(`${critical} critical production advisories found.\n`);
+  if (unexpected.length > 0) {
+    process.stderr.write(`Unaccepted production advisories:\n${unexpected.join('\n')}\n`);
+  }
+  process.exit(1);
+}
+
+if (missing.length > 0) {
+  process.stdout.write(`Resolved accepted advisories (remove them from the baseline):\n${missing.join('\n')}\n`);
+}
+
+const totals = report.metadata?.vulnerabilities ?? {};
+process.stdout.write(
+  `Production audit matches the accepted baseline: ${totals.high ?? 0} high, ` +
+  `${totals.moderate ?? 0} moderate, ${critical} critical.\n`,
+);
