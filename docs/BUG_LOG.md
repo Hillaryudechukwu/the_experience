@@ -13,11 +13,11 @@ recorded so nobody rediscovers it as a bug.
 
 | ID | What | Severity | Status |
 |---|---|---|---|
-| [S1](#s1) | Production dependency graph has accepted transitive npm advisories | high | unverified |
-| [V1](#v1) | The browser suite is not in CI | high | unverified |
+| [S1](#s1) | Production dependency graph has accepted transitive npm advisories | high | pending merge |
+| [V1](#v1) | The browser suite is not in CI | high | pending merge |
 | [V3](#v3) | No unit runner for mobile; `usePlanForDates` untested | medium | open |
-| [F1](#f1) | Itineraries cap at 14 days | medium | unverified |
-| [F2](#f2) | `build()` posts to `/trips/null/generate-itinerary` | medium | unverified |
+| [F1](#f1) | Itineraries capped at 14 days; three-week trips could not be planned | medium | pending merge |
+| [F2](#f2) | `build()` posted to `/trips/null/generate-itinerary` | medium | pending merge |
 | [F3](#f3) | Onboarding creates a trip and never builds a plan | medium | open |
 | [F4](#f4) | Four journey reasons exist on the API, unreachable in the app | low | open |
 | [F5](#f5) | `dayLabel` computes tomorrow as +24h | low | open |
@@ -37,7 +37,8 @@ time-bounded and documented in `docs/SECURITY_ACCEPTANCES.md`.
 
 `npm run audit:production` now fails CI on a critical or any advisory outside
 that exact baseline, while `npx expo install --check` prevents the compatible
-Expo packages drifting behind again. Do not run `npm audit fix --force`: npm's
+Expo packages drifting behind again. The gate also fails once the acceptance's
+review date passes, so the baseline cannot outlive its review. Do not run `npm audit fix --force`: npm's
 proposal crosses the supported Expo/React Native compatibility boundary.
 
 ### V1
@@ -64,9 +65,12 @@ destroying an itinerary while a query is in flight. Nothing tests any of it.
 ## Functional
 
 ### F1
-**Resolution pending merge:** the planner now covers the journey's full stored
-date range and all three calendar entry points accept longer stays. A feature
-regression generates 21 days and verifies the departure day is present.
+**Resolution pending merge:** the limit is now 31 days
+(`experience.itinerary.max_planned_days`), enforced in one place per layer:
+journey and `generate-itinerary` validation reject longer ranges, the planner
+clamps journeys stored before the limit existed, and the range picker stops at
+the same 31 days. Planning still runs inside the request, which is why the span
+stays bounded. Feature regressions cover a 21-day plan and the rejections.
 
 ### F2
 **Resolution pending merge:** the trip screen now keeps the newly created trip

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { Icon } from './Icon';
-import { Row, T } from './primitives';
+import { Note, Row, T } from './primitives';
 import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
 
 /**
@@ -22,6 +22,9 @@ import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
  */
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+/** Matches the API's experience.itinerary.max_planned_days. */
+export const MAX_PLANNED_DAYS = 31;
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -68,12 +71,15 @@ export function DateRangeCalendar({
   endsOn,
   onChange,
   minDate,
+  maxSpanDays = MAX_PLANNED_DAYS,
 }: {
   startsOn: string | null;
   endsOn: string | null;
   onChange: (startsOn: string | null, endsOn: string | null) => void;
   /** Today where the traveller is going, so their own today is never "past". */
   minDate: string;
+  /** The planner only builds this many days; see the note below the grid. */
+  maxSpanDays?: number;
 }) {
   const colors = useTheme();
 
@@ -102,7 +108,13 @@ export function DateRangeCalendar({
     return rows;
   }, [cursor]);
 
+  /* Set when a tap was shortened to fit the limit, so the substitution is
+     explained where it happened rather than inferred from a note that reads
+     as though the shorter range was chosen. */
+  const [clampedFrom, setClampedFrom] = useState<string | null>(null);
+
   const select = (iso: string) => {
+    setClampedFrom(null);
     /* First tap sets the start. Second extends it. A third starts again, which
        is how every booking calendar behaves and saves an explicit "clear". */
     if (!startsOn || (startsOn && endsOn)) {
@@ -115,8 +127,17 @@ export function DateRangeCalendar({
       return;
     }
 
+    if (daysBetween(startsOn, iso) + 1 > maxSpanDays) {
+      setClampedFrom(iso);
+      onChange(startsOn, toIsoAfter(startsOn, maxSpanDays - 1));
+      return;
+    }
+
     onChange(startsOn, iso);
   };
+
+  const spanDays = startsOn && endsOn ? daysBetween(startsOn, endsOn) + 1 : null;
+  const atMax = spanDays === maxSpanDays;
 
   return (
     <View style={{ gap: space.sm }}>
@@ -221,6 +242,27 @@ export function DateRangeCalendar({
           Now pick the day you leave.
         </T>
       ) : null}
+
+      {clampedFrom ? (
+        <Note tone="warning">
+          {parts(clampedFrom).day} {MONTHS[parts(clampedFrom).month - 1]} is more than {maxSpanDays}{' '}
+          days away, so we stopped after {maxSpanDays} days. Pick a later arrival for the rest of
+          the trip.
+        </Note>
+      ) : atMax ? (
+        <Note>
+          We plan up to {maxSpanDays} days at a time. Pick the stretch you want planned — you can
+          move it later.
+        </Note>
+      ) : null}
     </View>
   );
+}
+
+/** `days` whole days after an ISO date, as a calendar string. */
+function toIsoAfter(iso: string, days: number): string {
+  const { year, month, day } = parts(iso);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+
+  return toIso(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
 }

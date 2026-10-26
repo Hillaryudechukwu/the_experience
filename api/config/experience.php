@@ -10,6 +10,15 @@
 return [
 
     /*
+     * Per-address ceiling for the API, on top of the per-traveller limit. CI's
+     * browser suite runs every test from one address and raises it; production
+     * keeps the default.
+     */
+    'rate_limits' => [
+        'api_per_ip_per_minute' => (int) env('API_RATE_LIMIT_PER_IP', 300),
+    ],
+
+    /*
      * Traveller-facing name lives in APP_NAME. The tagline and description are
      * presentation copy for the privacy page and any other server-rendered surface.
      */
@@ -435,6 +444,10 @@ return [
 
     'itinerary' => [
         'engine_version' => 'itinerary-v1.2',
+        /* Planning runs inside the request, one pass per day, so the span is
+           bounded. Long enough for a month away; the mobile range picker
+           enforces the same limit. */
+        'max_planned_days' => 31,
         'default_day_start' => '09:00',
         'default_day_end' => '21:00',
         'anchor_safety_buffer_minutes' => 15,

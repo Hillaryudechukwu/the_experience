@@ -62,6 +62,9 @@ export default function TripScreen() {
   const replan = useReplan(session.tripId);
   const accept = useAcceptReplan(session.tripId);
   const createTrip = useCreateTrip();
+  /* Creating the trip is part of the build, so a second tap during either
+     request would create a second trip. */
+  const building = createTrip.isPending || generate.isPending;
 
   const [proposal, setProposal] = useState<ReplanResult | null>(null);
 
@@ -262,9 +265,9 @@ export default function TripScreen() {
             }
             action={
               <Button
-                label={buildPlanCtaLabel(days, generate.isPending)}
+                label={buildPlanCtaLabel(days, building)}
                 onPress={build}
-                loading={generate.isPending}
+                loading={building}
                 haptic="medium"
               />
             }

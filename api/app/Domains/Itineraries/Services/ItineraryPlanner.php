@@ -465,8 +465,13 @@ class ItineraryPlanner
             ? CarbonImmutable::parse($options['to'], $timezone)
             : ($journey->ends_on ? CarbonImmutable::parse($journey->ends_on, $timezone) : $start->addDays(2));
 
+        /* Requests are validated against this limit; the clamp keeps journeys
+           stored before it existed from planning an unbounded range. */
+        $lastDay = $start->startOfDay()->addDays((int) config('experience.itinerary.max_planned_days') - 1);
+        $end = $end->startOfDay()->min($lastDay);
+
         $dates = [];
-        for ($d = $start->startOfDay(); $d <= $end->startOfDay(); $d = $d->addDay()) {
+        for ($d = $start->startOfDay(); $d <= $end; $d = $d->addDay()) {
             $dates[] = $d;
         }
 

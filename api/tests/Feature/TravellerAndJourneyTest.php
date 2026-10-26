@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domains\Journeys\Models\Journey;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -274,6 +275,72 @@ class TravellerAndJourneyTest extends TestCase
         $this->assertCount(21, $dates);
         $this->assertSame('2026-11-01', $dates[0]);
         $this->assertSame('2026-11-21', $dates[20]);
+    }
+
+    /** Planning runs in the request, so the span it accepts is bounded. */
+    public function test_journeys_longer_than_the_planning_limit_are_rejected(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => '2026-11-01',
+            'ends_on' => '2026-12-02',
+        ], ['X-Guest-Token' => $token])->assertUnprocessable()->assertJsonValidationErrors('ends_on');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => '2026-11-01',
+            'ends_on' => '2026-12-01',
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        $this->patchJson("/api/journeys/{$journeyId}", [
+            'ends_on' => '2027-11-01',
+        ], ['X-Guest-Token' => $token])->assertUnprocessable()->assertJsonValidationErrors('ends_on');
+
+        $tripId = $this->postJson('/api/trips', [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        $this->postJson("/api/trips/{$tripId}/generate-itinerary", [
+            'from' => '2026-01-01',
+            'to' => '9999-12-31',
+        ], ['X-Guest-Token' => $token])->assertUnprocessable()->assertJsonValidationErrors('to');
+
+        $this->postJson("/api/trips/{$tripId}/generate-itinerary", [
+            'from' => '2026-11-10',
+            'to' => '2026-11-01',
+        ], ['X-Guest-Token' => $token])->assertUnprocessable()->assertJsonValidationErrors('to');
+    }
+
+    /** A journey stored before the limit existed still plans a bounded range. */
+    public function test_a_stored_journey_beyond_the_limit_plans_only_the_limit(): void
+    {
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => '2026-11-01',
+            'ends_on' => '2026-11-03',
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        Journey::query()->whereKey($journeyId)->update(['ends_on' => '2028-11-01']);
+
+        $tripId = $this->postJson('/api/trips', [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        $dates = array_column($this->postJson("/api/trips/{$tripId}/generate-itinerary", [], [
+            'X-Guest-Token' => $token,
+        ])->assertCreated()->json('data.days'), 'date');
+
+        $this->assertCount(31, $dates);
+        $this->assertSame('2026-12-01', end($dates));
     }
 
     public function test_current_journey_is_only_visible_to_its_owner(): void

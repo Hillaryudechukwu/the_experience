@@ -161,6 +161,8 @@ jobs:
       EXPERIENCE_WEATHER_DRIVER: seeded
       EXPERIENCE_ASSISTANT_DRIVER: rules
       EXPERIENCE_ROUTING_DRIVER: estimator
+      # Every browser test shares one address; the per-traveller limit still applies.
+      API_RATE_LIMIT_PER_IP: "3000"
       EXPO_PUBLIC_API_URL: http://127.0.0.1:8099/api
       EXPO_PUBLIC_PRIVACY_URL: https://experience.synteric.co.uk/privacy
     steps:

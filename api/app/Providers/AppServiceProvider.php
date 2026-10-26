@@ -64,7 +64,7 @@ class AppServiceProvider extends ServiceProvider
 
             return [
                 Limit::perMinute(120)->by($key),
-                Limit::perMinute(300)->by($request->ip()),
+                Limit::perMinute((int) config('experience.rate_limits.api_per_ip_per_minute'))->by($request->ip()),
             ];
         });
     }
