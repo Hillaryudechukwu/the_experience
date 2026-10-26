@@ -41,6 +41,9 @@ class ContextualGuidanceTest extends TestCase
 
         $now->assertOk();
         $now->assertJsonPath('data.0.slug', 'high-hungry');
+        /* Said out loud, so the app can show the mood it is still applying
+           and offer to clear it after a restart. */
+        $now->assertJsonPath('active_intent.mood', 'hungry');
         $now->assertJsonPath('primary.experience_id', $now->json('data.0.id'));
         $this->assertNotNull($now->json('primary.directions_url'));
         $this->assertSame('score-v1.4', $now->json('context.engine_version'));
@@ -51,7 +54,35 @@ class ContextualGuidanceTest extends TestCase
 
         $this->withHeader('X-Guest-Token', $token)
             ->postJson('/api/discovery/now', $this->body($destination))
-            ->assertJsonPath('data.0.slug', 'low-hungry');
+            ->assertJsonPath('data.0.slug', 'low-hungry')
+            ->assertJsonPath('active_intent.mood', null);
+    }
+
+    /** Same contract as mood: a remembered window must be named so the app can select the chip and offer Clear. */
+    public function test_a_time_window_is_reported_while_it_is_still_applied(): void
+    {
+        $destination = $this->destination();
+        $this->pair($destination);
+        $token = $this->guest();
+
+        $this->withHeader('X-Guest-Token', $token)
+            ->postJson('/api/discovery/time-boxed', $this->body($destination, ['window_minutes' => 60]))
+            ->assertOk()
+            ->assertJsonPath('active_intent.window_minutes', 60);
+
+        $this->withHeader('X-Guest-Token', $token)
+            ->postJson('/api/discovery/now', $this->body($destination))
+            ->assertOk()
+            ->assertJsonPath('active_intent.window_minutes', 60);
+
+        $this->withHeader('X-Guest-Token', $token)
+            ->postJson('/api/discovery/intent', $this->body($destination, ['clear' => ['window_minutes']]))
+            ->assertOk();
+
+        $this->withHeader('X-Guest-Token', $token)
+            ->postJson('/api/discovery/now', $this->body($destination))
+            ->assertOk()
+            ->assertJsonPath('active_intent.window_minutes', null);
     }
 
     public function test_an_expired_intent_does_not_change_the_ranking(): void

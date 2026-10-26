@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, API_URL, http } from '../../src/api/client';
 import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip, useUpdateJourney } from '../../src/api/hooks';
@@ -90,6 +91,15 @@ export default function Discover() {
   const [datesOpen, setDatesOpen] = useState(false);
   const [draftDates, setDraftDates] = useState<{ startsOn: string | null; endsOn: string | null } | undefined>();
   const [datesError, setDatesError] = useState<string | null>(null);
+
+  /* Clearing also drops the cached answers: they were shaped by the mood or
+     window being cleared and would otherwise be shown for another minute. */
+  const queryClient = useQueryClient();
+  const clearAndRefresh = useCallback(
+    (fields: string[]) =>
+      clearIntent(fields).then(() => queryClient.invalidateQueries({ queryKey: ['discovery'] })),
+    [queryClient],
+  );
 
   const surface = window ? 'time-boxed' : mood ? 'mood' : 'now';
   /* What the API records this surface as, which is not what the route is
@@ -181,6 +191,32 @@ export default function Discover() {
 
   const context = discovery.data?.context;
   const results = discovery.data?.data ?? [];
+
+  /* The server keeps mood and window for the rest of the day and keeps
+     applying them. Without this the chips/tiles came back unselected after a
+     restart while the picks were still shaped by that intent, with no Clear. */
+  const rememberedMood = discovery.data?.active_intent?.mood ?? null;
+  const rememberedWindow = discovery.data?.active_intent?.window_minutes ?? null;
+  /* Once, on the first answer: after that the chips are the source of truth,
+     and a cached answer from before a Clear must not bring the intent back. */
+  const intentRestored = useRef(false);
+  useEffect(() => {
+    if (intentRestored.current || !discovery.data) return;
+    intentRestored.current = true;
+
+    if (mood !== null || window !== null) return;
+
+    /* Window wins when both are remembered — same priority as `surface`. */
+    if (typeof rememberedWindow === 'number' && rememberedWindow > 0) {
+      setWindow(rememberedWindow);
+      return;
+    }
+
+    if (rememberedMood && MOODS.some((m) => m.key === rememberedMood)) {
+      setMood(rememberedMood);
+    }
+  }, [discovery.data, rememberedMood, rememberedWindow, mood, window]);
+  const moodLabel = MOODS.find((m) => m.key === mood)?.label ?? null;
   const [top, ...rest] = results;
 
   const todaysItems = useMemo(() => {
@@ -275,6 +311,8 @@ export default function Discover() {
         clothing={context?.weather?.clothing?.headline ?? null}
         onPressCity={() => router.push('/onboarding/destination')}
         onPressProfile={() => router.push('/(tabs)/you')}
+        profileInitials={profile?.account?.initials}
+        profileName={profile?.account?.name}
         onPressSearch={() => router.push('/search')}
         overlapBelow={QUICK_ACTIONS_OVERLAP}
       />
@@ -287,7 +325,7 @@ export default function Discover() {
             label: 'For you',
             icon: 'sparkle',
             onPress: () => {
-              void clearIntent(['mood', 'window_minutes']).then(() => {
+              void clearAndRefresh(['mood', 'window_minutes']).then(() => {
                 setWindow(null);
                 setMood(null);
               });
@@ -339,7 +377,7 @@ export default function Discover() {
           label="Right now"
           selected={window === null && mood === null}
           onPress={() => {
-            void clearIntent(['mood', 'window_minutes']).then(() => {
+            void clearAndRefresh(['mood', 'window_minutes']).then(() => {
               setWindow(null);
               setMood(null);
             });
@@ -352,10 +390,10 @@ export default function Discover() {
             selected={window === option.minutes}
             onPress={() => {
               if (window === option.minutes) {
-                void clearIntent(['window_minutes']).then(() => setWindow(null));
+                void clearAndRefresh(['window_minutes']).then(() => setWindow(null));
                 return;
               }
-              void clearIntent(['mood']).then(() => {
+              void clearAndRefresh(['mood']).then(() => {
                 setMood(null);
                 setWindow(option.minutes);
               });
@@ -405,7 +443,7 @@ export default function Discover() {
           action={window || mood ? 'Clear' : results.length > 0 ? 'See all' : undefined}
           onAction={() => {
             if (window || mood) {
-              void clearIntent(['mood', 'window_minutes']).then(() => {
+              void clearAndRefresh(['mood', 'window_minutes']).then(() => {
                 setWindow(null);
                 setMood(null);
               });
@@ -532,10 +570,10 @@ export default function Discover() {
             selected={mood === option.key}
             onPress={() => {
               if (mood === option.key) {
-                void clearIntent(['mood']).then(() => setMood(null));
+                void clearAndRefresh(['mood']).then(() => setMood(null));
                 return;
               }
-              void clearIntent(['window_minutes']).then(() => {
+              void clearAndRefresh(['window_minutes']).then(() => {
                 setWindow(null);
                 setMood(option.key);
               });
@@ -563,6 +601,35 @@ export default function Discover() {
           </T>
         </Pressable>
       </ScrollView>
+
+      {/* Picks for the chosen mood, right where it was chosen. They also
+          re-sort the carousel at the top, but that is a screen away from the
+          tiles: tapping one looked like it did nothing. */}
+      {mood ? (
+        <Gutter style={{ marginTop: space.md, gap: space.sm }}>
+          <SectionHeader
+            title={moodLabel ? `Feeling ${moodLabel.toLowerCase()}` : 'For your mood'}
+            caption="Closest to your mood right now"
+            action="Clear"
+            onAction={() => {
+              void clearAndRefresh(['mood']).then(() => setMood(null));
+            }}
+          />
+          {discovery.isLoading ? <Loading label="Finding the closest fit" /> : null}
+          {!discovery.isLoading && results.length === 0 ? (
+            <Note>Nothing fits that mood right now. Try another, or clear it.</Note>
+          ) : null}
+          {results.slice(0, 4).map((card) => (
+            <ExperienceCardView
+              key={`mood-${card.id}`}
+              card={card}
+              variant="compact"
+              recommendationSetId={discovery.data?.recommendation_set_id}
+              surface={surfaceLabel}
+            />
+          ))}
+        </Gutter>
+      ) : null}
       <Gutter>
         <T variant="caption" color={colors.text.tertiary} style={{ marginTop: space.xs }}>
           {MOOD_CREDIT}

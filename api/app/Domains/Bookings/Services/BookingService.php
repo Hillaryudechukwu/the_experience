@@ -7,6 +7,7 @@ namespace App\Domains\Bookings\Services;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
 use App\Domains\Bookings\BookingState;
 use App\Domains\Bookings\Models\Booking;
+use App\Domains\Bookings\Models\IdempotencyKey;
 use App\Domains\ExternalSources\Contracts\ProviderCapability;
 use App\Domains\ExternalSources\DTO\Availability;
 use App\Domains\ExternalSources\DTO\BookingRequest;
@@ -55,7 +56,21 @@ class BookingService
         $quantity = max(1, (int) ($input['quantity'] ?? 1));
         $startsAt = isset($input['starts_at']) ? $this->localStart((string) $input['starts_at'], $product) : null;
 
-        if ($startsAt !== null && $startsAt->isPast()) {
+        /*
+         * Refuse a past slot only when there is nothing to replay.
+         *
+         * The check used to run before the guard unconditionally, so a timeout
+         * retry after the first request had already confirmed returned 422.
+         * Skipping it for a completed key keeps replay working. Keeping it
+         * outside the callback means a 422 does not burn the key, so the
+         * client can still send a later slot under the same key.
+         */
+        $prior = IdempotencyKey::query()
+            ->where('scope', 'booking.create')
+            ->where('key', $key)
+            ->first();
+
+        if (($prior === null || $prior->status !== 'completed') && $startsAt !== null && $startsAt->isPast()) {
             throw ValidationException::withMessages([
                 'starts_at' => 'That time has already started. Pick a later one.',
             ]);

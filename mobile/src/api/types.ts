@@ -169,6 +169,8 @@ export type DiscoveryResponse = {
   context: DiscoveryContext;
   candidates_considered: number;
   catalogue_empty?: boolean;
+  /** The mood and window actually applied, including one remembered from earlier today. */
+  active_intent?: { mood: string | null; window_minutes: number | null };
   notice: string | null;
   interpreted?: { understood_as: string[]; filters: Record<string, unknown> };
 };
@@ -338,6 +340,8 @@ export type TravellerProfile = {
   is_guest: boolean;
   providers?: string[];
   has_password?: boolean;
+  /** Null for a guest. */
+  account?: { name: string | null; email: string | null; initials: string | null; member_since: string } | null;
 };
 
 export type ExperienceDna = {

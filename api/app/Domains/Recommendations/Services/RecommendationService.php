@@ -40,7 +40,7 @@ class RecommendationService
     ) {}
 
     /**
-     * @return array{set: RecommendationSet, context: ScoringContext, results: list<ScoredExperience>}
+     * @return array{set: RecommendationSet, context: ScoringContext, results: list<ScoredExperience>, relaxed: list<string>, intent: array{mood: ?string, window_minutes: ?int}}
      */
     public function recommend(Actor $actor, array $input, int $limit = 5): array
     {
@@ -182,6 +182,12 @@ class RecommendationService
             'context' => $context,
             'results' => $selected,
             'relaxed' => $relaxed,
+            /* What was actually applied, live intent included, so a client
+               that forgot the traveller's mood can still show and clear it. */
+            'intent' => [
+                'mood' => isset($input['mood']) ? (string) $input['mood'] : null,
+                'window_minutes' => isset($input['window_minutes']) ? (int) $input['window_minutes'] : null,
+            ],
         ];
     }
 }

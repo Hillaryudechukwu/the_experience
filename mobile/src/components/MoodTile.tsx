@@ -112,7 +112,9 @@ export function MoodTile({
             justifyContent: 'center',
           }}
         >
-          <Icon name="check" size={13} color={colors.text.primary} strokeWidth={2.4} />
+          {/* Fixed dark ink: on the white disc, the theme's primary text
+              colour is white in dark mode and the tick disappeared. */}
+          <Icon name="check" size={13} color="#0D1B2A" strokeWidth={2.4} />
         </View>
       ) : null}
     </Pressable>
