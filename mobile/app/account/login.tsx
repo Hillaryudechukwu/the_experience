@@ -35,7 +35,7 @@ export default function Login() {
 
     try {
       await login.mutateAsync({ email: trimmedEmail, password });
-      router.replace('/(tabs)/you');
+      router.replace('/');
     } catch (cause) {
       const message =
         cause instanceof ApiError
@@ -118,6 +118,7 @@ function Field({
         {label}
       </T>
       <TextInput
+        accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
         secureTextEntry={secureTextEntry}

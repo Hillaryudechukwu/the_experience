@@ -11,9 +11,9 @@ use Tests\TestCase;
 /**
  * Which routes the paywall covers, written down (Subscription JEM §11 P2, P6).
  *
- * The suite runs with enforcement off, because the gate ships long before the
- * stores can sell a month and turning it on by default would mean every
- * product test asserting a 402 instead of the behaviour it was written for.
+ * The suite runs with enforcement off (phpunit.xml), because otherwise every
+ * product test would assert a 402 instead of the behaviour it was written for.
+ * Production is the opposite: the shipped default is enforced.
  * The cost of that choice is that nothing else would notice a product route
  * added without the gate — it would simply work, in tests and in development,
  * and the omission would surface as a free feature in production.
@@ -128,5 +128,30 @@ class SubscriptionGateCoverageTest extends TestCase
     public function test_the_middleware_is_registered(): void
     {
         $this->assertNotEmpty($this->urisGatedBy(true));
+    }
+
+    /** An environment that forgets BILLING_ENFORCED must not give the product away. */
+    public function test_the_paywall_is_enforced_when_nothing_opens_it(): void
+    {
+        $saved = [getenv('BILLING_ENFORCED'), $_ENV['BILLING_ENFORCED'] ?? null, $_SERVER['BILLING_ENFORCED'] ?? null];
+
+        putenv('BILLING_ENFORCED');
+        unset($_ENV['BILLING_ENFORCED'], $_SERVER['BILLING_ENFORCED']);
+
+        try {
+            $config = require config_path('experience.php');
+
+            $this->assertTrue($config['billing']['enforced']);
+        } finally {
+            if ($saved[0] !== false) {
+                putenv('BILLING_ENFORCED='.$saved[0]);
+            }
+            if ($saved[1] !== null) {
+                $_ENV['BILLING_ENFORCED'] = $saved[1];
+            }
+            if ($saved[2] !== null) {
+                $_SERVER['BILLING_ENFORCED'] = $saved[2];
+            }
+        }
     }
 }

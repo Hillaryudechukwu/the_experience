@@ -19,12 +19,20 @@ import { useColorScheme } from 'react-native';
 import { BRAND, brandDocumentTitle } from '../src/brand';
 import { WayoaLogo } from '../src/components/WayoaLogo';
 import { colorModes } from '../src/design/tokens';
+import { ApiError } from '../src/api/client';
 import { usePaywallOn402 } from '../src/lib/usePaywallOn402';
 import { useSession } from '../src/store/session';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 30_000 },
+    queries: {
+      /* A 4xx is an answer, not a blip: "still preparing this city" or "no
+         paid month" will say the same thing a second later. */
+      retry: (failureCount, error) =>
+        !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failureCount < 1,
+      refetchOnWindowFocus: false,
+      staleTime: 30_000,
+    },
   },
 });
 

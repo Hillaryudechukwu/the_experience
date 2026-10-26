@@ -51,7 +51,8 @@ export default function Mission() {
 
       <Gutter style={{ marginTop: space.lg }}>
         <TextInput
-          placeholder="I'm here for work, but I don't want to leave without experiencing the city."
+          accessibilityLabel="What would make this trip feel worth it"
+          placeholder="In your own words, or pick one below."
           placeholderTextColor={colors.text.tertiary}
           value={draft.mission}
           onChangeText={(mission) => draft.set({ mission })}

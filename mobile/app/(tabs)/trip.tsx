@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import {
@@ -41,6 +41,7 @@ import {
 import { shareItinerary } from '../../src/lib/share';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
+import { showAlert } from '../../src/lib/alert';
 
 /**
  * Trip timeline (Figma: 24–28).
@@ -95,7 +96,7 @@ export default function TripScreen() {
 
       await generate.mutateAsync({ tripId });
     } catch (cause) {
-      Alert.alert('Could not build the plan', cause instanceof Error ? cause.message : 'Try again.');
+      showAlert('Could not build the plan', cause instanceof Error ? cause.message : 'Try again.');
     }
   };
 
@@ -103,7 +104,7 @@ export default function TripScreen() {
     try {
       setProposal(await replan.mutateAsync());
     } catch (cause) {
-      Alert.alert('Could not replan', cause instanceof Error ? cause.message : 'Try again.');
+      showAlert('Could not replan', cause instanceof Error ? cause.message : 'Try again.');
     }
   };
 

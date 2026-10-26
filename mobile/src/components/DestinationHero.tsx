@@ -157,11 +157,20 @@ export function DestinationHero({
         {/* ── Wordmark, city switch, profile ───────────────────────────── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
           <View style={{ flex: 1 }}>
-            {/* The wordmark, small, where the caption wordmark used to be.
-                The square mark at `sm` is 40pt tall against the 15pt line it
-                replaced, and this header lives in a box of fixed height — see
-                the note on `total` below. */}
-            <WayoaLogo variant="full" size="xs" accessibilityLabel={BRAND.name} />
+            {/* The symbol with the name set in white beside it. The full
+                wordmark at 18pt was dark navy on the midnight header and could
+                not be read; the symbol keeps its own colours at any size. */}
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              accessible
+              accessibilityRole="header"
+              accessibilityLabel={BRAND.name}
+            >
+              <WayoaLogo variant="mark" size="xs" />
+              <T variant="label" color="#FFFFFF">
+                {BRAND.name}
+              </T>
+            </View>
             <Pressable
               onPress={onPressCity}
               accessibilityRole="button"

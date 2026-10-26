@@ -70,9 +70,15 @@ class CurrentTimeFit implements ScoreComponent
 
         /* Time-of-day preference, e.g. a viewpoint at golden hour. */
         $slot = $this->timeSlot($context);
-        if (in_array($slot, (array) $experience->best_time_of_day, true)) {
+        $bestTimes = (array) $experience->best_time_of_day;
+        if (in_array($slot, $bestTimes, true)) {
             $value += 0.15;
             $reasons[] = Reason::plus('This is the best part of the day for it');
+        } elseif ($bestTimes !== []) {
+            /* Only rewarding the right time left "at first light" free to land
+               at two in the afternoon whenever the morning was full. */
+            $value -= 0.15;
+            $reasons[] = Reason::minus('Better at another time of day');
         }
 
         /* Daylight matters for outdoor experiences. */

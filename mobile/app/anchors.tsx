@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 
 import { useAddAnchor, useJourney } from '../src/api/hooks';
 import { Icon } from '../src/components/Icon';
@@ -10,6 +10,7 @@ import { ANCHOR_TYPES } from '../src/lib/reasons';
 import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
 import { useBackTo } from '../src/lib/navigation';
+import { showAlert } from '../src/lib/alert';
 
 /**
  * Journey anchors (Figma: 25).
@@ -84,7 +85,7 @@ export default function Anchors() {
 
   const submit = async () => {
     if (!title.trim()) {
-      Alert.alert('Give it a name', 'Something like "Dinner with the team" or "Flight home".');
+      showAlert('Give it a name', 'Something like "Dinner with the team" or "Flight home".');
 
       return;
     }
@@ -99,9 +100,9 @@ export default function Anchors() {
       });
 
       setTitle('');
-      Alert.alert('Added', 'Your plan will be built around this from now on.');
+      showAlert('Added', 'Your plan will be built around this from now on.');
     } catch (cause) {
-      Alert.alert('Could not add it', cause instanceof Error ? cause.message : 'Check the times and try again.');
+      showAlert('Could not add it', cause instanceof Error ? cause.message : 'Check the times and try again.');
     }
   };
 
@@ -226,6 +227,7 @@ function Field({
         {label}
       </T>
       <TextInput
+        accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}

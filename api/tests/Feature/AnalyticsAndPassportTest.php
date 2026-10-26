@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Domains\Analytics\Models\BehaviouralEvent;
 use App\Domains\Destinations\Models\Destination;
 use App\Domains\Experiences\Models\Experience;
+use App\Domains\Recommendations\Models\RecommendationReason;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -48,7 +49,7 @@ class AnalyticsAndPassportTest extends TestCase
 
         $this->assertDatabaseHas('recommendation_sets', ['id' => $setId, 'surface' => 'now']);
         $this->assertDatabaseHas('recommendations', ['recommendation_set_id' => $setId, 'rank' => 1]);
-        $this->assertGreaterThan(0, \App\Domains\Recommendations\Models\RecommendationReason::count());
+        $this->assertGreaterThan(0, RecommendationReason::count());
     }
 
     public function test_saves_and_completions_are_recorded_and_build_the_passport(): void
@@ -138,6 +139,20 @@ class AnalyticsAndPassportTest extends TestCase
         ], ['X-Guest-Token' => $this->token])->assertStatus(202);
 
         $this->assertSame(3, BehaviouralEvent::whereIn('type', ['view', 'navigate', 'reject_recommendation'])->count());
+    }
+
+    /** The app sends these around every booking; they used to be refused. */
+    public function test_the_apps_booking_funnel_events_are_accepted(): void
+    {
+        $experience = Experience::first();
+
+        $this->postJson('/api/events', [
+            'events' => [
+                ['type' => 'booking_started', 'subject_type' => 'experience', 'subject_id' => $experience->id, 'properties' => ['provider' => 'sandbox']],
+                ['type' => 'booking_confirmed', 'subject_type' => 'experience', 'subject_id' => $experience->id, 'properties' => ['provider' => 'sandbox']],
+                ['type' => 'booking_failed', 'subject_type' => 'experience', 'subject_id' => $experience->id, 'properties' => ['provider' => 'sandbox']],
+            ],
+        ], ['X-Guest-Token' => $this->token])->assertStatus(202);
     }
 
     public function test_an_unknown_event_type_is_refused(): void

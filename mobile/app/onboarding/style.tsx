@@ -265,7 +265,7 @@ function Counter({
         {label}
       </T>
       <Row gap={space.md}>
-        <Stepper icon="close" onPress={() => onChange(Math.max(min, value - 1))} label={`Fewer ${label}`} />
+        <Stepper icon="minus" onPress={() => onChange(Math.max(min, value - 1))} label={`Fewer ${label}`} />
         <T variant="h3" style={{ minWidth: 18, textAlign: 'center' }}>
           {value}
         </T>
@@ -275,7 +275,7 @@ function Counter({
   );
 }
 
-function Stepper({ icon, onPress, label }: { icon: 'plus' | 'close'; onPress: () => void; label: string }) {
+function Stepper({ icon, onPress, label }: { icon: 'plus' | 'minus'; onPress: () => void; label: string }) {
   const colors = useTheme();
 
   return (

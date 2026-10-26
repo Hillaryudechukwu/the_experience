@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Domains\ExternalSources\Services;
 
+use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Contracts\ProviderCapability;
 use App\Domains\ExternalSources\DTO\Availability;
+use App\Domains\ExternalSources\DTO\AvailabilitySlot;
 use App\Domains\ExternalSources\DTO\DateRange;
 use App\Domains\ExternalSources\Models\ProviderProduct;
-use App\Domains\Experiences\Models\Experience;
 use Carbon\CarbonImmutable;
 
 /**
@@ -94,10 +95,40 @@ class OfferService
                 Availability::unknown($product->provider, $product->provider_product_id, 'Supplier is temporarily unreachable.'),
             );
 
-            $result[] = $availability->toArray();
+            $result[] = $this->withoutStartedSlots($availability, $experience->destination?->timezone ?? 'UTC')->toArray();
         }
 
         return $result;
+    }
+
+    /**
+     * Drop slots that have already begun where the experience is.
+     *
+     * Suppliers answer for whole days, so this afternoon's request still came
+     * back with this morning's entry times — offered, tappable, and bookable.
+     */
+    private function withoutStartedSlots(Availability $availability, string $timezone): Availability
+    {
+        $now = CarbonImmutable::now($timezone);
+
+        $slots = array_values(array_filter($availability->slots, function (AvailabilitySlot $slot) use ($now, $timezone): bool {
+            $day = CarbonImmutable::parse($slot->date->toDateString(), $timezone);
+
+            if ($slot->startTime === null) {
+                return $day->endOfDay() > $now;
+            }
+
+            return $day->setTimeFromTimeString($slot->startTime) > $now;
+        }));
+
+        return new Availability(
+            $availability->provider,
+            $availability->providerProductId,
+            $slots,
+            $availability->freshness,
+            $availability->isLive,
+            $availability->unavailableReason,
+        );
     }
 
     /** @return array<string, bool> experience_id => has at least one live, bookable slot today */

@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domains\Discovery\Models\LiveIntent;
+use App\Domains\Discovery\Services\LiveIntentStore;
 use App\Domains\Experiences\Models\Experience;
+use App\Domains\ExternalSources\Models\ProviderProduct;
 use App\Domains\Identity\Actions\AdoptGuestSession;
 use App\Domains\Identity\Models\GuestSession;
 use App\Domains\Journeys\Models\Journey;
 use App\Domains\Passport\Models\SavedExperience;
+use App\Domains\Shared\ValueObjects\Actor;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -94,7 +99,7 @@ class GuestAdoptionTest extends TestCase
         $user = User::factory()->create();
         $guest = $this->guest();
 
-        \App\Domains\Discovery\Models\LiveIntent::query()->create([
+        LiveIntent::query()->create([
             'guest_session_id' => $guest->id,
             'mood' => 'romantic',
             'categories' => [],
@@ -106,10 +111,53 @@ class GuestAdoptionTest extends TestCase
 
         app(AdoptGuestSession::class)->run($this->requestFor($guest), $user);
 
-        $merged = app(\App\Domains\Discovery\Services\LiveIntentStore::class)
-            ->mergeInto(new \App\Domains\Shared\ValueObjects\Actor(userId: $user->id), []);
+        $merged = app(LiveIntentStore::class)
+            ->mergeInto(new Actor(userId: $user->id), []);
 
         $this->assertSame('romantic', $merged['mood'] ?? null);
+    }
+
+    /**
+     * The journey a guest builds and pays for has to be on the account.
+     *
+     * Adoption used to move the journey but not the trip hanging off it or the
+     * bookings: the account saw its journey with no plan and an empty
+     * Bookings tab, while the app said everything had come across.
+     */
+    public function test_registering_keeps_the_guests_plan_and_bookings(): void
+    {
+        $guestToken = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $guest = ['X-Guest-Token' => $guestToken];
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => CarbonImmutable::now()->addDays(3)->toDateString(),
+            'ends_on' => CarbonImmutable::now()->addDays(5)->toDateString(),
+        ], $guest)->assertCreated()->json('data.id');
+        $tripId = $this->postJson('/api/trips', ['journey_id' => $journeyId], $guest)->assertCreated()->json('data.id');
+        $this->postJson("/api/trips/{$tripId}/generate-itinerary", [], $guest)->assertCreated();
+
+        $product = ProviderProduct::where('provider', 'sandbox')->firstOrFail();
+        $reference = $this->postJson('/api/bookings', [
+            'provider' => 'sandbox',
+            'provider_product_id' => $product->provider_product_id,
+            'quantity' => 1,
+            'starts_at' => CarbonImmutable::now()->addDays(3)->setTime(11, 30)->toIso8601String(),
+        ], $guest + ['Idempotency-Key' => 'adoption-booking'])->assertCreated()->json('data.reference');
+
+        $token = $this->postJson('/api/auth/register', [
+            'name' => 'Alex Traveller',
+            'email' => 'alex@example.com',
+            'password' => 'correct-horse',
+        ], $guest)->assertCreated()->json('token');
+
+        $account = ['Authorization' => 'Bearer '.$token];
+
+        $this->assertSame($tripId, $this->getJson('/api/journeys/current', $account)->json('trip_id'));
+        $this->assertNotEmpty($this->getJson("/api/trips/{$tripId}", $account)->assertOk()->json('data.itinerary.days'));
+        $this->assertContains($reference, array_column($this->getJson('/api/bookings', $account)->json('data'), 'reference'));
     }
 
     /** @return array{0: User, 1: GuestSession} */

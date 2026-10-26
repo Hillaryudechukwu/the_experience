@@ -8,9 +8,9 @@ use App\Domains\ExternalSources\Services\ProviderRegistry;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AssistantController;
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\BillingNotificationController;
-use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
 use App\Http\Controllers\Api\DestinationImportController;
@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\ItineraryItemController;
 use App\Http\Controllers\Api\JourneyController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PassportController;
+use App\Http\Controllers\Api\PlacePhotoController;
 use App\Http\Controllers\Api\PrivacyController;
 use App\Http\Controllers\Api\TravellerProfileController;
 use App\Http\Controllers\Api\TripController;
@@ -44,6 +45,15 @@ Route::post('billing/apple/notifications', [BillingNotificationController::class
     ->middleware('throttle:120,1');
 Route::post('billing/google/notifications', [BillingNotificationController::class, 'google'])
     ->middleware('throttle:120,1');
+
+/*
+ * Image requests come from the image loader, which sends no guest token or
+ * bearer, so this sits outside the actor group. It reveals nothing a card
+ * does not already show.
+ */
+Route::get('place-photos/{name}', [PlacePhotoController::class, 'show'])
+    ->where('name', 'places/[A-Za-z0-9_-]+/photos/[A-Za-z0-9_-]+')
+    ->middleware('throttle:600,1');
 
 Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
@@ -90,10 +100,10 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
      */
     Route::middleware('subscribed')->group(function () {
         Route::post('discovery/now', [DiscoveryController::class, 'now']);
-    Route::post('discovery/time-boxed', [DiscoveryController::class, 'timeBoxed']);
-    Route::post('discovery/mood', [DiscoveryController::class, 'mood']);
-    Route::post('discovery/intent', [DiscoveryController::class, 'intent']);
-    Route::post('discovery/search', [DiscoveryController::class, 'search']);
+        Route::post('discovery/time-boxed', [DiscoveryController::class, 'timeBoxed']);
+        Route::post('discovery/mood', [DiscoveryController::class, 'mood']);
+        Route::post('discovery/intent', [DiscoveryController::class, 'intent']);
+        Route::post('discovery/search', [DiscoveryController::class, 'search']);
         Route::post('discovery/surprise-me', [DiscoveryController::class, 'surpriseMe']);
 
         Route::get('experiences/saved', [ExperienceController::class, 'saved']);

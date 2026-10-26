@@ -19,6 +19,7 @@ use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -52,7 +53,13 @@ class BookingService
 
         $key = $input['idempotency_key'];
         $quantity = max(1, (int) ($input['quantity'] ?? 1));
-        $startsAt = isset($input['starts_at']) ? CarbonImmutable::parse($input['starts_at']) : null;
+        $startsAt = isset($input['starts_at']) ? $this->localStart((string) $input['starts_at'], $product) : null;
+
+        if ($startsAt !== null && $startsAt->isPast()) {
+            throw ValidationException::withMessages([
+                'starts_at' => 'That time has already started. Pick a later one.',
+            ]);
+        }
 
         $result = $this->idempotency->run(
             'booking.create',
@@ -66,7 +73,7 @@ class BookingService
             ],
             function () use ($actor, $product, $provider, $input, $key, $quantity, $startsAt) {
                 $booking = Booking::create(array_merge($actor->ownerAttributes(), [
-                    'reference' => 'EXP-' . strtoupper(Str::random(8)),
+                    'reference' => 'EXP-'.strtoupper(Str::random(8)),
                     'journey_id' => $input['journey_id'] ?? null,
                     'trip_id' => $input['trip_id'] ?? null,
                     'state' => BookingState::Draft,
@@ -137,7 +144,7 @@ class BookingService
                             BookingState::Failed,
                             'provider',
                             'Could not reach the supplier to confirm availability, so nothing was booked. '
-                                . 'Nothing has been charged — please try again shortly.',
+                                .'Nothing has been charged — please try again shortly.',
                         );
 
                         return $this->payload($booking->fresh(['items']));
@@ -183,8 +190,8 @@ class BookingService
                     ]);
 
                     $providerResult = BookingResult::failed(
-                        'We could not reach ' . $product->provider . ' to complete this booking. '
-                            . 'Nothing has been charged — please try again.',
+                        'We could not reach '.$product->provider.' to complete this booking. '
+                            .'Nothing has been charged — please try again.',
                     );
                 }
 
@@ -281,7 +288,7 @@ class BookingService
             return array_merge($this->payload($booking->fresh(['items'])), [
                 'cancellable_here' => false,
                 'message' => 'We could not reach the supplier, so nothing was cancelled and your booking still stands. '
-                    . 'Please try again shortly.',
+                    .'Please try again shortly.',
             ]);
         }
 
@@ -321,5 +328,26 @@ class BookingService
                 'starts_at' => $item->starts_at?->toIso8601String(),
             ])->all(),
         ];
+    }
+
+    /**
+     * A slot time is the supplier's local time.
+     *
+     * The app sends "2026-10-28T09:30:00" from a slot list that is already in
+     * the destination's time. Reading that as UTC put Rome bookings an hour
+     * late and would call a New York evening slot past. An explicit offset is
+     * honoured as given.
+     */
+    private function localStart(string $value, ProviderProduct $product): CarbonImmutable
+    {
+        /* UTC on the way out: a datetime column keeps the wall-clock time and
+           drops the offset, so a local value would be stored an hour adrift. */
+        if (preg_match('/(Z|[+-]\d{2}:?\d{2})$/', trim($value)) === 1) {
+            return CarbonImmutable::parse($value)->utc();
+        }
+
+        $timezone = $product->experience?->destination?->timezone ?? 'UTC';
+
+        return CarbonImmutable::parse($value, $timezone)->utc();
     }
 }

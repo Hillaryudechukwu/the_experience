@@ -444,8 +444,22 @@ async function restoreOwnedJourney(): Promise<void> {
     const nextTrip = current.trip_id ?? null;
     const state = useSession.getState();
 
-    if (state.journeyId !== nextJourney) await state.setJourney(nextJourney);
-    if (state.tripId !== nextTrip) await state.setTrip(nextTrip);
+    /* Signing in on a fresh device: the account knows the city even though
+       this device does not. Set it first, because choosing a city clears the
+       journey and trip ids that are restored next. */
+    const destination = current.data?.destination;
+    if (destination && state.destinationId !== destination.id) {
+      await state.setDestination({
+        id: destination.id,
+        slug: destination.slug,
+        name: destination.name,
+        timezone: destination.timezone,
+      });
+    }
+
+    if (useSession.getState().journeyId !== nextJourney) await state.setJourney(nextJourney);
+    if (useSession.getState().tripId !== nextTrip) await state.setTrip(nextTrip);
+    if (destination && !useSession.getState().onboarded) await state.completeOnboarding();
   } catch {
     /* Leave the stored ids. The caller decides whether a 404 should drop them. */
   }

@@ -105,6 +105,7 @@ export default function Search() {
         >
           <Icon name="search" size={18} color={colors.text.tertiary} />
           <TextInput
+            accessibilityLabel="Search experiences"
             placeholder="What do you feel like doing?"
             placeholderTextColor={colors.text.tertiary}
             value={query}

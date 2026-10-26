@@ -245,9 +245,9 @@ export function DateRangeCalendar({
 
       {clampedFrom ? (
         <Note tone="warning">
-          {parts(clampedFrom).day} {MONTHS[parts(clampedFrom).month - 1]} is more than {maxSpanDays}{' '}
-          days away, so we stopped after {maxSpanDays} days. Pick a later arrival for the rest of
-          the trip.
+          {parts(clampedFrom).day} {MONTHS[parts(clampedFrom).month - 1]} would make the stay longer than{' '}
+          {maxSpanDays} days, the most we plan at once, so it now ends on {endLabel(startsOn, maxSpanDays)}.
+          For a longer trip, plan it in parts.
         </Note>
       ) : atMax ? (
         <Note>
@@ -265,4 +265,12 @@ function toIsoAfter(iso: string, days: number): string {
   const shifted = new Date(Date.UTC(year, month - 1, day + days));
 
   return toIso(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
+}
+
+/** The last day of the longest plannable stay from an arrival, as "27 Nov". */
+function endLabel(startsOn: string | null, maxSpanDays: number): string {
+  if (!startsOn) return '';
+  const end = parts(toIsoAfter(startsOn, maxSpanDays - 1));
+
+  return `${end.day} ${MONTHS[end.month - 1]}`;
 }

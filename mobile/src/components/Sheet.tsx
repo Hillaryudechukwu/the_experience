@@ -39,13 +39,17 @@ export function Sheet({
           accessibilityLabel="Close"
         />
 
-        <SafeAreaView edges={['bottom']} style={{ backgroundColor: colors.background.elevated }}>
+        {/* The height limit sits on the child of the full-screen column. A
+            percentage on anything deeper resolved against a parent sized by its
+            own content, so a long list grew the sheet past the top of the
+            screen, taking the title and close control with it. */}
+        <SafeAreaView edges={['bottom']} style={{ backgroundColor: colors.background.elevated, maxHeight }}>
           <View
             style={{
+              flexShrink: 1,
               backgroundColor: colors.background.elevated,
               borderTopLeftRadius: radius.sheet,
               borderTopRightRadius: radius.sheet,
-              maxHeight,
               ...elevation.sheet,
             }}
           >
@@ -70,6 +74,7 @@ export function Sheet({
             </Row>
 
             <ScrollView
+              style={{ flexGrow: 0, flexShrink: 1 }}
               contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }}
               showsVerticalScrollIndicator={false}
             >

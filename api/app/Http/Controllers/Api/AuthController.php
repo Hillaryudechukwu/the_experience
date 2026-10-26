@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Identity\Actions\AdoptGuestSession;
 use App\Domains\Identity\Actions\AuthenticateWithIdentityToken;
 use App\Domains\Identity\Actions\DeleteTravellerAccount;
+use App\Domains\Shared\ValueObjects\Actor;
+use App\Domains\TravellerProfile\Services\TravellerProfileService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +47,13 @@ class AuthController extends ApiController
         ]);
 
         $this->adoptGuestData($request, $user, $adopt);
+
+        /* The name typed at sign-up is the one to greet them by, unless the
+           guest profile they brought with them already had one. */
+        $profile = app(TravellerProfileService::class)->forActor(new Actor(userId: $user->id));
+        if ($profile->display_name === null) {
+            $profile->update(['display_name' => $data['name']]);
+        }
 
         return response()->json([
             'token' => $user->createToken('mobile', ['traveller'])->plainTextToken,

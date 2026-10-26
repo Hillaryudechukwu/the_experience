@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useBookings, useCancelBooking, type BookingSummary } from '../../src/api/hooks';
@@ -17,8 +17,9 @@ import {
   SectionHeader,
   T,
 } from '../../src/components/primitives';
-import { clock, dayLabel } from '../../src/lib/format';
+import { clock, dayLabel, sourceLabel } from '../../src/lib/format';
 import { space, useTheme } from '../../src/theme';
+import { confirmAction, showAlert } from '../../src/lib/alert';
 
 /** Booking state → the pill vocabulary travellers understand. */
 function pillFor(state: string): { kind: StatusKind; label: string } {
@@ -110,30 +111,28 @@ function BookingCard({ booking }: { booking: BookingSummary }) {
   const first = booking.items[0];
 
   const onCancel = () => {
-    Alert.alert('Cancel this booking?', 'We will ask the supplier to cancel if they support it here.', [
-      { text: 'Keep it', style: 'cancel' },
-      {
-        text: 'Cancel booking',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const result = await cancel.mutateAsync(booking.id);
-            if (result.cancellable_here === false) {
-              Alert.alert('Could not cancel here', result.message ?? 'Please cancel with the supplier.');
-              return;
-            }
-            Alert.alert(
-              'Cancelled',
-              result.refund_expected
-                ? 'The supplier has cancelled it. Any refund follows their policy.'
-                : 'This booking is cancelled.',
-            );
-          } catch {
-            /* useCancelBooking already alerts */
+    confirmAction('Cancel this booking?', 'We will ask the supplier to cancel if they support it here.', {
+      confirmLabel: 'Cancel booking',
+      cancelLabel: 'Keep it',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const result = await cancel.mutateAsync(booking.id);
+          if (result.cancellable_here === false) {
+            showAlert('Could not cancel here', result.message ?? 'Please cancel with the supplier.');
+            return;
           }
-        },
+          showAlert(
+            'Cancelled',
+            result.refund_expected
+              ? 'The supplier has cancelled it. Any refund follows their policy.'
+              : 'This booking is cancelled.',
+          );
+        } catch {
+          /* useCancelBooking already alerts */
+        }
       },
-    ]);
+    });
   };
 
   return (
@@ -145,7 +144,7 @@ function BookingCard({ booking }: { booking: BookingSummary }) {
               {first?.title ?? 'Booking'}
             </T>
             <T variant="caption" color={colors.text.tertiary}>
-              {booking.reference} · {booking.provider}
+              {booking.reference} · {sourceLabel(booking.provider)}
             </T>
           </View>
           <StatusPill kind={pill.kind} label={pill.label} />

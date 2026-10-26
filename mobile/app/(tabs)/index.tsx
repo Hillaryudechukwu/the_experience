@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { ApiError, API_URL, http } from '../../src/api/client';
@@ -31,6 +31,7 @@ import { clock, conditionLabel, isoDate, stayRangeLabel, timeOfDayGreeting, wind
 import { usePlanForDates } from '../../src/lib/usePlanForDates';
 import { discoveryPayload, useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
+import { showAlert } from '../../src/lib/alert';
 
 function discoveryFailureMessage(error: unknown): string {
   if (error instanceof ApiError && error.status !== 0 && error.message.trim()) {
@@ -194,9 +195,9 @@ export default function Discover() {
     try {
       const result = await surprise.mutateAsync(window ? { window_minutes: window } : {});
       if (result.data) router.push(`/experience/${result.data.id}`);
-      else Alert.alert('Nothing strong enough', result.message ?? 'Try widening the time you have.');
+      else showAlert('Nothing strong enough', result.message ?? 'Try widening the time you have.');
     } catch {
-      Alert.alert('Could not reach the API', `Tried ${API_URL}.`);
+      showAlert('Could not reach the API', `Tried ${API_URL}.`);
     }
   }, [router, surprise, window]);
 
@@ -238,7 +239,7 @@ export default function Discover() {
         ? primary.travel_minutes
           ? `${primary.action} ${primary.place_name}, ${primary.travel_minutes} min away.`
           : `${primary.action} ${primary.place_name}.`
-        : `${primary.action} In ${session.destinationName ?? 'the city'}.`
+        : `Start with ${primary.place_name}${primary.why ? `. ${primary.why}` : ''}.`
       : results.length > 0
         ? `I found ${results.length} experience${results.length === 1 ? '' : 's'} that fit.`
         : emptyCatalogue
@@ -693,13 +694,6 @@ export default function Discover() {
         </Gutter>
       ) : null}
 
-      {context ? (
-        <Gutter style={{ marginTop: space.lg }}>
-          <T variant="caption" color={colors.text.tertiary} align="center">
-            Ranked by {context.engine_version}
-          </T>
-        </Gutter>
-      ) : null}
 
       {journey ? (
         <Sheet visible={datesOpen} onClose={() => setDatesOpen(false)} title="When are you going">

@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domains\ExternalSources\Models\ProviderProduct;
 use App\Domains\Identity\Models\GuestSession;
 use App\Domains\Itineraries\Services\ItineraryPlanner;
+use App\Domains\Journeys\Models\Journey;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\TimeWindow;
 use App\Domains\Trips\Models\Trip;
 use Carbon\CarbonImmutable;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\BuildsTravelScenarios;
@@ -99,6 +102,68 @@ class ItineraryTest extends TestCase
         ], ['X-Guest-Token' => $guest->token])->assertCreated();
     }
 
+    /** A ticket the traveller bought is a fixed point, not a suggestion to repeat. */
+    public function test_a_booked_ticket_is_planned_around_and_not_suggested_again(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $headers = ['X-Guest-Token' => $token];
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+        $day = CarbonImmutable::now('Europe/London')->addDays(4)->toDateString();
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => $day,
+            'ends_on' => $day,
+        ], $headers)->assertCreated()->json('data.id');
+        $tripId = $this->postJson('/api/trips', ['journey_id' => $journeyId], $headers)->assertCreated()->json('data.id');
+
+        $product = ProviderProduct::where('provider', 'sandbox')
+            ->whereHas('experience', fn ($q) => $q->where('destination_id', $destinationId))
+            ->firstOrFail();
+        $this->postJson('/api/bookings', [
+            'provider' => 'sandbox',
+            'provider_product_id' => $product->provider_product_id,
+            'quantity' => 1,
+            'starts_at' => "{$day}T11:30:00",
+        ], $headers + ['Idempotency-Key' => 'planned-booking'])->assertCreated();
+
+        $items = collect($this->postJson("/api/trips/{$tripId}/generate-itinerary", [], $headers)
+            ->assertCreated()->json('data.days.0.items'));
+
+        $forProduct = $items->filter(fn (array $item) => ($item['experience']['id'] ?? null) === $product->experience_id);
+
+        $this->assertCount(1, $forProduct);
+        $this->assertSame('anchor', $forProduct->first()['kind']);
+        $this->assertTrue($forProduct->first()['locked']);
+        $this->assertTrue(CarbonImmutable::parse($forProduct->first()['starts_at'])->equalTo(CarbonImmutable::parse("{$day} 11:30", 'Europe/London')));
+    }
+
+    /** The busiest days are the ones that most need lunch kept free. */
+    public function test_a_planned_day_keeps_lunch(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $headers = ['X-Guest-Token' => $token];
+        $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+        $day = CarbonImmutable::now('Europe/London')->addDays(4)->toDateString();
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $destinationId,
+            'reason' => 'holiday',
+            'starts_on' => $day,
+            'ends_on' => $day,
+        ], $headers)->assertCreated()->json('data.id');
+        $tripId = $this->postJson('/api/trips', ['journey_id' => $journeyId], $headers)->assertCreated()->json('data.id');
+
+        $items = collect($this->postJson("/api/trips/{$tripId}/generate-itinerary", [], $headers)
+            ->assertCreated()->json('data.days.0.items'));
+
+        $this->assertNotEmpty($items->where('kind', 'experience'));
+        $this->assertNotNull($items->first(fn (array $item) => $item['kind'] === 'meal' && $item['title'] === 'Lunch'));
+    }
+
     public function test_generating_without_overrides_uses_journey_stay_dates(): void
     {
         $destination = $this->destination();
@@ -146,7 +211,7 @@ class ItineraryTest extends TestCase
         $this->assertSame($end->toDateString(), $response->json('data.days.6.date'));
     }
 
-    /** @return array{0:Actor,1:GuestSession,2:Trip,3:\App\Domains\Journeys\Models\Journey,4:CarbonImmutable} */
+    /** @return array{0:Actor,1:GuestSession,2:Trip,3:Journey,4:CarbonImmutable} */
     private function scenario(): array
     {
         $destination = $this->destination();

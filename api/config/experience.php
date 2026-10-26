@@ -324,16 +324,14 @@ return [
     /*
      * The paywall, and whether it is actually closed.
      *
-     * The gate ships before the store products exist — Apple and Google
-     * cannot be set up against code that is not deployed, and P6 proves the
-     * rule on a release build long after P2 lands. Enforcing on deploy would
-     * shut every existing traveller out of a product they can have no way to
-     * pay for yet, so enforcement is a switch and it starts off.
-     *
-     * Turn it on when both stores can actually sell the month.
+     * Closed by default: setup is free and everything after it needs a paid
+     * month. An environment that has to run the product without the stores —
+     * local development, the test suite, CI's browser job — opens it
+     * explicitly with BILLING_ENFORCED=false, so forgetting the variable in
+     * production cannot give the product away.
      */
     'billing' => [
-        'enforced' => (bool) env('BILLING_ENFORCED', false),
+        'enforced' => (bool) env('BILLING_ENFORCED', true),
         'price_minor' => (int) env('BILLING_PRICE_MINOR', 199),
         'currency' => env('BILLING_CURRENCY', 'GBP'),
         'products' => [
@@ -452,6 +450,8 @@ return [
         'default_day_end' => '21:00',
         'anchor_safety_buffer_minutes' => 15,
         'min_gap_between_items_minutes' => 10,
+        /* Held free before the day is filled; see ItineraryPlanner::freeWindows. */
+        'protected_lunch' => ['12:30', '13:30'],
         'meal_windows' => [
             'lunch' => ['12:00', '14:30'],
             'dinner' => ['18:30', '21:00'],

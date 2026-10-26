@@ -142,6 +142,7 @@ function Field({
         {label}
       </T>
       <TextInput
+        accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
         secureTextEntry={secureTextEntry}
