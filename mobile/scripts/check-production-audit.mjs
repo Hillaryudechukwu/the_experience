@@ -13,8 +13,8 @@ const reviewBy = '2027-01-31';
 
 const accepted = new Set([
   'https://github.com/advisories/GHSA-86w9-cpqp-85rv',
+  'https://github.com/advisories/GHSA-mrhx-c7xc-m3w5',
   'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
-  'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
 ]);
 
 const audit = spawnSync('npm', ['audit', '--omit=dev', '--json'], {

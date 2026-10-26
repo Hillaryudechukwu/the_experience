@@ -31,8 +31,9 @@ recorded so nobody rediscovers it as a bug.
 ### S1
 **Resolution pending merge:** the critical `shell-quote` advisory is removed,
 and the compatible SDK 57 patch set also removes the `source-map-js` and
-`uuid` roots. The remaining production report is 21 affected packages (18
-high, 3 moderate) resolving to three upstream advisories. Those risks are
+`uuid` roots. The remaining production report is 8 affected packages (5
+high, 3 moderate) resolving to three upstream advisories: `braces` is no longer reported, and a
+`zod` advisory in `@expo/cli` was published after the original acceptance. Those risks are
 time-bounded and documented in `docs/SECURITY_ACCEPTANCES.md`.
 
 `npm run audit:production` now fails CI on a critical or any advisory outside
