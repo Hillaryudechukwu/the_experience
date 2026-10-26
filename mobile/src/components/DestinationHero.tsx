@@ -8,6 +8,7 @@ import { BRAND } from '../brand';
 import { Icon } from './Icon';
 import { Artwork } from './Photo';
 import { remoteImage } from '../lib/images';
+import { Avatar } from './Avatar';
 import { WayoaLogo } from './WayoaLogo';
 import { T } from './primitives';
 import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
@@ -41,6 +42,8 @@ export function DestinationHero({
   clothing,
   onPressCity,
   onPressProfile,
+  profileInitials,
+  profileName,
   onPressSearch,
   height = 320,
   overlapBelow = 0,
@@ -58,6 +61,9 @@ export function DestinationHero({
   clothing?: string | null;
   onPressCity?: () => void;
   onPressProfile?: () => void;
+  /** Initials of the signed-in traveller; a guest gets the silhouette. */
+  profileInitials?: string | null;
+  profileName?: string | null;
   onPressSearch?: () => void;
   height?: number;
   /**
@@ -197,21 +203,11 @@ export function DestinationHero({
           <Pressable
             onPress={onPressProfile}
             accessibilityRole="button"
-            accessibilityLabel="Your profile"
+            accessibilityLabel={profileName ? `Your profile, signed in as ${profileName}` : 'Your profile'}
             hitSlop={8}
-            style={({ pressed }) => ({
-              width: TOUCH_TARGET,
-              height: TOUCH_TARGET,
-              borderRadius: TOUCH_TARGET / 2,
-              backgroundColor: 'rgba(255,255,255,0.18)',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.4)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: pressed ? 0.85 : 1,
-            })}
+            style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
           >
-            <Icon name="person" size={20} color="#FFFFFF" strokeWidth={1.8} />
+            <Avatar initials={profileInitials} size={TOUCH_TARGET} onDark />
           </Pressable>
         </View>
 

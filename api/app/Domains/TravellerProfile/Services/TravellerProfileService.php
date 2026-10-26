@@ -145,7 +145,55 @@ class TravellerProfileService
             'is_guest' => $profile->user_id === null,
             'providers' => $this->providers($profile),
             'has_password' => $this->hasPassword($profile),
+            'account' => $this->account($profile),
         ];
+    }
+
+    /**
+     * Who is signed in, for the profile header and the avatar.
+     *
+     * The profile used to say only "Signed in", and the avatar stayed an
+     * empty silhouette: nothing on screen confirmed which account this was.
+     *
+     * @return array{name: ?string, email: ?string, initials: ?string, member_since: string}|null
+     */
+    private function account(TravellerProfile $profile): ?array
+    {
+        if ($profile->user_id === null) {
+            return null;
+        }
+
+        $user = User::query()->find($profile->user_id);
+        if ($user === null) {
+            return null;
+        }
+
+        $name = $profile->display_name ?: $user->name;
+
+        return [
+            'name' => $name,
+            'email' => $user->email,
+            'initials' => self::initials($name ?: $user->email),
+            'member_since' => $user->created_at->toDateString(),
+        ];
+    }
+
+    /** "Ada Lovelace" → "AL", "cher" → "C", "sam@x.com" → "S". */
+    public static function initials(?string $source): ?string
+    {
+        $source = trim((string) $source);
+        if ($source === '') {
+            return null;
+        }
+
+        $words = preg_split('/\s+/u', str_contains($source, '@') && ! str_contains($source, ' ') ? strstr($source, '@', true) : $source) ?: [];
+        $letters = array_map(fn (string $word) => mb_strtoupper(mb_substr($word, 0, 1)), array_filter($words, fn ($w) => $w !== ''));
+
+        if ($letters === []) {
+            return null;
+        }
+
+        return count($letters) === 1 ? $letters[0] : $letters[0].end($letters);
     }
 
     /** @return list<string> */

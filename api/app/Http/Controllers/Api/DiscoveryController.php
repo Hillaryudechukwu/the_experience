@@ -167,6 +167,7 @@ class DiscoveryController extends ApiController
             'recommendation_set_id' => $result['set']->id,
             'context' => $this->contextPayload($result['context']),
             'candidates_considered' => $result['set']->candidates_considered,
+            'active_intent' => $result['intent'],
             'catalogue_empty' => $catalogueEmpty,
             'notice' => $this->notice(
                 $result['relaxed'] ?? [],

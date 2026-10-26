@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Domains\Journeys\Models\Journey;
+use App\Domains\TravellerProfile\Services\TravellerProfileService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -341,6 +342,37 @@ class TravellerAndJourneyTest extends TestCase
 
         $this->assertCount(31, $dates);
         $this->assertSame('2026-12-01', end($dates));
+    }
+
+    /** The profile and avatar say who is signed in; a guest is nobody yet. */
+    public function test_the_profile_names_the_signed_in_account(): void
+    {
+        $guestToken = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+
+        $this->getJson('/api/traveller/profile', ['X-Guest-Token' => $guestToken])
+            ->assertOk()
+            ->assertJsonPath('data.account', null);
+
+        $token = $this->postJson('/api/auth/register', [
+            'name' => 'Ada Lovelace',
+            'email' => 'ada@example.com',
+            'password' => 'correct-horse',
+        ], ['X-Guest-Token' => $guestToken])->assertCreated()->json('token');
+
+        $this->getJson('/api/traveller/profile', ['Authorization' => 'Bearer '.$token])
+            ->assertOk()
+            ->assertJsonPath('data.account.name', 'Ada Lovelace')
+            ->assertJsonPath('data.account.email', 'ada@example.com')
+            ->assertJsonPath('data.account.initials', 'AL');
+    }
+
+    public function test_initials_come_from_the_first_and_last_names(): void
+    {
+        $this->assertSame('AL', TravellerProfileService::initials('Ada  King Lovelace'));
+        $this->assertSame('C', TravellerProfileService::initials('cher'));
+        $this->assertSame('S', TravellerProfileService::initials('sam@example.com'));
+        $this->assertSame('ÉZ', TravellerProfileService::initials('élodie zola'));
+        $this->assertNull(TravellerProfileService::initials('   '));
     }
 
     public function test_current_journey_is_only_visible_to_its_owner(): void

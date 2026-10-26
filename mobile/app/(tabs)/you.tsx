@@ -12,6 +12,7 @@ import {
   useProfile,
   useUpdateProfile,
 } from '../../src/api/hooks';
+import { Avatar } from '../../src/components/Avatar';
 import { Icon, type IconName } from '../../src/components/Icon';
 import { Button, Card, CardPress, Chip, Divider, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
 import { confirmAction, showAlert } from '../../src/lib/alert';
@@ -118,12 +119,28 @@ export default function You() {
             </Row>
           </View>
         ) : (
-          <View style={{ marginTop: space.md }}>
-            <Note>
-              Signed in{profile.display_name ? ` as ${profile.display_name}` : ''}. Your trip follows this
-              account across devices.
-            </Note>
-          </View>
+          <Card style={{ marginTop: space.md }}>
+            <Row gap={space.md} align="center" style={{ padding: space.md }}>
+              <Avatar initials={profile.account?.initials} size={64} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <T variant="h3" numberOfLines={1}>
+                  {profile.account?.name ?? profile.display_name ?? 'Your account'}
+                </T>
+                {profile.account?.email ? (
+                  <T variant="small" color={colors.text.secondary} numberOfLines={1}>
+                    {profile.account.email}
+                  </T>
+                ) : null}
+                <T variant="caption" color={colors.text.tertiary}>
+                  {accountLine(profile.account?.member_since, profile.providers ?? [], profile.has_password === true)}
+                </T>
+              </View>
+            </Row>
+            <Divider />
+            <T variant="small" color={colors.text.secondary} style={{ padding: space.md }}>
+              Your trips, plans and bookings follow this account across devices.
+            </T>
+          </Card>
         )}
       </Gutter>
 
@@ -438,4 +455,17 @@ function LinkRow({
       </Row>
     </Pressable>
   );
+}
+
+/** "Member since Oct 2026 · Signed in with Google". */
+function accountLine(memberSince: string | undefined, providers: string[], hasPassword: boolean): string {
+  const names: Record<string, string> = { google: 'Google', apple: 'Apple' };
+  const methods = [...providers.map((p) => names[p] ?? p), ...(hasPassword ? ['email'] : [])];
+  const since = memberSince
+    ? new Date(`${memberSince}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+    : null;
+
+  return [since ? `Member since ${since}` : null, methods.length > 0 ? `Signed in with ${methods.join(' or ')}` : null]
+    .filter(Boolean)
+    .join(' · ');
 }

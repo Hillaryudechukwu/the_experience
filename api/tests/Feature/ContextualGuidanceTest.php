@@ -41,6 +41,9 @@ class ContextualGuidanceTest extends TestCase
 
         $now->assertOk();
         $now->assertJsonPath('data.0.slug', 'high-hungry');
+        /* Said out loud, so the app can show the mood it is still applying
+           and offer to clear it after a restart. */
+        $now->assertJsonPath('active_intent.mood', 'hungry');
         $now->assertJsonPath('primary.experience_id', $now->json('data.0.id'));
         $this->assertNotNull($now->json('primary.directions_url'));
         $this->assertSame('score-v1.4', $now->json('context.engine_version'));
