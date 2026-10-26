@@ -9,6 +9,7 @@ use App\Domains\Journeys\Models\Journey;
 use App\Domains\Passport\Models\CompletedExperience;
 use App\Domains\Passport\Models\PassportEntry;
 use App\Domains\Passport\Models\UserExperienceReview;
+use App\Domains\Places\Support\ImageUrl;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
 
@@ -54,7 +55,7 @@ class PassportService
             'recent' => $completed->take(12)->map(fn ($c) => [
                 'experience_id' => $c->experience_id,
                 'title' => $c->experience?->title,
-                'image_url' => $c->experience?->image_url,
+                'image_url' => ImageUrl::forClient($c->experience?->image_url),
                 'destination' => $c->experience?->destination?->name,
                 'completed_at' => $c->completed_at->toIso8601String(),
             ])->all(),

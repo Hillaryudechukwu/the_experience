@@ -37,6 +37,11 @@ export type IconName =
   | 'back'
   | 'chevron'
   | 'plus'
+  | 'minus'
+  | 'palette'
+  | 'music'
+  | 'moon'
+  | 'leaf'
   | 'check'
   | 'compass'
   | 'map'
@@ -230,6 +235,34 @@ function paths(name: IconName, p: Record<string, unknown>, stroke: string) {
       return <Path d="M9.5 5 16 12l-6.5 7" {...p} />;
     case 'plus':
       return <Path d="M12 5.5v13M5.5 12h13" {...p} />;
+    case 'minus':
+      return <Path d="M5.5 12h13" {...p} />;
+    case 'palette':
+      return (
+        <>
+          <Path d="M12 3.6a8.4 8.4 0 0 0 0 16.8c1.2 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2a4 4 0 0 0 3.9-4C20.4 6.9 16.6 3.6 12 3.6Z" {...p} />
+          <Circle cx="7.8" cy="11" r="1" {...p} />
+          <Circle cx="10.4" cy="7.4" r="1" {...p} />
+          <Circle cx="14.6" cy="7.4" r="1" {...p} />
+        </>
+      );
+    case 'music':
+      return (
+        <>
+          <Path d="M9 17.5V5.8l10-2v11.7" {...p} />
+          <Circle cx="6.6" cy="17.5" r="2.4" {...p} />
+          <Circle cx="16.6" cy="15.5" r="2.4" {...p} />
+        </>
+      );
+    case 'moon':
+      return <Path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1Z" {...p} />;
+    case 'leaf':
+      return (
+        <>
+          <Path d="M5 19c0-8 5.5-13.5 14-14 .2 8.8-5.6 14-14 14Z" {...p} />
+          <Path d="M5 19 13 11" {...p} />
+        </>
+      );
     case 'check':
       return <Path d="m5 12.5 4.5 4.5L19 7.5" {...p} />;
     case 'compass':

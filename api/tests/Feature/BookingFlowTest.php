@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Domains\ExternalSources\Models\ProviderProduct;
 use App\Domains\Experiences\Models\Experience;
+use App\Domains\ExternalSources\Models\ProviderProduct;
 use Carbon\CarbonImmutable;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -72,6 +72,64 @@ class BookingFlowTest extends TestCase
         $this->assertNotEmpty($native['slots']);
     }
 
+    /** At 16:00 where the experience is, this morning's entry times are gone. */
+    public function test_slots_that_have_already_started_are_not_offered(): void
+    {
+        $experience = Experience::where('slug', 'london-tower-of-london')->firstOrFail();
+        $now = CarbonImmutable::now('Europe/London')->setTime(16, 0);
+        CarbonImmutable::setTestNow($now);
+
+        try {
+            $availability = collect($this->getJson("/api/experiences/{$experience->id}/availability")->json('data'));
+            $slots = collect($availability->firstWhere('provider', 'sandbox')['slots']);
+
+            $startedToday = $slots->filter(
+                fn (array $slot) => $slot['date'] === $now->toDateString() && $slot['start_time'] !== null && $slot['start_time'] < '16:00',
+            );
+
+            $this->assertNotEmpty($slots);
+            $this->assertCount(0, $startedToday);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
+    public function test_a_booking_cannot_start_in_the_past(): void
+    {
+        $product = ProviderProduct::where('provider', 'sandbox')->firstOrFail();
+
+        $this->postJson('/api/bookings', [
+            'provider' => 'sandbox',
+            'provider_product_id' => $product->provider_product_id,
+            'quantity' => 1,
+            'starts_at' => CarbonImmutable::now()->subHour()->toIso8601String(),
+        ], $this->headers(['Idempotency-Key' => 'past-slot']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('starts_at');
+    }
+
+    /** "11:30" on a London slot list means 11:30 in London, not in UTC. */
+    public function test_a_slot_time_is_read_in_the_experiences_own_time_zone(): void
+    {
+        $product = ProviderProduct::where('provider', 'sandbox')
+            ->whereHas('experience', fn ($q) => $q->where('slug', 'london-tower-of-london'))
+            ->firstOrFail();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-14 12:00', 'UTC'));
+
+        try {
+            $startsAt = $this->postJson('/api/bookings', [
+                'provider' => 'sandbox',
+                'provider_product_id' => $product->provider_product_id,
+                'quantity' => 1,
+                'starts_at' => '2026-07-15T11:30:00',
+            ], $this->headers(['Idempotency-Key' => 'local-slot']))->assertCreated()->json('data.items.0.starts_at');
+
+            $this->assertTrue(CarbonImmutable::parse($startsAt)->equalTo(CarbonImmutable::parse('2026-07-15 11:30', 'Europe/London')));
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+    }
+
     public function test_a_native_booking_walks_the_state_machine_to_confirmed(): void
     {
         $product = ProviderProduct::where('provider', 'sandbox')->firstOrFail();
@@ -87,7 +145,7 @@ class BookingFlowTest extends TestCase
         $this->assertSame('confirmed', $response->json('data.state'));
         $this->assertNotNull($response->json('data.provider_booking_id'));
 
-        $history = $this->getJson('/api/bookings/' . $response->json('data.id'), $this->headers())->json('data.history');
+        $history = $this->getJson('/api/bookings/'.$response->json('data.id'), $this->headers())->json('data.history');
         $states = array_column($history, 'to');
 
         $this->assertSame(

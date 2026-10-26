@@ -12,6 +12,7 @@ use App\Domains\Destinations\Services\DestinationActivationGate;
 use App\Domains\Destinations\Services\DestinationCandidateToken;
 use App\Domains\Destinations\ValueObjects\DestinationCandidate;
 use App\Domains\ExternalSources\Providers\NominatimGeocoder;
+use App\Domains\Places\Support\ImageUrl;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use Illuminate\Http\JsonResponse;
@@ -78,7 +79,7 @@ class DestinationController extends ApiController
             'currency' => $d->currency,
             'lat' => $d->lat,
             'lng' => $d->lng,
-            'hero_image_url' => $d->hero_image_url,
+            'hero_image_url' => ImageUrl::forClient($d->hero_image_url),
             'hero_image_attribution' => $d->hero_image_attribution,
             'summary' => $d->summary,
             'kind' => 'destination',
@@ -273,7 +274,7 @@ class DestinationController extends ApiController
                 'lat' => $model->lat,
                 'lng' => $model->lng,
                 'summary' => $model->summary,
-                'hero_image_url' => $model->hero_image_url,
+                'hero_image_url' => ImageUrl::forClient($model->hero_image_url),
                 'hero_image_attribution' => $model->hero_image_attribution,
                 'neighbourhoods' => $model->neighbourhoods->map(fn ($n) => [
                     'id' => $n->id,
@@ -284,7 +285,7 @@ class DestinationController extends ApiController
                     'ideal_duration_minutes' => $n->ideal_duration_minutes,
                     'lat' => $n->lat,
                     'lng' => $n->lng,
-                    'image_url' => $n->image_url,
+                    'image_url' => ImageUrl::forClient($n->image_url),
                     'image_attribution' => $n->image_attribution,
                 ])->all(),
                 /* Spec s5.3 — the culturally meaningful checklist. */

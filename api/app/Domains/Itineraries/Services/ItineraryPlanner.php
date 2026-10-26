@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domains\Itineraries\Services;
 
+use App\Domains\Bookings\BookingState;
+use App\Domains\Bookings\Models\Booking;
+use App\Domains\Bookings\Models\BookingItem;
 use App\Domains\Discovery\Services\CandidateBuilder;
 use App\Domains\Discovery\Services\ContextEngine;
 use App\Domains\ExternalSources\Contracts\RoutingProvider;
@@ -50,10 +53,14 @@ class ItineraryPlanner
         ]));
 
         $plans = [];
-        $placed = [];
+        $booked = $this->bookedItems($actor, $journey, $dates);
+
+        /* A ticket already bought is in the plan as itself, never suggested
+           again an hour later as if it were still a choice. */
+        $placed = array_values(array_filter(array_column(array_merge([], ...array_values($booked)), 'experience_id')));
 
         foreach ($dates as $date) {
-            $plan = $this->planDay($journey, $date, $baseContext, $placed, $options);
+            $plan = $this->planDay($journey, $date, $baseContext, $placed, $options, $booked[$date->toDateString()] ?? []);
             $plans[] = $plan;
 
             foreach ($plan->items as $item) {
@@ -73,6 +80,7 @@ class ItineraryPlanner
         ScoringContext $baseContext,
         array $alreadyPlaced,
         array $options,
+        array $booked = [],
     ): DayPlan {
         $plan = new DayPlan($date);
         $timezone = $journey->destination->timezone;
@@ -98,7 +106,30 @@ class ItineraryPlanner
             ]);
         }
 
-        $windows = $this->freeWindows($date, $anchors, $journey, $options);
+        foreach ($booked as $booking) {
+            $plan->add([
+                'kind' => 'anchor',
+                'experience_id' => $booking['experience_id'],
+                'journey_anchor_id' => null,
+                'title' => $booking['title'],
+                'starts_at' => $booking['starts_at'],
+                'ends_at' => $booking['ends_at'],
+                'locked' => true,
+                'score' => null,
+                'reason' => 'Booked',
+                'travel_minutes_from_previous' => 0,
+                'travel_mode' => null,
+                'meta' => ['booking_reference' => $booking['reference']],
+            ]);
+        }
+
+        $windows = $this->freeWindows(
+            $date,
+            $anchors,
+            $journey,
+            $options,
+            array_map(fn (array $b) => new TimeWindow($b['starts_at'], $b['ends_at']), $booked),
+        );
 
         $maxItems = config('experience.itinerary.max_items_per_day')[$journey->pace_override ?? $baseContext->profile?->travel_pace ?? 'moderate'] ?? 3;
         $gap = (int) config('experience.itinerary.min_gap_between_items_minutes', 10);
@@ -269,14 +300,22 @@ class ItineraryPlanner
     }
 
     /** @return list<TimeWindow> */
-    private function freeWindows(CarbonImmutable $date, $anchors, Journey $journey, array $options): array
+    /** @param list<TimeWindow> $extraBlocks */
+    private function freeWindows(CarbonImmutable $date, $anchors, Journey $journey, array $options, array $extraBlocks = []): array
     {
-        $timezone = $journey->destination->timezone;
         $dayStart = $date->setTimeFromTimeString($options['day_start'] ?? config('experience.itinerary.default_day_start'));
         $dayEnd = $date->setTimeFromTimeString($options['day_end'] ?? config('experience.itinerary.default_day_end'));
 
-        $blocked = $anchors
-            ->map(fn (JourneyAnchor $a) => $a->blockedWindow())
+        /* Lunch is held back before anything is placed. Filling the day first
+           and fitting meals into what was left meant the busiest days were
+           exactly the ones that lost lunch. */
+        $lunch = config('experience.itinerary.protected_lunch');
+        if (is_array($lunch) && count($lunch) === 2) {
+            $extraBlocks[] = new TimeWindow($date->setTimeFromTimeString($lunch[0]), $date->setTimeFromTimeString($lunch[1]));
+        }
+
+        $blocked = collect($anchors->map(fn (JourneyAnchor $a) => $a->blockedWindow())->all())
+            ->concat($extraBlocks)
             ->sortBy(fn (TimeWindow $w) => $w->start)
             ->values();
 
@@ -323,19 +362,28 @@ class ItineraryPlanner
                 continue;
             }
 
-            $start = $date->setTimeFromTimeString($from);
             $end = $date->setTimeFromTimeString($to);
-            $slot = new TimeWindow($start, $start->addMinutes(60));
+            $slot = null;
 
-            $clashes = false;
-            foreach ($plan->occupiedWindows() as $occupied) {
-                if ($occupied->overlaps($slot)) {
-                    $clashes = true;
+            /* The first free hour in the window, not only one at its opening. */
+            for ($start = $date->setTimeFromTimeString($from); $start->addMinutes(60) <= $end; $start = $start->addMinutes(15)) {
+                $candidate = new TimeWindow($start, $start->addMinutes(60));
+                $clashes = false;
+
+                foreach ($plan->occupiedWindows() as $occupied) {
+                    if ($occupied->overlaps($candidate)) {
+                        $clashes = true;
+                        break;
+                    }
+                }
+
+                if (! $clashes) {
+                    $slot = $candidate;
                     break;
                 }
             }
 
-            if ($clashes || $slot->end > $end) {
+            if ($slot === null) {
                 continue;
             }
 
@@ -442,15 +490,59 @@ class ItineraryPlanner
         }
     }
 
+    /**
+     * Confirmed tickets in the journey's dates, by local day.
+     *
+     * @param  list<CarbonImmutable>  $dates
+     * @return array<string, list<array{experience_id: ?string, title: string, reference: string, starts_at: CarbonImmutable, ends_at: CarbonImmutable}>>
+     */
+    private function bookedItems(Actor $actor, Journey $journey, array $dates): array
+    {
+        if ($dates === []) {
+            return [];
+        }
+
+        $timezone = $journey->destination->timezone;
+        $bookings = Booking::query()->ownedBy($actor)->where('state', BookingState::Confirmed->value);
+
+        $items = BookingItem::query()
+            ->with('experience')
+            ->whereIn('booking_id', (clone $bookings)->select('id'))
+            ->whereNotNull('starts_at')
+            ->whereBetween('starts_at', [$dates[0]->startOfDay()->utc(), end($dates)->endOfDay()->utc()])
+            ->get();
+
+        $references = $bookings->whereIn('id', $items->pluck('booking_id'))->pluck('reference', 'id');
+        $byDay = [];
+
+        foreach ($items as $item) {
+            $start = $item->starts_at->setTimezone($timezone);
+
+            $byDay[$start->toDateString()][] = [
+                'experience_id' => $item->experience_id,
+                'title' => $item->experience?->title ?? $item->title,
+                'reference' => (string) ($references[$item->booking_id] ?? ''),
+                'starts_at' => $start,
+                'ends_at' => $start->addMinutes($item->experience?->expected_duration_minutes ?? 90),
+            ];
+        }
+
+        return $byDay;
+    }
+
     private function summarise(DayPlan $plan): string
     {
         $experiences = $plan->experienceCount();
         $anchors = count(array_filter($plan->items, fn ($i) => $i['kind'] === 'anchor'));
 
+        $planned = sprintf('%d experience%s planned', $experiences, $experiences === 1 ? '' : 's');
+
         return match (true) {
             $experiences === 0 && $anchors > 0 => 'Built around your fixed commitments',
-            $experiences === 0 => 'Nothing scheduled yet',
-            default => sprintf('%d experience%s planned around %d fixed commitment%s', $experiences, $experiences === 1 ? '' : 's', $anchors, $anchors === 1 ? '' : 's'),
+            $experiences === 0 && ($plan->diagnostics['pool_size'] ?? 1) === 0 => 'A free day: everything we would suggest is already earlier in your plan',
+            $experiences === 0 => 'A free day: nothing else fits around your commitments',
+            $anchors === 0 => $planned,
+            default => sprintf('%s around %d fixed commitment%s', $planned, $anchors, $anchors === 1 ? '' : 's'),
         };
     }
 

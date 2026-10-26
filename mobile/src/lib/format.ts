@@ -139,3 +139,26 @@ export function buildPlanCtaLabel(stayDays: number | null | undefined, pending =
 
   return stayDays !== null && stayDays !== undefined && stayDays > 1 ? 'Build my itinerary' : 'Build my day';
 }
+
+/** Provider keys are internal. Travellers get the name of the actual source. */
+export function sourceLabel(source: string | null): string {
+  if (!source) return 'Not verified';
+
+  const names: Record<string, string> = {
+    google_places: 'Google',
+    osm: 'OpenStreetMap',
+    wikimedia: 'Wikimedia',
+    seed_demo: 'Editorial',
+    sandbox: 'Sandbox supplier',
+    deeplink: 'Partner',
+    viator: 'Viator',
+    tiqets: 'Tiqets',
+    getyourguide: 'GetYourGuide',
+    open_meteo: 'Open-Meteo',
+    seeded_forecast: 'Simulated forecast',
+    osrm: 'OSRM',
+    estimator: 'Estimated',
+  };
+
+  return names[source] ?? source.replace(/_/g, ' ');
+}

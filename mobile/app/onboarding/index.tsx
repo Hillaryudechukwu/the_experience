@@ -7,19 +7,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BRAND } from '../../src/brand';
 import { WayoaLogo } from '../../src/components/WayoaLogo';
 import { Button, Gutter, T } from '../../src/components/primitives';
-import { useSession } from '../../src/store/session';
 import { space } from '../../src/theme';
 
 /**
  * Welcome (Figma: 14.1).
  *
- * One promise, one action. Continuing as a guest is offered with equal weight
- * because nothing here needs an account, and a sign-up wall before any value
- * has been shown is the fastest way to lose someone.
+ * One promise, one action. Nothing here needs an account, so the second
+ * button is for travellers who already have one: skipping straight to the
+ * tabs without a city left them on a screen that could only ask for one.
  */
 export default function Welcome() {
   const router = useRouter();
-  const session = useSession();
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0D1B2A' }}>
@@ -53,12 +51,9 @@ export default function Welcome() {
               haptic="medium"
             />
             <Button
-              label="Continue as guest"
+              label="I already have an account"
               tone="onAccentGhost"
-              onPress={async () => {
-                await session.completeOnboarding();
-                router.replace('/(tabs)');
-              }}
+              onPress={() => router.push('/account/login')}
               style={{ alignSelf: 'center' }}
             />
           </Gutter>

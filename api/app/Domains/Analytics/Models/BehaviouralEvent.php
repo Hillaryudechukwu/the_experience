@@ -21,6 +21,9 @@ class BehaviouralEvent extends Model
         'destination_activation_requested', 'destination_import_completed',
         'destination_import_failed', 'destination_selected_after_import',
         'destination_activation_abandoned',
+        /* The app's booking funnel. Without these the client's own events were
+           refused with a 422, so started-but-abandoned bookings went unseen. */
+        'booking_started', 'booking_confirmed', 'booking_failed',
     ];
 
     protected $guarded = [];

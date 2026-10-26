@@ -16,6 +16,7 @@ import { Icon, type IconName } from '../../src/components/Icon';
 import { Button, Card, CardPress, Chip, Divider, Gutter, LoadFailure, Loading, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
 import { confirmAction, showAlert } from '../../src/lib/alert';
 import { titleCase } from '../../src/lib/format';
+import { INTERESTS as INTEREST_OPTIONS } from '../../src/lib/reasons';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '../../src/lib/legal';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
@@ -35,6 +36,9 @@ const INTERESTS = [
   'shopping', 'nightlife', 'sport', 'photography', 'wellness', 'family',
   'adventure', 'local_life',
 ];
+
+/* Same names as onboarding, so "Local culture" does not become "Culture" here. */
+const INTEREST_LABELS: Record<string, string> = Object.fromEntries(INTEREST_OPTIONS.map((i) => [i.key, i.label]));
 
 /**
  * You (Figma: 40).
@@ -209,7 +213,7 @@ export default function You() {
           {INTERESTS.map((key) => (
             <Chip
               key={key}
-              label={titleCase(key)}
+              label={INTEREST_LABELS[key] ?? titleCase(key)}
               selected={selected.has(key)}
               tone="accent"
               onPress={() => update.mutate({ interests: { [key]: selected.has(key) ? 10 : 85 } })}
@@ -264,7 +268,7 @@ export default function You() {
         </Row>
         <View style={{ marginTop: space.sm }}>
           <Note>
-            Approximate rounds your position to about a kilometre before anything sees it. Off uses the city
+            Approximate rounds your position to about a kilometre before anything sees it. City only uses the city
             centre instead — everything still works.
           </Note>
         </View>

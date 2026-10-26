@@ -232,6 +232,7 @@ export default function Destination() {
         >
           <Icon name="search" size={18} color={colors.text.tertiary} />
           <TextInput
+            accessibilityLabel="Search cities"
             placeholder="Search cities"
             placeholderTextColor={colors.text.tertiary}
             value={query}

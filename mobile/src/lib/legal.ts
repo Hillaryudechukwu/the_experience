@@ -35,5 +35,5 @@ export const SUBSCRIPTION_SETTINGS_URL = Platform.select({
 export const STORE_NAME = Platform.select({
   ios: 'Apple',
   android: 'Google Play',
-  default: 'the store',
+  default: 'App Store or Google Play',
 });

@@ -207,6 +207,7 @@ export default function Guide() {
             }}
           >
             <TextInput
+              accessibilityLabel="Message the guide"
               placeholder="Ask anything about this city"
               placeholderTextColor={colors.text.tertiary}
               value={input}

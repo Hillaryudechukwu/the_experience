@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Itineraries\Services\ItineraryPlanner;
 use App\Domains\Itineraries\Services\ItineraryReplanner;
 use App\Domains\Journeys\Models\Journey;
+use App\Domains\Places\Support\ImageUrl;
 use App\Domains\Trips\Models\Itinerary;
 use App\Domains\Trips\Models\Trip;
 use Illuminate\Http\JsonResponse;
@@ -136,7 +137,7 @@ class TripController extends ApiController
                     'experience' => $item->experience === null ? null : [
                         'id' => $item->experience->id,
                         'title' => $item->experience->title,
-                        'image_url' => $item->experience->image_url,
+                        'image_url' => ImageUrl::forClient($item->experience->image_url),
                         'lat' => $item->experience->place?->lat,
                         'lng' => $item->experience->place?->lng,
                     ],

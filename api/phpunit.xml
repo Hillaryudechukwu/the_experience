@@ -38,6 +38,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="BILLING_ENFORCED" value="false" force="true"/>
         <env name="EXPERIENCE_WEATHER_DRIVER" value="seeded" force="true"/>
         <env name="EXPERIENCE_ASSISTANT_DRIVER" value="rules" force="true"/>
         <!-- Keep the suite hermetic. OSRM's concrete contract tests opt into

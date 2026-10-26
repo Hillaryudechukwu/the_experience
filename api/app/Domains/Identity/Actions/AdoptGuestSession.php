@@ -18,6 +18,17 @@ use Illuminate\Support\Facades\DB;
 /** Carry everything the traveller did as a guest into their account. */
 class AdoptGuestSession
 {
+    /** @var list<string> */
+    private const OWNED_TABLES = [
+        'trips',
+        'bookings',
+        'completed_experiences',
+        'passport_entries',
+        'assistant_conversations',
+        'user_experience_reviews',
+        'behavioural_events',
+    ];
+
     public function run(Request $request, User $user): void
     {
         $token = $request->header('X-Guest-Token');
@@ -51,6 +62,19 @@ class AdoptGuestSession
              */
             Journey::where('guest_session_id', $guest->id)
                 ->update(['user_id' => $user->id, 'guest_session_id' => null]);
+
+            /*
+             * Everything else a guest owns outright. Trips carry the built
+             * plan, and bookings may be paid for: leaving either behind made
+             * registering look like it lost them, while the app announced they
+             * had moved. None of these tables is unique on its owner, so a
+             * plain move cannot collide with what the account already holds.
+             */
+            foreach (self::OWNED_TABLES as $table) {
+                DB::table($table)
+                    ->where('guest_session_id', $guest->id)
+                    ->update(['user_id' => $user->id, 'guest_session_id' => null]);
+            }
 
             /*
              * Saves are deduplicated first. The table is unique on

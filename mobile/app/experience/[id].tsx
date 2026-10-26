@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,7 +33,8 @@ import {
   T,
 } from '../../src/components/primitives';
 import { toFitReasons, WhyThisFits } from '../../src/components/WhyThisFits';
-import { clock, minutesLabel, titleCase } from '../../src/lib/format';
+import { confirmAction, showAlert } from '../../src/lib/alert';
+import { clock, minutesLabel, sourceLabel, titleCase } from '../../src/lib/format';
 import { registerForPush } from '../../src/lib/push';
 import { shareExperience } from '../../src/lib/share';
 import { elevation, radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
@@ -148,7 +149,7 @@ export default function ExperienceScreen() {
                     try {
                       await shareExperience(data.id, data.title);
                     } catch (cause) {
-                      Alert.alert(
+                      showAlert(
                         'Could not share',
                         cause instanceof Error ? cause.message : 'Try again in a moment.',
                       );
@@ -247,7 +248,7 @@ export default function ExperienceScreen() {
               />
               <Fact
                 label="Opening hours"
-                value={dynamic.opening_hours.known ? 'Published' : 'Not verified'}
+                value={dynamic.opening_hours.known ? 'Checked' : 'Not verified'}
                 freshness={dynamic.opening_hours.freshness}
                 icon="clock"
               />
@@ -361,15 +362,15 @@ export default function ExperienceScreen() {
                 Object.entries(data.accessibility.claims).map(([key, value]) => (
                   <Row key={key} justify="space-between">
                     <T variant="small" color={colors.text.secondary}>
-                      {titleCase(key)}
+                      {sentenceCase(key)}
                     </T>
-                    <T variant="smallStrong">{String(value)}</T>
+                    <T variant="smallStrong">{claimValue(value)}</T>
                   </Row>
                 ))
               )}
               <T variant="caption" color={colors.text.tertiary}>
                 {data.accessibility.note}
-                {data.accessibility.source ? ` Source: ${data.accessibility.source}.` : ''}
+                {data.accessibility.source ? ` Source: ${sourceLabel(data.accessibility.source)}.` : ''}
               </T>
             </View>
           </Card>
@@ -595,6 +596,7 @@ export default function ExperienceScreen() {
                   Best part
                 </T>
                 <TextInput
+                  accessibilityLabel="Best part"
                   value={bestPart}
                   onChangeText={setBestPart}
                   placeholder="What should you remember?"
@@ -616,6 +618,7 @@ export default function ExperienceScreen() {
                   Private note
                 </T>
                 <TextInput
+                  accessibilityLabel="Private note"
                   value={privateNote}
                   onChangeText={setPrivateNote}
                   placeholder="Only you will see this"
@@ -646,7 +649,7 @@ export default function ExperienceScreen() {
                       is_public: false,
                     });
                     setJournalOpen(false);
-                    Alert.alert('Saved', 'Your private journal note is on your passport.');
+                    showAlert('Saved', 'Your private journal note is on your passport.');
                   } catch {
                     /* hook alerts */
                   }
@@ -658,29 +661,6 @@ export default function ExperienceScreen() {
       </Sheet>
     </View>
   );
-}
-
-/** Provider keys are internal. Travellers get the name of the actual source. */
-function sourceLabel(source: string | null): string {
-  if (!source) return 'Not verified';
-
-  const names: Record<string, string> = {
-    google_places: 'Google',
-    osm: 'OpenStreetMap',
-    wikimedia: 'Wikimedia',
-    seed_demo: 'Editorial',
-    sandbox: 'Sandbox supplier',
-    deeplink: 'Partner',
-    viator: 'Viator',
-    tiqets: 'Tiqets',
-    getyourguide: 'GetYourGuide',
-    open_meteo: 'Open-Meteo',
-    seeded_forecast: 'Simulated forecast',
-    osrm: 'OSRM',
-    estimator: 'Estimated',
-  };
-
-  return names[source] ?? source.replace(/_/g, ' ');
 }
 
 function CircleButton({
@@ -773,6 +753,35 @@ function FactTile({ icon, label, value }: { icon: IconName; label: string; value
   );
 }
 
+/** "step_free_route" → "Step free route". */
+function sentenceCase(key: string): string {
+  const words = key.replace(/_/g, ' ').trim();
+
+  return words.charAt(0).toUpperCase() + words.slice(1).toLowerCase();
+}
+
+/** Raw claim values read as answers, not as data. */
+function claimValue(value: unknown): string {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  if (value === null || value === undefined || value === '') return 'Unknown';
+
+  return sentenceCase(String(value));
+}
+
+/** "Wed 28 Oct · 09:30" — the slot's own calendar day, not the phone's. */
+function slotLabel(slot: AvailabilitySlot): string {
+  const [year, month, day] = slot.date.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+
+  return slot.start_time ? `${date} · ${slot.start_time.slice(0, 5)}` : date;
+}
+
 function slotStartsAt(slot: AvailabilitySlot): string {
   const time = slot.start_time && /^\d{2}:\d{2}/.test(slot.start_time)
     ? slot.start_time.slice(0, 5)
@@ -831,15 +840,16 @@ function OfferCard({ offer, experienceId }: { offer: Offer; experienceId: string
         await Linking.openURL(booking.redirect_url);
       }
 
-      Alert.alert(
+      confirmAction(
         booking.state === 'confirmed' ? 'Booked' : 'Continue with the supplier',
         booking.state === 'confirmed'
           ? `Reference ${booking.reference}. Your tickets are in Bookings.`
-          : `Reference ${booking.reference}. Finish payment with ${offer.provider}, then return to Bookings.`,
-        [
-          { text: 'Stay here', style: 'cancel' },
-          { text: 'Open Bookings', onPress: () => router.push('/(tabs)/bookings') },
-        ],
+          : `Reference ${booking.reference}. Finish payment with ${sourceLabel(offer.provider)}, then return to Bookings.`,
+        {
+          confirmLabel: 'Open Bookings',
+          cancelLabel: 'Stay here',
+          onConfirm: () => router.push('/(tabs)/bookings'),
+        },
       );
     } catch (cause) {
       recordEvents([
@@ -857,7 +867,7 @@ function OfferCard({ offer, experienceId }: { offer: Offer; experienceId: string
 
   const onPress = async () => {
     if (offer.degraded) {
-      Alert.alert('Supplier unavailable', 'This supplier is not responding right now. Try another option or come back shortly.');
+      showAlert('Supplier unavailable', 'This supplier is not responding right now. Try another option or come back shortly.');
       return;
     }
 
@@ -887,7 +897,7 @@ function OfferCard({ offer, experienceId }: { offer: Offer; experienceId: string
             label={offer.fulfilment === 'native' ? 'Book here' : 'Supplier checkout'}
           />
           <T variant="caption" color={colors.text.tertiary}>
-            {offer.provider}
+            {sourceLabel(offer.provider)}
           </T>
         </Row>
 
@@ -937,20 +947,28 @@ function OfferCard({ offer, experienceId }: { offer: Offer; experienceId: string
 
           {!availability.isLoading && !availability.isError && slots.length === 0 ? (
             <Note tone="warning">
-              No live slots from {offer.provider} in the next few days. Nothing was booked.
+              No live slots from {sourceLabel(offer.provider)} in the next few days. Nothing was booked.
             </Note>
           ) : null}
 
           {slots.map((slot) => {
             const startsAt = slotStartsAt(slot);
-            const label = `${slot.date}${slot.start_time ? ` · ${slot.start_time.slice(0, 5)}` : ''}`;
+            const label = slotLabel(slot);
 
             return (
               <Button
                 key={`${slot.date}-${slot.start_time ?? 'any'}`}
                 label={slot.price ? `${label} · ${slot.price.formatted}` : label}
                 tone="secondary"
-                onPress={() => book(startsAt)}
+                onPress={() =>
+                  /* Tapping a time used to book it on the spot. A purchase
+                     gets one look at what it is before it happens. */
+                  confirmAction(
+                    `Book ${offer.title}?`,
+                    `${label}${slot.price ? ` · ${slot.price.formatted}` : ''}. ${offer.cancellation_policy ?? ''}`.trim(),
+                    { confirmLabel: 'Book', onConfirm: () => book(startsAt) },
+                  )
+                }
                 disabled={busy}
               />
             );

@@ -309,6 +309,7 @@ export default function Understanding() {
           caption="Optional, and one sentence is plenty"
         />
         <TextInput
+          accessibilityLabel="What would make this trip feel worth it"
           value={currentMission}
           onChangeText={setMission}
           /* What the API accepts, so an over-long paste is stopped here rather

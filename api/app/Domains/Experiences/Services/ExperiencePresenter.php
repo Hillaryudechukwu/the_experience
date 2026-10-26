@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domains\Experiences\Services;
 
-use App\Domains\ExternalSources\Services\OfferService;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\Experiences\Models\ExperienceRelationship;
+use App\Domains\ExternalSources\Services\OfferService;
 use App\Domains\Places\Services\OpeningHours;
+use App\Domains\Places\Support\ImageUrl;
 use App\Domains\Recommendations\DTO\ScoredExperience;
+use App\Domains\Shared\ValueObjects\Freshness;
 use Carbon\CarbonImmutable;
 
 /**
@@ -32,7 +34,7 @@ class ExperiencePresenter
             'slug' => $experience->slug,
             'title' => $experience->title,
             'summary' => $experience->summary,
-            'image_url' => $experience->image_url,
+            'image_url' => ImageUrl::forClient($experience->image_url),
             /* Creative Commons imagery may only be shown with its licence and
                creator, so attribution travels with the URL rather than being
                something the client has to remember to ask for. */
@@ -87,7 +89,7 @@ class ExperiencePresenter
                 'weather_exposure' => $experience->weather_exposure,
                 'energy_level' => $experience->energy_level,
                 'best_time_of_day' => $experience->best_time_of_day,
-                'image_url' => $experience->image_url,
+                'image_url' => ImageUrl::forClient($experience->image_url),
                 'image_attribution' => $experience->image_attribution,
                 'categories' => $experience->categories->map(fn ($c) => ['key' => $c->key, 'label' => $c->label])->all(),
                 'destination' => $experience->destination?->name,
@@ -106,7 +108,7 @@ class ExperiencePresenter
                     'schedule' => $hours->toArray(),
                     'open_now' => $hours->isOpenAt($now),
                     'closes_at' => $hours->closesAt($now)?->toIso8601String(),
-                    'freshness' => ($place?->openingHoursFreshness() ?? \App\Domains\Shared\ValueObjects\Freshness::unknown())->toArray(),
+                    'freshness' => ($place?->openingHoursFreshness() ?? Freshness::unknown())->toArray(),
                 ],
                 'rating' => $place?->rating === null ? null : [
                     'value' => (float) $place->rating,
@@ -160,7 +162,7 @@ class ExperiencePresenter
                 ],
                 $experience->image_attribution === null ? null : [
                     'kind' => 'image',
-                    'name' => trim(($experience->image_attribution['creator'] ?? 'Unknown') . ' · ' . ($experience->image_attribution['licence'] ?? '')),
+                    'name' => trim(($experience->image_attribution['creator'] ?? 'Unknown').' · '.($experience->image_attribution['licence'] ?? '')),
                     'url' => $experience->image_attribution['source_url'] ?? null,
                 ],
             ])),
@@ -185,7 +187,7 @@ class ExperiencePresenter
             $grouped[$relationship->type][] = [
                 'id' => $relationship->to->id,
                 'title' => $relationship->to->title,
-                'image_url' => $relationship->to->image_url,
+                'image_url' => ImageUrl::forClient($relationship->to->image_url),
                 'weight' => $relationship->weight,
                 'note' => $relationship->note,
             ];

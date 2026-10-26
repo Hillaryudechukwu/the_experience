@@ -42,18 +42,18 @@ export const FAMILIARITY = [
 export const INTERESTS: { key: string; label: string; icon: IconName }[] = [
   { key: 'history', label: 'History', icon: 'compass' },
   { key: 'food', label: 'Food', icon: 'food' },
-  { key: 'art', label: 'Art', icon: 'camera' },
+  { key: 'art', label: 'Art', icon: 'palette' },
   { key: 'architecture', label: 'Architecture', icon: 'map' },
   { key: 'nature', label: 'Nature', icon: 'weather' },
   { key: 'shopping', label: 'Shopping', icon: 'money' },
-  { key: 'nightlife', label: 'Nightlife', icon: 'audio' },
+  { key: 'nightlife', label: 'Nightlife', icon: 'moon' },
   { key: 'adventure', label: 'Adventure', icon: 'walk' },
   { key: 'photography', label: 'Photography', icon: 'camera' },
   { key: 'sport', label: 'Sport', icon: 'ticket' },
-  { key: 'wellness', label: 'Wellness', icon: 'accessibility' },
+  { key: 'wellness', label: 'Wellness', icon: 'leaf' },
   { key: 'culture', label: 'Local culture', icon: 'location' },
   { key: 'family', label: 'Family', icon: 'family' },
-  { key: 'music', label: 'Music', icon: 'audio' },
+  { key: 'music', label: 'Music', icon: 'music' },
   { key: 'local_life', label: 'Local life', icon: 'person' },
 ];
 

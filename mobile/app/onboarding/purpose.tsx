@@ -77,7 +77,7 @@ export default function Purpose() {
                   <T
                     variant="caption"
                     color={selected ? 'rgba(255,255,255,0.8)' : colors.text.tertiary}
-                    numberOfLines={2}
+                    numberOfLines={3}
                   >
                     {reason.hint}
                   </T>

@@ -29,11 +29,14 @@ use Illuminate\Support\Facades\Cache;
  */
 class GooglePlacesProvider implements PlaceDataProvider
 {
+    /** Stored in place of an image URL; see photoFor(). */
+    public const PHOTO_PREFIX = 'google-photo:';
+
     private const BASE = 'https://places.googleapis.com/v1';
 
     private const FIELDS = 'places.id,places.displayName,places.formattedAddress,places.location,'
-        . 'places.types,places.rating,places.userRatingCount,places.regularOpeningHours,'
-        . 'places.websiteUri,places.internationalPhoneNumber,places.accessibilityOptions';
+        .'places.types,places.rating,places.userRatingCount,places.regularOpeningHours,'
+        .'places.websiteUri,places.internationalPhoneNumber,places.accessibilityOptions';
 
     /**
      * Our kind vocabulary mapped onto Google's place types.
@@ -97,7 +100,7 @@ class GooglePlacesProvider implements PlaceDataProvider
                         'X-Goog-Api-Key' => (string) config('experience.place_data.google.api_key'),
                         'X-Goog-FieldMask' => self::FIELDS,
                     ])
-                    ->post(self::BASE . '/places:searchNearby', [
+                    ->post(self::BASE.'/places:searchNearby', [
                         'includedTypes' => $types,
                         'maxResultCount' => min(20, $limit),
                         'locationRestriction' => [
@@ -111,7 +114,7 @@ class GooglePlacesProvider implements PlaceDataProvider
                 if ($response->failed()) {
                     throw new \RuntimeException(
                         "Google Places returned {$response->status()}: "
-                        . mb_substr($response->body(), 0, 500),
+                        .mb_substr($response->body(), 0, 500),
                     );
                 }
 
@@ -142,14 +145,14 @@ class GooglePlacesProvider implements PlaceDataProvider
             ->withHeaders([
                 'X-Goog-Api-Key' => (string) config('experience.place_data.google.api_key'),
                 'X-Goog-FieldMask' => 'places.id,places.displayName,places.location,places.types,'
-                    . 'places.rating,places.userRatingCount,places.accessibilityOptions,'
+                    .'places.rating,places.userRatingCount,places.accessibilityOptions,'
                     /* Same billing tier as the rating, so this costs nothing
                        extra and closes the larger gap: over half the ingested
                        places have no opening hours at all, and businesses keep
                        their Google listing far more current than their OSM one. */
-                    . 'places.regularOpeningHours',
+                    .'places.regularOpeningHours',
             ])
-            ->post(self::BASE . '/places:searchText', [
+            ->post(self::BASE.'/places:searchText', [
                 'textQuery' => $query,
                 'maxResultCount' => $limit,
                 'locationBias' => [
@@ -161,7 +164,7 @@ class GooglePlacesProvider implements PlaceDataProvider
             ]);
 
         if ($response->failed()) {
-            throw new \RuntimeException("Google Places text search returned {$response->status()}: " . mb_substr($response->body(), 0, 200));
+            throw new \RuntimeException("Google Places text search returned {$response->status()}: ".mb_substr($response->body(), 0, 200));
         }
 
         return collect($response->json('places') ?? [])
@@ -178,7 +181,7 @@ class GooglePlacesProvider implements PlaceDataProvider
                 'X-Goog-Api-Key' => (string) config('experience.place_data.google.api_key'),
                 'X-Goog-FieldMask' => str_replace('places.', '', self::FIELDS),
             ])
-            ->get(self::BASE . '/places/' . $providerId);
+            ->get(self::BASE.'/places/'.$providerId);
 
         if ($response->status() === 404) {
             return null;
@@ -194,26 +197,24 @@ class GooglePlacesProvider implements PlaceDataProvider
     /**
      * A photograph of a place, with the attribution Google's terms require.
      *
-     * Two calls, because Google separates the photo reference from the bytes.
-     * `skipHttpRedirect` is the important flag: without it the media endpoint
-     * answers with a 302, so the only URL we could store is the one carrying
-     * our API key — which would then be published to every phone running the
-     * app. With it we get the final googleusercontent URL back as JSON, and
-     * the key never leaves the server.
+     * What is stored is the photo's resource name, behind a "google-photo:"
+     * prefix, not a link to the bytes. The media endpoint's photoUri is a
+     * short-lived signed URL: stored, it went dead within days, and every card
+     * using it fell back to a placeholder while still crediting the
+     * photographer. PlacePhotoController resolves a fresh one when a phone
+     * asks, so neither the expiry nor our API key reaches the app.
      *
      * @return array{url:string,creator:?string,creator_url:?string}|null
      */
     public function photoFor(string $providerId, int $maxWidth = 1600): ?array
     {
-        $key = (string) config('experience.place_data.google.api_key');
-
         $details = $this->http
             ->for($this->key())
             ->withHeaders([
-                'X-Goog-Api-Key' => $key,
+                'X-Goog-Api-Key' => (string) config('experience.place_data.google.api_key'),
                 'X-Goog-FieldMask' => 'photos',
             ])
-            ->get(self::BASE . '/places/' . $providerId);
+            ->get(self::BASE.'/places/'.$providerId);
 
         if ($details->status() === 404) {
             return null;
@@ -229,13 +230,39 @@ class GooglePlacesProvider implements PlaceDataProvider
             return null;
         }
 
+        $author = $photo['authorAttributions'][0] ?? [];
+
+        return [
+            'url' => self::PHOTO_PREFIX.$photo['name'],
+            'creator' => is_string($author['displayName'] ?? null) ? $author['displayName'] : null,
+            'creator_url' => is_string($author['uri'] ?? null) ? $author['uri'] : null,
+        ];
+    }
+
+    /**
+     * A current link to a stored photo's bytes, or null when Google no longer has it.
+     *
+     * `skipHttpRedirect` is the important flag: without it the media endpoint
+     * answers with a 302 to a URL carrying our API key. With it we get the
+     * signed googleusercontent URL back as JSON, and the key stays here.
+     */
+    public function mediaUriFor(string $photoName, int $maxWidth = 1600): ?string
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
         $media = $this->http
             ->for($this->key())
-            ->withHeaders(['X-Goog-Api-Key' => $key])
-            ->get(self::BASE . '/' . $photo['name'] . '/media', [
+            ->withHeaders(['X-Goog-Api-Key' => (string) config('experience.place_data.google.api_key')])
+            ->get(self::BASE.'/'.$photoName.'/media', [
                 'maxWidthPx' => $maxWidth,
                 'skipHttpRedirect' => 'true',
             ]);
+
+        if ($media->status() === 404) {
+            return null;
+        }
 
         if ($media->failed()) {
             throw new \RuntimeException("Google photo media returned {$media->status()}.");
@@ -243,17 +270,7 @@ class GooglePlacesProvider implements PlaceDataProvider
 
         $url = $media->json('photoUri');
 
-        if (! is_string($url) || $url === '') {
-            return null;
-        }
-
-        $author = $photo['authorAttributions'][0] ?? [];
-
-        return [
-            'url' => $url,
-            'creator' => is_string($author['displayName'] ?? null) ? $author['displayName'] : null,
-            'creator_url' => is_string($author['uri'] ?? null) ? $author['uri'] : null,
-        ];
+        return is_string($url) && $url !== '' ? $url : null;
     }
 
     /** @return list<string> */
