@@ -57,6 +57,31 @@ class SubscriptionEntitlementTest extends TestCase
             ->assertOk();
     }
 
+    /** Real-device testing before the store can sell: listed accounts get in, nobody else does. */
+    public function test_a_listed_tester_gets_in_without_a_purchase_and_others_do_not(): void
+    {
+        config(['experience.billing.tester_emails' => ['tester@example.com']]);
+
+        $tester = User::factory()->create(['email' => 'Tester@Example.com']);
+        Sanctum::actingAs($tester);
+
+        $this->getJson('/api/billing/entitlement')->assertOk()->assertJsonPath('data.can_use', true);
+        $this->postJson('/api/discovery/now')->assertOk();
+
+        Sanctum::actingAs(User::factory()->create(['email' => 'someone@example.com']));
+
+        $this->getJson('/api/billing/entitlement')->assertOk()->assertJsonPath('data.can_use', false);
+        $this->postJson('/api/discovery/now')->assertStatus(402);
+    }
+
+    public function test_a_guest_is_never_a_tester(): void
+    {
+        config(['experience.billing.tester_emails' => ['tester@example.com']]);
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+
+        $this->postJson('/api/discovery/now', [], ['X-Guest-Token' => $token])->assertStatus(402);
+    }
+
     public function test_a_paid_period_that_covers_now_opens_the_product(): void
     {
         $user = User::factory()->create();
