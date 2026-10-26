@@ -332,6 +332,16 @@ return [
      */
     'billing' => [
         'enforced' => (bool) env('BILLING_ENFORCED', true),
+        /*
+         * Signed-in accounts that get full access without a purchase, for
+         * testing on a real device before the store can sell the month.
+         * Comma-separated emails. Register the account before adding it here,
+         * so nobody else can sign up with that address first.
+         */
+        'tester_emails' => array_values(array_filter(array_map(
+            fn (string $email) => mb_strtolower(trim($email)),
+            explode(',', (string) env('BILLING_TESTER_EMAILS', '')),
+        ))),
         'price_minor' => (int) env('BILLING_PRICE_MINOR', 199),
         'currency' => env('BILLING_CURRENCY', 'GBP'),
         'products' => [

@@ -7,6 +7,7 @@ namespace App\Domains\Billing\Services;
 use App\Domains\Billing\Models\Subscription;
 use App\Domains\Billing\SubscriptionState;
 use App\Domains\Shared\ValueObjects\Actor;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 
 /**
@@ -59,7 +60,26 @@ class EntitlementService
 
     public function canUse(Actor $actor, ?CarbonImmutable $now = null): bool
     {
-        return $this->current($actor)?->canUse($now) ?? false;
+        return $this->isTester($actor) || ($this->current($actor)?->canUse($now) ?? false);
+    }
+
+    /**
+     * Accounts let in without a purchase, for testing on real devices before
+     * the store can sell the month (experience.billing.tester_emails).
+     *
+     * Matched on the signed-in account's email, so a guest never qualifies.
+     */
+    public function isTester(Actor $actor): bool
+    {
+        $testers = (array) config('experience.billing.tester_emails', []);
+
+        if ($actor->userId === null || $testers === []) {
+            return false;
+        }
+
+        $email = User::query()->whereKey($actor->userId)->value('email');
+
+        return is_string($email) && in_array(mb_strtolower(trim($email)), $testers, true);
     }
 
     /**
@@ -70,7 +90,7 @@ class EntitlementService
     public function present(Actor $actor, ?CarbonImmutable $now = null): array
     {
         $subscription = $this->current($actor);
-        $accessIsOpen = ! config('experience.billing.enforced');
+        $accessIsOpen = ! config('experience.billing.enforced') || $this->isTester($actor);
 
         if ($subscription === null) {
             return [
