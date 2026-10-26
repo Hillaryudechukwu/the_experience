@@ -16,7 +16,6 @@ use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\GeoPoint;
 use App\Domains\Shared\ValueObjects\TimeWindow;
 use App\Domains\Trips\Models\Itinerary;
-use App\Domains\Trips\Models\ItineraryItem;
 use App\Domains\Trips\Models\Trip;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -466,8 +465,13 @@ class ItineraryPlanner
             ? CarbonImmutable::parse($options['to'], $timezone)
             : ($journey->ends_on ? CarbonImmutable::parse($journey->ends_on, $timezone) : $start->addDays(2));
 
+        /* Requests are validated against this limit; the clamp keeps journeys
+           stored before it existed from planning an unbounded range. */
+        $lastDay = $start->startOfDay()->addDays((int) config('experience.itinerary.max_planned_days') - 1);
+        $end = $end->startOfDay()->min($lastDay);
+
         $dates = [];
-        for ($d = $start->startOfDay(); $d <= $end->startOfDay() && count($dates) < 14; $d = $d->addDay()) {
+        for ($d = $start->startOfDay(); $d <= $end; $d = $d->addDay()) {
             $dates[] = $d;
         }
 

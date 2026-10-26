@@ -241,7 +241,6 @@ export default function Understanding() {
           endsOn={currentEndsOn}
           onChange={(startsOn, endsOn) => setDates({ startsOn, endsOn })}
           minDate={earliest}
-          maxSpanDays={14}
         />
       </Gutter>
 

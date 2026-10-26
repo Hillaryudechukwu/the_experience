@@ -48,12 +48,16 @@ class TripController extends ApiController
 
         $options = $request->validate([
             'from' => ['sometimes', 'date'],
-            'to' => ['sometimes', 'date'],
+            'to' => ['sometimes', 'date', 'after_or_equal:from'],
             'day_start' => ['sometimes', 'date_format:H:i'],
             'day_end' => ['sometimes', 'date_format:H:i'],
             'lat' => ['sometimes', 'numeric'],
             'lng' => ['sometimes', 'numeric'],
         ]);
+
+        if (isset($options['from'], $options['to'])) {
+            $this->assertPlannableSpan($options['from'], $options['to'], 'to');
+        }
 
         $itinerary = $this->planner->generate($this->actor($request), $model, $options);
 

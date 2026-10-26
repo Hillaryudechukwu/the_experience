@@ -46,6 +46,7 @@ class JourneyController extends ApiController
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate($this->rules());
+        $this->assertPlannableSpan($data['starts_on'] ?? null, $data['ends_on'] ?? null, 'ends_on');
         $actor = $this->actor($request);
 
         $journey = Journey::create(array_merge($actor->ownerAttributes(), $data, [
@@ -94,6 +95,7 @@ class JourneyController extends ApiController
         $data = $request->validate($this->rules(partial: true));
 
         $model->fill($data);
+        $this->assertPlannableSpan($model->starts_on, $model->ends_on, 'ends_on');
 
         if (array_key_exists('mission_text', $data) || array_key_exists('reason', $data)) {
             $model->mission_goals = $this->missions->interpret($model->mission_text, $model->reason);

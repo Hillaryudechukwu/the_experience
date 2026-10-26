@@ -22,6 +22,9 @@ import { radius, space, TOUCH_TARGET, useTheme } from '../theme';
  */
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+/** Matches the API's experience.itinerary.max_planned_days. */
+export const MAX_PLANNED_DAYS = 31;
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -68,7 +71,7 @@ export function DateRangeCalendar({
   endsOn,
   onChange,
   minDate,
-  maxSpanDays,
+  maxSpanDays = MAX_PLANNED_DAYS,
 }: {
   startsOn: string | null;
   endsOn: string | null;
@@ -124,7 +127,7 @@ export function DateRangeCalendar({
       return;
     }
 
-    if (maxSpanDays && daysBetween(startsOn, iso) + 1 > maxSpanDays) {
+    if (daysBetween(startsOn, iso) + 1 > maxSpanDays) {
       setClampedFrom(iso);
       onChange(startsOn, toIsoAfter(startsOn, maxSpanDays - 1));
       return;
@@ -134,7 +137,7 @@ export function DateRangeCalendar({
   };
 
   const spanDays = startsOn && endsOn ? daysBetween(startsOn, endsOn) + 1 : null;
-  const atMax = maxSpanDays != null && spanDays === maxSpanDays;
+  const atMax = spanDays === maxSpanDays;
 
   return (
     <View style={{ gap: space.sm }}>
@@ -243,7 +246,7 @@ export function DateRangeCalendar({
       {clampedFrom ? (
         <Note tone="warning">
           {parts(clampedFrom).day} {MONTHS[parts(clampedFrom).month - 1]} is more than {maxSpanDays}{' '}
-          days away, so we stopped at the {maxSpanDays}th day. Pick a later arrival for the rest of
+          days away, so we stopped after {maxSpanDays} days. Pick a later arrival for the rest of
           the trip.
         </Note>
       ) : atMax ? (
