@@ -140,6 +140,43 @@ class ItineraryTest extends TestCase
         $this->assertTrue(CarbonImmutable::parse($forProduct->first()['starts_at'])->equalTo(CarbonImmutable::parse("{$day} 11:30", 'Europe/London')));
     }
 
+    /** A ticket in another city must not lock a slot on this plan. */
+    public function test_a_booking_in_another_city_is_not_planned_here(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $token = $this->getJson('/api/destinations')->headers->get('X-Guest-Token');
+        $headers = ['X-Guest-Token' => $token];
+        $londonId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
+        $romeId = $this->getJson('/api/destinations?q=rome')->json('data.0.id');
+        $day = CarbonImmutable::now('Europe/London')->addDays(4)->toDateString();
+
+        $journeyId = $this->postJson('/api/journeys', [
+            'destination_id' => $londonId,
+            'reason' => 'holiday',
+            'starts_on' => $day,
+            'ends_on' => $day,
+        ], $headers)->assertCreated()->json('data.id');
+        $tripId = $this->postJson('/api/trips', ['journey_id' => $journeyId], $headers)->assertCreated()->json('data.id');
+
+        $romeProduct = ProviderProduct::where('provider', 'sandbox')
+            ->whereHas('experience', fn ($q) => $q->where('destination_id', $romeId))
+            ->firstOrFail();
+        $this->postJson('/api/bookings', [
+            'provider' => 'sandbox',
+            'provider_product_id' => $romeProduct->provider_product_id,
+            'quantity' => 1,
+            'starts_at' => "{$day}T11:30:00",
+        ], $headers + ['Idempotency-Key' => 'rome-booking'])->assertCreated();
+
+        $items = collect($this->postJson("/api/trips/{$tripId}/generate-itinerary", [], $headers)
+            ->assertCreated()->json('data.days.0.items'));
+
+        $this->assertTrue(
+            $items->every(fn (array $item) => ($item['experience']['id'] ?? null) !== $romeProduct->experience_id),
+            'A Rome ticket must not appear as a locked item on a London plan.',
+        );
+    }
+
     /** The busiest days are the ones that most need lunch kept free. */
     public function test_a_planned_day_keeps_lunch(): void
     {

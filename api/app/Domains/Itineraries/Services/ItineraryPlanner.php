@@ -505,11 +505,14 @@ class ItineraryPlanner
         $timezone = $journey->destination->timezone;
         $bookings = Booking::query()->ownedBy($actor)->where('state', BookingState::Confirmed->value);
 
+        /* Only tickets for this city's experiences. A Rome booking must not
+           lock a slot on a London plan just because the dates overlap. */
         $items = BookingItem::query()
             ->with('experience')
             ->whereIn('booking_id', (clone $bookings)->select('id'))
             ->whereNotNull('starts_at')
             ->whereBetween('starts_at', [$dates[0]->startOfDay()->utc(), end($dates)->endOfDay()->utc()])
+            ->whereHas('experience', fn ($q) => $q->where('destination_id', $journey->destination_id))
             ->get();
 
         $references = $bookings->whereIn('id', $items->pluck('booking_id'))->pluck('reference', 'id');

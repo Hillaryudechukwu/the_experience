@@ -28,7 +28,7 @@ class RequireSubscription
 
     public function handle(Request $request, Closure $next): Response
     {
-        /* Off until the stores can sell the month. See experience.billing. */
+        /* Enforced by default; local/CI open it with BILLING_ENFORCED=false. */
         if (! config('experience.billing.enforced')) {
             return $next($request);
         }

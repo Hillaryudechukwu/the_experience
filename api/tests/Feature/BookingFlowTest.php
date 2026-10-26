@@ -106,6 +106,15 @@ class BookingFlowTest extends TestCase
         ], $this->headers(['Idempotency-Key' => 'past-slot']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('starts_at');
+
+        /* The 422 must not consume the key — a later slot under it still books. */
+        $this->postJson('/api/bookings', [
+            'provider' => 'sandbox',
+            'provider_product_id' => $product->provider_product_id,
+            'quantity' => 1,
+            'starts_at' => CarbonImmutable::now()->addDays(2)->setTime(11, 30)->toIso8601String(),
+        ], $this->headers(['Idempotency-Key' => 'past-slot']))
+            ->assertCreated();
     }
 
     /** "11:30" on a London slot list means 11:30 in London, not in UTC. */
@@ -188,6 +197,37 @@ class BookingFlowTest extends TestCase
         $this->assertSame($first->json('data.reference'), $second->json('data.reference'));
         $this->assertTrue($second->json('data.replayed'));
         $this->assertDatabaseCount('bookings', 1);
+    }
+
+    /**
+     * A timeout retry after the slot has started must still return the booking
+     * that already succeeded, not a fresh "that time has started" 422.
+     */
+    public function test_a_completed_booking_replays_even_after_its_slot_has_started(): void
+    {
+        $product = ProviderProduct::where('provider', 'sandbox')->firstOrFail();
+        $startsAt = CarbonImmutable::now()->addHour()->toIso8601String();
+        $payload = [
+            'provider' => 'sandbox',
+            'provider_product_id' => $product->provider_product_id,
+            'quantity' => 1,
+            'starts_at' => $startsAt,
+        ];
+        $headers = $this->headers(['Idempotency-Key' => 'late-retry']);
+
+        $first = $this->postJson('/api/bookings', $payload, $headers)->assertCreated();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(2));
+
+        try {
+            $second = $this->postJson('/api/bookings', $payload, $headers)->assertCreated();
+
+            $this->assertSame($first->json('data.reference'), $second->json('data.reference'));
+            $this->assertTrue($second->json('data.replayed'));
+            $this->assertDatabaseCount('bookings', 1);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_a_booking_without_an_idempotency_key_is_refused(): void

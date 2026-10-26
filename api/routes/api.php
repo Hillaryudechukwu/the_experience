@@ -53,7 +53,8 @@ Route::post('billing/google/notifications', [BillingNotificationController::clas
  */
 Route::get('place-photos/{name}', [PlacePhotoController::class, 'show'])
     ->where('name', 'places/[A-Za-z0-9_-]+/photos/[A-Za-z0-9_-]+')
-    ->middleware('throttle:600,1');
+    /* Enough for a feed refresh; far below an open media proxy. */
+    ->middleware('throttle:120,1');
 
 Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
