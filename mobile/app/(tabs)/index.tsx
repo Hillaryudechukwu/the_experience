@@ -192,21 +192,30 @@ export default function Discover() {
   const context = discovery.data?.context;
   const results = discovery.data?.data ?? [];
 
-  /* The server keeps a mood for the rest of the day and keeps applying it.
-     Without this the tiles came back unselected after a restart while the
-     picks were still shaped by the mood, with no way to see or clear it. */
+  /* The server keeps mood and window for the rest of the day and keeps
+     applying them. Without this the chips/tiles came back unselected after a
+     restart while the picks were still shaped by that intent, with no Clear. */
   const rememberedMood = discovery.data?.active_intent?.mood ?? null;
-  /* Once, on the first answer: after that the tiles are the source of truth,
-     and a cached answer from before a Clear must not bring the mood back. */
+  const rememberedWindow = discovery.data?.active_intent?.window_minutes ?? null;
+  /* Once, on the first answer: after that the chips are the source of truth,
+     and a cached answer from before a Clear must not bring the intent back. */
   const intentRestored = useRef(false);
   useEffect(() => {
     if (intentRestored.current || !discovery.data) return;
     intentRestored.current = true;
 
-    if (mood === null && window === null && rememberedMood && MOODS.some((m) => m.key === rememberedMood)) {
+    if (mood !== null || window !== null) return;
+
+    /* Window wins when both are remembered — same priority as `surface`. */
+    if (typeof rememberedWindow === 'number' && rememberedWindow > 0) {
+      setWindow(rememberedWindow);
+      return;
+    }
+
+    if (rememberedMood && MOODS.some((m) => m.key === rememberedMood)) {
       setMood(rememberedMood);
     }
-  }, [discovery.data, rememberedMood, mood, window]);
+  }, [discovery.data, rememberedMood, rememberedWindow, mood, window]);
   const moodLabel = MOODS.find((m) => m.key === mood)?.label ?? null;
   const [top, ...rest] = results;
 
