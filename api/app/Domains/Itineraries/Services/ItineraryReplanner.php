@@ -56,7 +56,19 @@ class ItineraryReplanner
 
         $proposal->load('days.items.experience');
 
-        rescue(fn () => app(NotificationEnqueuer::class)->replanProposed($actor, $trip, $proposal), report: false);
+        /* Interactive replan (Plan tab) already shows the proposal. Push only
+           for proactive weather checks, and only when something actually moved. */
+        if (($options['notify'] ?? false) === true && $changes !== []) {
+            $key = null;
+            if (($trigger['type'] ?? null) === 'weather') {
+                $key = 'replan_weather:'.$trip->id.':'.self::localToday($trip)->toDateString();
+            }
+
+            rescue(
+                fn () => app(NotificationEnqueuer::class)->replanProposed($actor, $trip, $proposal, $key),
+                report: false,
+            );
+        }
 
         return [
             'proposal' => $proposal,
@@ -65,6 +77,56 @@ class ItineraryReplanner
             'blocked_by_confirmed_bookings' => $conflicts,
             'message' => $this->message($trigger, $changes, $conflicts),
         ];
+    }
+
+    /**
+     * Server-side weather watch: propose only when outdoor items look poor,
+     * and notify the traveller once per day for the trip.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function proposeForWeather(Actor $actor, Trip $trip, array $options = []): ?array
+    {
+        $current = $trip->currentItinerary()?->load('days.items.experience');
+        if ($current === null) {
+            return null;
+        }
+
+        $trigger = $this->detectTrigger($trip, $current);
+        if ($trigger === null) {
+            return null;
+        }
+
+        $result = $this->propose($actor, $trip, array_merge($options, [
+            'trigger' => $trigger,
+            'notify' => true,
+        ]));
+
+        /* Mark it so the hourly watch can tell its own proposals from ones the
+           traveller asked for on the Plan tab. */
+        $result['proposal']?->forceFill([
+            'diagnostics' => array_merge($result['proposal']->diagnostics ?? [], ['trigger' => 'weather']),
+        ])->save();
+
+        return $result;
+    }
+
+    /**
+     * Whether the weather watch already proposed for this trip today, in the
+     * destination's own day rather than the server's.
+     */
+    public function proposedForWeatherToday(Trip $trip): bool
+    {
+        return $trip->itineraries()
+            ->where('is_current', false)
+            ->where('diagnostics->trigger', 'weather')
+            ->where('created_at', '>=', self::localToday($trip)->startOfDay()->utc())
+            ->exists();
+    }
+
+    private static function localToday(Trip $trip): CarbonImmutable
+    {
+        return CarbonImmutable::now($trip->journey?->destination?->timezone ?? config('app.timezone'));
     }
 
     public function accept(Trip $trip, Itinerary $proposal): Itinerary

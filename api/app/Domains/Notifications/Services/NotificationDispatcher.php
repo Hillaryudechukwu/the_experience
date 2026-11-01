@@ -91,7 +91,11 @@ class NotificationDispatcher
         if ($row->user_id !== null && ! in_array('email', $sent, true)) {
             $user = User::query()->find($row->user_id);
             if ($user !== null && $user->email !== null && $user->email !== '') {
-                Mail::to($user->email)->send(new TravellerNotificationMail($row->title, $row->body));
+                Mail::to($user->email)->send(new TravellerNotificationMail(
+                    $row->title,
+                    $row->body,
+                    $this->mailDetails($row),
+                ));
                 $sent[] = 'email';
                 $this->rememberChannels($row, $sent);
             }
@@ -203,10 +207,7 @@ class NotificationDispatcher
                 'to' => $tokens,
                 'title' => $row->title,
                 'body' => $row->body,
-                'data' => [
-                    'kind' => $row->kind,
-                    'notification_id' => $row->id,
-                ],
+                'data' => $this->pushData($row),
             ]);
 
         if ($response->failed()) {
@@ -245,6 +246,61 @@ class NotificationDispatcher
         if ($tickets !== [] && $failed === count($tickets)) {
             throw new \RuntimeException('Expo rejected every push token.');
         }
+    }
+
+    /**
+     * Deep-link fields the mobile client routes from. Entity ids travel with
+     * the kind so a tap can open Bookings, Plan, or Discover without another
+     * round trip.
+     *
+     * @return array<string, string>
+     */
+    private function pushData(NotificationOutbox $row): array
+    {
+        $payload = $row->payload ?? [];
+
+        return array_filter([
+            'kind' => $row->kind,
+            'notification_id' => (string) $row->id,
+            'path' => $this->pathFor($row->kind),
+            'booking_id' => isset($payload['booking_id']) ? (string) $payload['booking_id'] : null,
+            'trip_id' => isset($payload['trip_id']) ? (string) $payload['trip_id'] : null,
+            'destination_id' => isset($payload['destination_id']) ? (string) $payload['destination_id'] : null,
+            'import_id' => isset($payload['import_id']) ? (string) $payload['import_id'] : null,
+            'itinerary_id' => isset($payload['itinerary_id']) ? (string) $payload['itinerary_id'] : null,
+            'experience_id' => isset($payload['experience_id']) ? (string) $payload['experience_id'] : null,
+            'reference' => isset($payload['reference']) ? (string) $payload['reference'] : null,
+        ], fn (?string $value) => $value !== null && $value !== '');
+    }
+
+    private function pathFor(string $kind): string
+    {
+        return match (true) {
+            str_starts_with($kind, 'booking_') => '/(tabs)/bookings',
+            str_starts_with($kind, 'destination_import_') => '/(tabs)/index',
+            str_starts_with($kind, 'replan_') => '/(tabs)/trip',
+            default => '/account/notifications',
+        };
+    }
+
+    /** @return array{reference?: string, cta_hint?: string} */
+    private function mailDetails(NotificationOutbox $row): array
+    {
+        $payload = $row->payload ?? [];
+        $details = [];
+
+        if (($payload['reference'] ?? '') !== '') {
+            $details['reference'] = (string) $payload['reference'];
+        }
+
+        $details['cta_hint'] = match (true) {
+            str_starts_with($row->kind, 'booking_') => 'Open WAYOA → Bookings to see the details.',
+            str_starts_with($row->kind, 'destination_import_') => 'Open WAYOA → Discover to browse the city.',
+            str_starts_with($row->kind, 'replan_') => 'Open WAYOA → Plan to review the suggested change. Nothing moves until you accept it.',
+            default => 'Open the WAYOA app for the full details.',
+        };
+
+        return $details;
     }
 
     private function retry(NotificationOutbox $row, Throwable $e): void

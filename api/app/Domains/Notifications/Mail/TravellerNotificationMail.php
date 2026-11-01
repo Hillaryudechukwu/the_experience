@@ -15,9 +15,13 @@ class TravellerNotificationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param  array{reference?: string, cta_label?: string, cta_hint?: string}  $details
+     */
     public function __construct(
         public string $headline,
         public string $notice,
+        public array $details = [],
     ) {}
 
     public function envelope(): Envelope
@@ -27,6 +31,24 @@ class TravellerNotificationMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(htmlString: '<p>'.e($this->notice).'</p>');
+        $parts = [
+            '<div style="font-family:Georgia,serif;font-size:16px;line-height:1.5;color:#1a1a1a;max-width:560px">',
+            '<p style="margin:0 0 12px;font-size:22px;font-weight:600">'.e($this->headline).'</p>',
+            '<p style="margin:0 0 16px">'.e($this->notice).'</p>',
+        ];
+
+        if (($this->details['reference'] ?? '') !== '') {
+            $parts[] = '<p style="margin:0 0 16px"><strong>Reference:</strong> '.e((string) $this->details['reference']).'</p>';
+        }
+
+        if (($this->details['cta_hint'] ?? '') !== '') {
+            $parts[] = '<p style="margin:0;color:#555">'.e((string) $this->details['cta_hint']).'</p>';
+        } elseif (($this->details['cta_label'] ?? '') !== '') {
+            $parts[] = '<p style="margin:0;color:#555">'.e((string) $this->details['cta_label']).'</p>';
+        }
+
+        $parts[] = '</div>';
+
+        return new Content(htmlString: implode('', $parts));
     }
 }

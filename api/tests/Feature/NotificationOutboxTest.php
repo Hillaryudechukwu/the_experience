@@ -20,6 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class NotificationOutboxTest extends TestCase
@@ -184,5 +185,231 @@ class NotificationOutboxTest extends TestCase
             'token' => 'ExponentPushToken[device]',
             'platform' => 'android',
         ]);
+    }
+
+    public function test_failing_a_booking_enqueues_a_failed_notice(): void
+    {
+        $user = User::factory()->create();
+        $booking = Booking::query()->create([
+            'reference' => 'NT-'.Str::upper(Str::random(6)),
+            'user_id' => $user->id,
+            'state' => BookingState::Processing,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+        ]);
+
+        app(BookingStateMachine::class)->transition($booking, BookingState::Failed, 'provider', 'Supplier declined');
+
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_failed:'.$booking->id,
+            'kind' => 'booking_failed',
+            'user_id' => $user->id,
+            'status' => 'scheduled',
+        ]);
+    }
+
+    public function test_confirming_a_booking_schedules_future_reminders(): void
+    {
+        $user = User::factory()->create();
+        $booking = Booking::query()->create([
+            'reference' => 'NT-'.Str::upper(Str::random(6)),
+            'user_id' => $user->id,
+            'state' => BookingState::Processing,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+        ]);
+        $booking->items()->create([
+            'title' => 'Harbour walk',
+            'quantity' => 1,
+            'starts_at' => CarbonImmutable::now()->addDays(3),
+        ]);
+
+        app(BookingStateMachine::class)->transition($booking, BookingState::Confirmed, 'provider');
+
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_reminder:'.$booking->id.':t1d',
+            'kind' => 'booking_reminder',
+            'status' => 'scheduled',
+        ]);
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_reminder:'.$booking->id.':t2h',
+            'kind' => 'booking_reminder',
+            'status' => 'scheduled',
+        ]);
+
+        $dayBefore = NotificationOutbox::query()
+            ->where('idempotency_key', 'booking_reminder:'.$booking->id.':t1d')
+            ->first();
+        $this->assertTrue($dayBefore->scheduled_for->greaterThan(CarbonImmutable::now()->addDay()));
+    }
+
+    public function test_cancelling_a_booking_withdraws_its_pending_reminders(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        $booking = Booking::query()->create([
+            'reference' => 'NT-'.Str::upper(Str::random(6)),
+            'user_id' => $user->id,
+            'state' => BookingState::Processing,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+        ]);
+        $booking->items()->create([
+            'title' => 'Harbour walk',
+            'quantity' => 1,
+            'starts_at' => CarbonImmutable::now()->addDays(3),
+        ]);
+
+        $machine = app(BookingStateMachine::class);
+        $machine->transition($booking, BookingState::Confirmed, 'provider');
+        $machine->transition($booking->fresh(), BookingState::CancelRequested, 'traveller');
+        $machine->transition($booking->fresh(), BookingState::Cancelled, 'provider');
+
+        $this->assertSame(2, NotificationOutbox::query()
+            ->where('kind', 'booking_reminder')
+            ->where('status', 'cancelled')
+            ->count());
+
+        $this->travel(3)->days();
+        app(NotificationDispatcher::class)->flush();
+
+        $this->assertSame(0, NotificationOutbox::query()
+            ->where('kind', 'booking_reminder')
+            ->where('status', '!=', 'cancelled')
+            ->count());
+    }
+
+    public function test_a_partial_refund_and_the_full_refund_each_notify(): void
+    {
+        $user = User::factory()->create();
+        $booking = Booking::query()->create([
+            'reference' => 'NT-'.Str::upper(Str::random(6)),
+            'user_id' => $user->id,
+            'state' => BookingState::Cancelled,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+        ]);
+
+        $machine = app(BookingStateMachine::class);
+        $machine->transition($booking, BookingState::PartiallyRefunded, 'provider');
+        $machine->transition($booking->fresh(), BookingState::Refunded, 'provider');
+
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_partially_refunded:'.$booking->id,
+            'title' => 'Partial refund processed',
+        ]);
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_refunded:'.$booking->id,
+            'title' => 'Refund processed',
+        ]);
+    }
+
+    public function test_the_inbox_hides_reminders_that_are_not_due_yet(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $enqueuer = app(NotificationEnqueuer::class);
+        $actor = new Actor(userId: $user->id);
+
+        $due = $enqueuer->enqueue($actor, 'booking_confirmed', 'booking_confirmed:due', 'Booking confirmed', 'Confirmed.');
+        $enqueuer->enqueue($actor, 'booking_reminder', 'booking_reminder:x:t1d', 'Tomorrow', 'Tomorrow.', [], CarbonImmutable::now()->addDays(5));
+
+        $this->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $due->id);
+
+        $this->postJson('/api/notifications/read-all')
+            ->assertOk()
+            ->assertJsonPath('data.updated', 1);
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_reminder:x:t1d',
+            'read_at' => null,
+        ]);
+    }
+
+    public function test_a_future_reminder_is_not_flushed_early(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        app(NotificationEnqueuer::class)->enqueue(
+            new Actor(userId: $user->id),
+            'booking_reminder',
+            'booking_reminder:later',
+            'Starting soon',
+            'Your booking starts soon.',
+            [],
+            CarbonImmutable::now()->addHours(3),
+        );
+
+        $this->assertSame(0, app(NotificationDispatcher::class)->flush());
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_reminder:later',
+            'status' => 'scheduled',
+        ]);
+        Mail::assertNothingSent();
+    }
+
+    public function test_the_inbox_lists_payload_and_can_mark_read(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $row = app(NotificationEnqueuer::class)->enqueue(
+            new Actor(userId: $user->id),
+            'booking_confirmed',
+            'booking_confirmed:inbox',
+            'Booking confirmed',
+            'Your booking NT-9 is confirmed.',
+            ['booking_id' => 'b-1', 'reference' => 'NT-9'],
+        );
+
+        $this->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $row->id)
+            ->assertJsonPath('data.0.payload.reference', 'NT-9')
+            ->assertJsonPath('data.0.payload.path', '/(tabs)/bookings')
+            ->assertJsonPath('data.0.read_at', null);
+
+        $marked = $this->postJson('/api/notifications/'.$row->id.'/read')->assertOk();
+        $this->assertNotNull($marked->json('data.read_at'));
+        $this->assertNotNull($row->fresh()->read_at);
+    }
+
+    public function test_push_payload_includes_a_deep_link_path(): void
+    {
+        Mail::fake();
+        Http::fake([
+            'https://exp.host/*' => Http::response(['data' => [['status' => 'ok', 'id' => 't1']]], 200),
+        ]);
+
+        $user = User::factory()->create();
+        DevicePushToken::query()->create([
+            'user_id' => $user->id,
+            'token' => 'ExponentPushToken[path]',
+            'platform' => 'ios',
+        ]);
+
+        app(NotificationEnqueuer::class)->enqueue(
+            new Actor(userId: $user->id),
+            'replan_proposed',
+            'replan_proposed:path',
+            'A change to your plan',
+            'Nothing moves until you accept it.',
+            ['trip_id' => 'trip-1'],
+        );
+
+        app(NotificationDispatcher::class)->flush();
+
+        Http::assertSent(function ($request) {
+            $data = $request['data'] ?? [];
+
+            return $request->url() === 'https://exp.host/--/api/v2/push/send'
+                && ($data['path'] ?? null) === '/(tabs)/trip'
+                && ($data['kind'] ?? null) === 'replan_proposed'
+                && ($data['trip_id'] ?? null) === 'trip-1';
+        });
     }
 }
