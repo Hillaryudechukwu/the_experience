@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domains\Billing\Services;
 
+use App\Domains\Billing\Exceptions\SubscriptionInUseException;
 use App\Domains\Billing\Models\Subscription;
 use App\Domains\Billing\Models\SubscriptionEvent;
 use App\Domains\Billing\StoreNotification;
@@ -128,5 +129,54 @@ class SubscriptionWriter
     public function pendingState(): SubscriptionState
     {
         return SubscriptionState::Pending;
+    }
+
+    /**
+     * Bind a verified store period to a signed-in account (refresh / restore).
+     *
+     * This is the moment we learn whose month it is. Notifications that
+     * arrived earlier are already recorded as events; this creates the row
+     * they could not, or refreshes the period on an existing row.
+     *
+     * @throws SubscriptionInUseException
+     */
+    public function claim(int $userId, StoreNotification $notification): Subscription
+    {
+        return DB::transaction(function () use ($userId, $notification) {
+            $existing = $this->find($notification);
+
+            if ($existing !== null
+                && (int) $existing->user_id !== $userId
+                && $existing->state !== SubscriptionState::Revoked) {
+                throw new SubscriptionInUseException;
+            }
+
+            if ($existing === null) {
+                $existing = Subscription::query()->create([
+                    'user_id' => $userId,
+                    'store' => $notification->store,
+                    'product_id' => $notification->productId
+                        ?? (string) config('experience.billing.products.'.$notification->store),
+                    'original_transaction_id' => $notification->originalTransactionId,
+                    'state' => $this->pendingState(),
+                    'paid_until' => null,
+                    'auto_renew' => false,
+                    'environment' => $notification->environment,
+                ]);
+            } elseif ((int) $existing->user_id !== $userId) {
+                /* A revoked row may be re-attached after account deletion. */
+                $existing->user_id = $userId;
+                $existing->save();
+            }
+
+            if ($notification->environment !== '') {
+                $existing->environment = $notification->environment;
+                $existing->save();
+            }
+
+            $applied = $this->apply($notification);
+
+            return $applied?->fresh() ?? $existing->fresh();
+        });
     }
 }
