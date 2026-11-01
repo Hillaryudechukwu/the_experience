@@ -10,6 +10,7 @@ use App\Domains\Billing\Models\SubscriptionEvent;
 use App\Domains\Billing\StoreNotification;
 use App\Domains\Billing\SubscriptionState;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -106,11 +107,13 @@ class SubscriptionWriter
         return $changes;
     }
 
+    /** The live row when there is one, else the latest revoked one for history. */
     private function find(StoreNotification $notification): ?Subscription
     {
-        return Subscription::query()
+        return $this->findLive($notification) ?? Subscription::query()
             ->where('store', $notification->store)
             ->where('original_transaction_id', $notification->originalTransactionId)
+            ->latest('id')
             ->first();
     }
 
@@ -143,30 +146,13 @@ class SubscriptionWriter
     public function claim(int $userId, StoreNotification $notification): Subscription
     {
         return DB::transaction(function () use ($userId, $notification) {
-            $existing = $this->find($notification);
+            /* Revoked rows are history. A refund is never undone by posting
+               the same receipt again; a new purchase that reuses the id gets
+               a live row of its own. */
+            $existing = $this->findLive($notification) ?? $this->createLive($userId, $notification);
 
-            if ($existing !== null
-                && (int) $existing->user_id !== $userId
-                && $existing->state !== SubscriptionState::Revoked) {
+            if ((int) $existing->user_id !== $userId) {
                 throw new SubscriptionInUseException;
-            }
-
-            if ($existing === null) {
-                $existing = Subscription::query()->create([
-                    'user_id' => $userId,
-                    'store' => $notification->store,
-                    'product_id' => $notification->productId
-                        ?? (string) config('experience.billing.products.'.$notification->store),
-                    'original_transaction_id' => $notification->originalTransactionId,
-                    'state' => $this->pendingState(),
-                    'paid_until' => null,
-                    'auto_renew' => false,
-                    'environment' => $notification->environment,
-                ]);
-            } elseif ((int) $existing->user_id !== $userId) {
-                /* A revoked row may be re-attached after account deletion. */
-                $existing->user_id = $userId;
-                $existing->save();
             }
 
             if ($notification->environment !== '') {
@@ -178,5 +164,40 @@ class SubscriptionWriter
 
             return $applied?->fresh() ?? $existing->fresh();
         });
+    }
+
+    private function findLive(StoreNotification $notification): ?Subscription
+    {
+        return Subscription::query()
+            ->where('store', $notification->store)
+            ->where('original_transaction_id', $notification->originalTransactionId)
+            ->where('state', '!=', SubscriptionState::Revoked)
+            ->first();
+    }
+
+    /**
+     * Two refreshes for one purchase can arrive together (the purchase
+     * callback and a Restore tap, or two devices). Both miss on read and both
+     * insert; the live-transaction index lets one win. The savepoint keeps
+     * the loser's transaction usable so it can read the winner's row and be
+     * judged against it like any other claim.
+     */
+    private function createLive(int $userId, StoreNotification $notification): Subscription
+    {
+        try {
+            return DB::transaction(fn () => Subscription::query()->create([
+                'user_id' => $userId,
+                'store' => $notification->store,
+                'product_id' => $notification->productId
+                    ?? (string) config('experience.billing.products.'.$notification->store),
+                'original_transaction_id' => $notification->originalTransactionId,
+                'state' => $this->pendingState(),
+                'paid_until' => null,
+                'auto_renew' => false,
+                'environment' => $notification->environment,
+            ]));
+        } catch (UniqueConstraintViolationException $exception) {
+            return $this->findLive($notification) ?? throw $exception;
+        }
     }
 }

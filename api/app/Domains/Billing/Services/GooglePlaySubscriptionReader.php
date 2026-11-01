@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Log;
  *     autoRenewing?: bool|null,
  *     acknowledgementState?: int|null,
  *     subscriptionState?: string|null,
+ *     paymentState?: int|null,
  * }
  */
 class GooglePlaySubscriptionReader
@@ -154,6 +155,7 @@ class GooglePlaySubscriptionReader
             'productId' => $productId,
             'autoRenewing' => isset($body['autoRenewing']) ? (bool) $body['autoRenewing'] : null,
             'acknowledgementState' => $body['acknowledgementState'] ?? null,
+            'paymentState' => isset($body['paymentState']) ? (int) $body['paymentState'] : null,
         ];
     }
 

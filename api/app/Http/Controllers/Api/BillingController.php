@@ -62,6 +62,21 @@ class BillingController extends ApiController
             return response()->json(['code' => 'incomplete_receipt'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        /* A refunded transaction still carries a valid signature. It is
+           not a month, and posting it again must not undo the refund. */
+        if (isset($claims['revocationDate'])) {
+            return response()->json(['code' => 'revoked'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $paidUntil = CarbonImmutable::createFromTimestampMs((int) $expiresMs);
+
+        /* A lapsed transaction says nothing about now. Applying it would
+           mark a row Active (or overwrite a renewal's state) for a period
+           that has ended. */
+        if (! $paidUntil->isFuture()) {
+            return response()->json(['code' => 'expired'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $environment = strtolower((string) ($claims['environment'] ?? 'Production')) === 'sandbox'
             ? 'sandbox'
             : 'production';
@@ -77,7 +92,7 @@ class BillingController extends ApiController
             originalTransactionId: (string) $claims['originalTransactionId'],
             state: SubscriptionState::Active,
             productId: isset($claims['productId']) ? (string) $claims['productId'] : null,
-            paidUntil: CarbonImmutable::createFromTimestampMs((int) $expiresMs),
+            paidUntil: $paidUntil,
             autoRenew: true,
             environment: $environment,
             notificationId: isset($claims['transactionId'])
@@ -114,15 +129,24 @@ class BillingController extends ApiController
             return response()->json(['code' => 'incomplete_receipt'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $period = $this->googlePeriod($detail);
+
+        if ($period === null) {
+            return response()->json(['code' => 'incomplete_receipt'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        [$state, $paid] = $period;
+        $expiry = CarbonImmutable::createFromTimestampMs((int) $detail['expiryTimeMillis']);
+
         $environment = app()->environment('production') ? 'production' : 'sandbox';
 
         $notification = new StoreNotification(
             store: 'google',
             originalTransactionId: $validated['purchase_token'],
-            state: SubscriptionState::Active,
+            state: $state,
             productId: isset($detail['productId']) ? (string) $detail['productId'] : $productId,
-            paidUntil: CarbonImmutable::createFromTimestampMs((int) $detail['expiryTimeMillis']),
-            autoRenew: isset($detail['autoRenewing']) ? (bool) $detail['autoRenewing'] : true,
+            paidUntil: $paid ? $expiry : null,
+            autoRenew: isset($detail['autoRenewing']) ? (bool) $detail['autoRenewing'] : $state === SubscriptionState::Active,
             pauseResumesAt: isset($detail['autoResumeTimeMillis'])
                 ? CarbonImmutable::createFromTimestampMs((int) $detail['autoResumeTimeMillis'])
                 : null,
@@ -133,6 +157,37 @@ class BillingController extends ApiController
         );
 
         return $this->claimAndPresent($request, $userId, $notification);
+    }
+
+    /**
+     * Play's own state for the token, in the terms GoogleNotificationMapper
+     * uses for the same events: only a charge that went through moves
+     * `paid_until`. In grace or on hold Play keeps serving an expiry nobody
+     * paid for, so that expiry is not a month.
+     *
+     * @param  array<string, mixed>  $detail
+     * @return array{0: SubscriptionState, 1: bool}|null State and whether the expiry was paid for; null to refuse.
+     */
+    private function googlePeriod(array $detail): ?array
+    {
+        if (isset($detail['subscriptionState'])) {
+            return match ($detail['subscriptionState']) {
+                'SUBSCRIPTION_STATE_ACTIVE' => [SubscriptionState::Active, true],
+                /* Cancelled but paid to the end: the month keeps working. */
+                'SUBSCRIPTION_STATE_CANCELED' => [SubscriptionState::ActiveUntilPeriodEnd, true],
+                'SUBSCRIPTION_STATE_IN_GRACE_PERIOD' => [SubscriptionState::ActiveUntilPeriodEnd, false],
+                'SUBSCRIPTION_STATE_ON_HOLD', 'SUBSCRIPTION_STATE_EXPIRED' => [SubscriptionState::Expired, false],
+                'SUBSCRIPTION_STATE_PAUSED' => [SubscriptionState::Paused, false],
+                'SUBSCRIPTION_STATE_PENDING' => [SubscriptionState::Pending, false],
+                default => null,
+            };
+        }
+
+        /* v1 fallback has no state, only whether the period was paid:
+           1 received, 2 free trial. Anything else is not a month. */
+        return in_array($detail['paymentState'] ?? null, [1, 2], true)
+            ? [SubscriptionState::Active, true]
+            : null;
     }
 
     private function claimAndPresent(Request $request, int $userId, StoreNotification $notification): JsonResponse
