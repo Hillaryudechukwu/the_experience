@@ -61,9 +61,14 @@ class BookingStateMachine
 
         /* After the commit. A failed notice must not roll back a payment,
            and a unique-key collision inside the booking transaction would. */
-        if ($saved->state === BookingState::Confirmed) {
-            rescue(fn () => app(NotificationEnqueuer::class)->bookingConfirmed($saved), report: false);
-        }
+        $enqueuer = app(NotificationEnqueuer::class);
+        match ($saved->state) {
+            BookingState::Confirmed => rescue(fn () => $enqueuer->bookingConfirmed($saved), report: false),
+            BookingState::Failed => rescue(fn () => $enqueuer->bookingFailed($saved), report: false),
+            BookingState::Cancelled => rescue(fn () => $enqueuer->bookingCancelled($saved), report: false),
+            BookingState::Refunded, BookingState::PartiallyRefunded => rescue(fn () => $enqueuer->bookingRefunded($saved), report: false),
+            default => null,
+        };
 
         return $saved;
     }

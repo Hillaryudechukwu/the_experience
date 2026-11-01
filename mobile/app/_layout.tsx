@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { AppState, View } from 'react-native';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -20,6 +20,7 @@ import { BRAND, brandDocumentTitle } from '../src/brand';
 import { WayoaLogo } from '../src/components/WayoaLogo';
 import { colorModes } from '../src/design/tokens';
 import { ApiError } from '../src/api/client';
+import { wirePushNavigation } from '../src/lib/push';
 import { usePaywallOn402 } from '../src/lib/usePaywallOn402';
 import { useSession } from '../src/store/session';
 
@@ -119,6 +120,7 @@ export default function RootLayout() {
           <meta name="theme-color" content={colorModes.light.brand.midnight} />
         </Head>
         <SubscriptionWatch />
+        <PushNavigationWatch />
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
@@ -131,6 +133,7 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="experience/[id]" />
+          <Stack.Screen name="account/notifications" />
           <Stack.Screen name="guide" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="search" options={{ animation: 'fade' }} />
         </Stack>
@@ -147,6 +150,15 @@ export default function RootLayout() {
  */
 function SubscriptionWatch() {
   usePaywallOn402();
+
+  return null;
+}
+
+/** Tap a push → open Bookings / Plan / Discover. Lives under the router. */
+function PushNavigationWatch() {
+  const router = useRouter();
+
+  useEffect(() => wirePushNavigation(router), [router]);
 
   return null;
 }

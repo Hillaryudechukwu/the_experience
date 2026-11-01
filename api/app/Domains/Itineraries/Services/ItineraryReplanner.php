@@ -56,7 +56,19 @@ class ItineraryReplanner
 
         $proposal->load('days.items.experience');
 
-        rescue(fn () => app(NotificationEnqueuer::class)->replanProposed($actor, $trip, $proposal), report: false);
+        /* Interactive replan (Plan tab) already shows the proposal. Push only
+           for proactive weather checks, and only when something actually moved. */
+        if (($options['notify'] ?? false) === true && $changes !== []) {
+            $key = null;
+            if (($trigger['type'] ?? null) === 'weather') {
+                $key = 'replan_weather:'.$trip->id.':'.CarbonImmutable::now()->toDateString();
+            }
+
+            rescue(
+                fn () => app(NotificationEnqueuer::class)->replanProposed($actor, $trip, $proposal, $key),
+                report: false,
+            );
+        }
 
         return [
             'proposal' => $proposal,
@@ -65,6 +77,30 @@ class ItineraryReplanner
             'blocked_by_confirmed_bookings' => $conflicts,
             'message' => $this->message($trigger, $changes, $conflicts),
         ];
+    }
+
+    /**
+     * Server-side weather watch: propose only when outdoor items look poor,
+     * and notify the traveller once per day for the trip.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function proposeForWeather(Actor $actor, Trip $trip, array $options = []): ?array
+    {
+        $current = $trip->currentItinerary()?->load('days.items.experience');
+        if ($current === null) {
+            return null;
+        }
+
+        $trigger = $this->detectTrigger($trip, $current);
+        if ($trigger === null) {
+            return null;
+        }
+
+        return $this->propose($actor, $trip, array_merge($options, [
+            'trigger' => $trigger,
+            'notify' => true,
+        ]));
     }
 
     public function accept(Trip $trip, Itinerary $proposal): Itinerary

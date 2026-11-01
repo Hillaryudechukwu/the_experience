@@ -16,6 +16,10 @@ Schedule::command('notifications:flush')
     ->everyMinute()
     ->withoutOverlapping(5);
 
+Schedule::command('trips:check-weather')
+    ->hourly()
+    ->withoutOverlapping(20);
+
 Schedule::command('queue:work database --stop-when-empty --max-time=50 --tries=4 --timeout=300')
     ->everyMinute()
     ->withoutOverlapping(10)

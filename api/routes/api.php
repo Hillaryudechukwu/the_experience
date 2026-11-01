@@ -142,6 +142,8 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('events', [AnalyticsController::class, 'store']);
 
     Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);
     Route::post('notifications/push-token', [NotificationController::class, 'storePushToken']);
 
     Route::get('privacy/export', [PrivacyController::class, 'export']);

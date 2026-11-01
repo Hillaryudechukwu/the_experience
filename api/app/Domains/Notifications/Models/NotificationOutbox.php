@@ -22,6 +22,7 @@ class NotificationOutbox extends Model
             'payload' => 'array',
             'scheduled_for' => 'immutable_datetime',
             'sent_at' => 'immutable_datetime',
+            'read_at' => 'immutable_datetime',
         ];
     }
 }

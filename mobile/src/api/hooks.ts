@@ -50,6 +50,27 @@ export const keys = {
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
   missionSuggestions: (reason: string, destination?: string | null, familiarity?: string | null) =>
     ['mission-suggestions', reason, destination ?? '', familiarity ?? ''] as const,
+  notifications: () => ['notifications'] as const,
+};
+
+export type TravellerNotification = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  status: string;
+  payload: {
+    booking_id?: string | null;
+    trip_id?: string | null;
+    destination_id?: string | null;
+    import_id?: string | null;
+    itinerary_id?: string | null;
+    experience_id?: string | null;
+    reference?: string | null;
+    path?: string | null;
+  };
+  read_at: string | null;
+  created_at: string | null;
 };
 
 export type MissionSuggestions = {
@@ -675,6 +696,36 @@ export function useBookings() {
   return useQuery({
     queryKey: ['bookings'],
     queryFn: () => wrapped(http.get<{ data: BookingSummary[] }>('/bookings')),
+  });
+}
+
+export function useNotifications() {
+  return useQuery({
+    queryKey: keys.notifications(),
+    queryFn: () => wrapped(http.get<{ data: TravellerNotification[] }>('/notifications')),
+  });
+}
+
+export function useMarkNotificationRead() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) =>
+      wrapped(http.post<{ data: TravellerNotification }>(`/notifications/${id}/read`, {})),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: keys.notifications() });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => wrapped(http.post<{ data: { updated: number } }>('/notifications/read-all', {})),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: keys.notifications() });
+    },
   });
 }
 

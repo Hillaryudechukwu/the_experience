@@ -125,6 +125,8 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
 
                 if (in_array($import->status, [DestinationImportStatus::Succeeded, DestinationImportStatus::Partial], true)) {
                     rescue(fn () => app(NotificationEnqueuer::class)->destinationImportFinished($import), report: false);
+                } elseif ($import->status === DestinationImportStatus::Failed) {
+                    rescue(fn () => app(NotificationEnqueuer::class)->destinationImportFailed($import), report: false);
                 }
             } catch (Throwable $exception) {
                 $import->update([
@@ -165,6 +167,7 @@ class ImportDestination implements ShouldBeUnique, ShouldQueue
         $import->refresh();
         $this->recordOutcome(app(RecordBehaviouralEvent::class), $import);
         $this->log($import, 'destination import failed permanently');
+        rescue(fn () => app(NotificationEnqueuer::class)->destinationImportFailed($import), report: false);
     }
 
     private function recordOutcome(RecordBehaviouralEvent $events, DestinationImport $import): void

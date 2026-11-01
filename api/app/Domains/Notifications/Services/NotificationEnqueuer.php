@@ -24,28 +24,73 @@ class NotificationEnqueuer
 {
     public function bookingConfirmed(Booking $booking): ?NotificationOutbox
     {
-        return $this->enqueue(
-            new Actor(
-                userId: $booking->user_id,
-                guestSessionId: $booking->user_id === null ? $booking->guest_session_id : null,
-            ),
+        $booking->loadMissing('items');
+
+        $row = $this->enqueue(
+            $this->actorForBooking($booking),
             'booking_confirmed',
             'booking_confirmed:'.$booking->id,
             'Booking confirmed',
             sprintf('Your booking %s is confirmed.', $booking->reference),
-            ['booking_id' => $booking->id, 'reference' => $booking->reference],
+            $this->bookingPayload($booking),
+        );
+
+        $this->scheduleBookingReminders($booking);
+
+        return $row;
+    }
+
+    public function bookingFailed(Booking $booking): ?NotificationOutbox
+    {
+        $reason = $booking->failure_reason;
+        $body = $reason === null || $reason === ''
+            ? sprintf('Your booking %s could not be completed.', $booking->reference)
+            : sprintf('Your booking %s could not be completed: %s', $booking->reference, $reason);
+
+        return $this->enqueue(
+            $this->actorForBooking($booking),
+            'booking_failed',
+            'booking_failed:'.$booking->id,
+            'Booking did not complete',
+            $body,
+            $this->bookingPayload($booking),
+        );
+    }
+
+    public function bookingCancelled(Booking $booking): ?NotificationOutbox
+    {
+        return $this->enqueue(
+            $this->actorForBooking($booking),
+            'booking_cancelled',
+            'booking_cancelled:'.$booking->id,
+            'Booking cancelled',
+            sprintf('Your booking %s has been cancelled.', $booking->reference),
+            $this->bookingPayload($booking),
+        );
+    }
+
+    public function bookingRefunded(Booking $booking): ?NotificationOutbox
+    {
+        return $this->enqueue(
+            $this->actorForBooking($booking),
+            'booking_refunded',
+            'booking_refunded:'.$booking->id,
+            'Refund processed',
+            sprintf('A refund for booking %s is on its way.', $booking->reference),
+            $this->bookingPayload($booking),
         );
     }
 
     public function destinationImportFinished(DestinationImport $import): ?NotificationOutbox
     {
+        $actor = $this->actorForImport($import);
+        if ($actor === null) {
+            return null;
+        }
+
         $status = $import->destination->coverage_status->value ?? (string) $import->stage->value;
         $name = $import->destination->name;
         $ready = $status === 'ready';
-
-        $actor = $import->requested_by_type === 'user'
-            ? new Actor(userId: (int) $import->requested_by_id)
-            : new Actor(guestSessionId: $import->requested_by_id);
 
         return $this->enqueue(
             $actor,
@@ -59,7 +104,30 @@ class NotificationEnqueuer
         );
     }
 
-    public function replanProposed(Actor $actor, Trip $trip, Itinerary $proposal): ?NotificationOutbox
+    public function destinationImportFailed(DestinationImport $import): ?NotificationOutbox
+    {
+        $actor = $this->actorForImport($import);
+        if ($actor === null) {
+            return null;
+        }
+
+        $name = $import->destination?->name ?? 'That city';
+
+        return $this->enqueue(
+            $actor,
+            'destination_import_failed',
+            'destination_import_failed:'.$import->id,
+            $name.' is not ready yet',
+            $name.' could not finish preparing. You can try again from Discover.',
+            [
+                'import_id' => $import->id,
+                'destination_id' => $import->destination_id,
+                'retryable' => (bool) $import->retryable,
+            ],
+        );
+    }
+
+    public function replanProposed(Actor $actor, Trip $trip, Itinerary $proposal, ?string $idempotencyKey = null): ?NotificationOutbox
     {
         $city = $trip->relationLoaded('journey')
             ? $trip->journey?->destination?->name
@@ -68,7 +136,7 @@ class NotificationEnqueuer
         return $this->enqueue(
             $actor,
             'replan_proposed',
-            'replan_proposed:'.$proposal->id,
+            $idempotencyKey ?? 'replan_proposed:'.$proposal->id,
             'A change to your plan',
             $city === null
                 ? 'There is a suggested change to your plan. Nothing moves until you accept it.'
@@ -77,9 +145,18 @@ class NotificationEnqueuer
         );
     }
 
-    /** @param array<string, mixed> $payload */
-    public function enqueue(Actor $actor, string $kind, string $key, string $title, string $body, array $payload = []): ?NotificationOutbox
-    {
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function enqueue(
+        Actor $actor,
+        string $kind,
+        string $key,
+        string $title,
+        string $body,
+        array $payload = [],
+        ?CarbonImmutable $scheduledFor = null,
+    ): ?NotificationOutbox {
         if (! config('experience.notifications.enabled', true)) {
             return null;
         }
@@ -100,7 +177,7 @@ class NotificationEnqueuer
                 'title' => $title,
                 'body' => $body,
                 'payload' => $payload,
-                'scheduled_for' => CarbonImmutable::now(),
+                'scheduled_for' => $scheduledFor ?? CarbonImmutable::now(),
                 'status' => 'scheduled',
             ]));
         } catch (UniqueConstraintViolationException) {
@@ -110,5 +187,93 @@ class NotificationEnqueuer
 
             return null;
         }
+    }
+
+    private function scheduleBookingReminders(Booking $booking): void
+    {
+        $startsAt = $booking->items
+            ->pluck('starts_at')
+            ->filter()
+            ->sort()
+            ->first();
+
+        if (! $startsAt instanceof CarbonImmutable) {
+            return;
+        }
+
+        $actor = $this->actorForBooking($booking);
+        $payload = $this->bookingPayload($booking);
+        $payload['starts_at'] = $startsAt->toIso8601String();
+        $now = CarbonImmutable::now();
+
+        $dayBefore = $startsAt->subDay();
+        if ($dayBefore->greaterThan($now)) {
+            $this->enqueue(
+                $actor,
+                'booking_reminder',
+                'booking_reminder:'.$booking->id.':t1d',
+                'Tomorrow: '.$this->bookingTitle($booking),
+                sprintf('Your booking %s starts tomorrow.', $booking->reference),
+                $payload,
+                $dayBefore,
+            );
+        }
+
+        $twoHoursBefore = $startsAt->subHours(2);
+        if ($twoHoursBefore->greaterThan($now)) {
+            $this->enqueue(
+                $actor,
+                'booking_reminder',
+                'booking_reminder:'.$booking->id.':t2h',
+                'Starting soon: '.$this->bookingTitle($booking),
+                sprintf('Your booking %s starts in about two hours.', $booking->reference),
+                $payload,
+                $twoHoursBefore,
+            );
+        }
+    }
+
+    private function actorForBooking(Booking $booking): Actor
+    {
+        return new Actor(
+            userId: $booking->user_id,
+            guestSessionId: $booking->user_id === null ? $booking->guest_session_id : null,
+        );
+    }
+
+    private function actorForImport(DestinationImport $import): ?Actor
+    {
+        if ($import->requested_by_id === null || $import->requested_by_type === null) {
+            return null;
+        }
+
+        return $import->requested_by_type === 'user'
+            ? new Actor(userId: (int) $import->requested_by_id)
+            : new Actor(guestSessionId: (string) $import->requested_by_id);
+    }
+
+    /** @return array<string, mixed> */
+    private function bookingPayload(Booking $booking): array
+    {
+        $booking->loadMissing('items');
+
+        $item = $booking->items->sortBy('starts_at')->first();
+
+        return array_filter([
+            'booking_id' => $booking->id,
+            'reference' => $booking->reference,
+            'trip_id' => $booking->trip_id,
+            'journey_id' => $booking->journey_id,
+            'experience_id' => $item?->experience_id,
+            'starts_at' => $item?->starts_at?->toIso8601String(),
+            'title' => $item?->title,
+        ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function bookingTitle(Booking $booking): string
+    {
+        $booking->loadMissing('items');
+
+        return (string) ($booking->items->first()?->title ?? $booking->reference);
     }
 }

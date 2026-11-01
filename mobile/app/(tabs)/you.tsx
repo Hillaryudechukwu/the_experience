@@ -295,6 +295,12 @@ export default function You() {
       <Gutter style={{ marginTop: space.xl }}>
         <Card>
           <LinkRow
+            icon="info"
+            label="Notifications"
+            onPress={() => router.push('/account/notifications')}
+          />
+          <Divider />
+          <LinkRow
             icon="lock"
             label={exportPrivacy.isPending ? 'Preparing export…' : 'Download my data'}
             onPress={downloadMyData}
