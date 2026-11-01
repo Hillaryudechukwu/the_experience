@@ -243,6 +243,92 @@ class NotificationOutboxTest extends TestCase
         $this->assertTrue($dayBefore->scheduled_for->greaterThan(CarbonImmutable::now()->addDay()));
     }
 
+    public function test_cancelling_a_booking_withdraws_its_pending_reminders(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        $booking = Booking::query()->create([
+            'reference' => 'NT-'.Str::upper(Str::random(6)),
+            'user_id' => $user->id,
+            'state' => BookingState::Processing,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+        ]);
+        $booking->items()->create([
+            'title' => 'Harbour walk',
+            'quantity' => 1,
+            'starts_at' => CarbonImmutable::now()->addDays(3),
+        ]);
+
+        $machine = app(BookingStateMachine::class);
+        $machine->transition($booking, BookingState::Confirmed, 'provider');
+        $machine->transition($booking->fresh(), BookingState::CancelRequested, 'traveller');
+        $machine->transition($booking->fresh(), BookingState::Cancelled, 'provider');
+
+        $this->assertSame(2, NotificationOutbox::query()
+            ->where('kind', 'booking_reminder')
+            ->where('status', 'cancelled')
+            ->count());
+
+        $this->travel(3)->days();
+        app(NotificationDispatcher::class)->flush();
+
+        $this->assertSame(0, NotificationOutbox::query()
+            ->where('kind', 'booking_reminder')
+            ->where('status', '!=', 'cancelled')
+            ->count());
+    }
+
+    public function test_a_partial_refund_and_the_full_refund_each_notify(): void
+    {
+        $user = User::factory()->create();
+        $booking = Booking::query()->create([
+            'reference' => 'NT-'.Str::upper(Str::random(6)),
+            'user_id' => $user->id,
+            'state' => BookingState::Cancelled,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+        ]);
+
+        $machine = app(BookingStateMachine::class);
+        $machine->transition($booking, BookingState::PartiallyRefunded, 'provider');
+        $machine->transition($booking->fresh(), BookingState::Refunded, 'provider');
+
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_partially_refunded:'.$booking->id,
+            'title' => 'Partial refund processed',
+        ]);
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_refunded:'.$booking->id,
+            'title' => 'Refund processed',
+        ]);
+    }
+
+    public function test_the_inbox_hides_reminders_that_are_not_due_yet(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $enqueuer = app(NotificationEnqueuer::class);
+        $actor = new Actor(userId: $user->id);
+
+        $due = $enqueuer->enqueue($actor, 'booking_confirmed', 'booking_confirmed:due', 'Booking confirmed', 'Confirmed.');
+        $enqueuer->enqueue($actor, 'booking_reminder', 'booking_reminder:x:t1d', 'Tomorrow', 'Tomorrow.', [], CarbonImmutable::now()->addDays(5));
+
+        $this->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $due->id);
+
+        $this->postJson('/api/notifications/read-all')
+            ->assertOk()
+            ->assertJsonPath('data.updated', 1);
+        $this->assertDatabaseHas('notifications_outbox', [
+            'idempotency_key' => 'booking_reminder:x:t1d',
+            'read_at' => null,
+        ]);
+    }
+
     public function test_a_future_reminder_is_not_flushed_early(): void
     {
         Mail::fake();

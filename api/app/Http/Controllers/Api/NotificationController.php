@@ -16,7 +16,8 @@ class NotificationController extends ApiController
     {
         $rows = NotificationOutbox::query()
             ->ownedBy($this->actor($request))
-            ->latest('created_at')
+            ->visibleInInbox()
+            ->latest('scheduled_for')
             ->limit(40)
             ->get();
 
@@ -29,6 +30,7 @@ class NotificationController extends ApiController
     {
         $row = NotificationOutbox::query()
             ->ownedBy($this->actor($request))
+            ->visibleInInbox()
             ->findOrFail($notification);
 
         if ($row->read_at === null) {
@@ -43,6 +45,7 @@ class NotificationController extends ApiController
     {
         $updated = NotificationOutbox::query()
             ->ownedBy($this->actor($request))
+            ->visibleInInbox()
             ->whereNull('read_at')
             ->update(['read_at' => CarbonImmutable::now()]);
 

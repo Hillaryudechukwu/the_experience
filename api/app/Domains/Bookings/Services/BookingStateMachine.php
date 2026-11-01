@@ -66,7 +66,8 @@ class BookingStateMachine
             BookingState::Confirmed => rescue(fn () => $enqueuer->bookingConfirmed($saved), report: false),
             BookingState::Failed => rescue(fn () => $enqueuer->bookingFailed($saved), report: false),
             BookingState::Cancelled => rescue(fn () => $enqueuer->bookingCancelled($saved), report: false),
-            BookingState::Refunded, BookingState::PartiallyRefunded => rescue(fn () => $enqueuer->bookingRefunded($saved), report: false),
+            BookingState::Refunded => rescue(fn () => $enqueuer->bookingRefunded($saved), report: false),
+            BookingState::PartiallyRefunded => rescue(fn () => $enqueuer->bookingRefunded($saved, partial: true), report: false),
             default => null,
         };
 

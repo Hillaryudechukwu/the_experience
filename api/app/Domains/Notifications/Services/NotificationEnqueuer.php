@@ -47,6 +47,8 @@ class NotificationEnqueuer
             ? sprintf('Your booking %s could not be completed.', $booking->reference)
             : sprintf('Your booking %s could not be completed: %s', $booking->reference, $reason);
 
+        $this->cancelBookingReminders($booking);
+
         return $this->enqueue(
             $this->actorForBooking($booking),
             'booking_failed',
@@ -59,6 +61,8 @@ class NotificationEnqueuer
 
     public function bookingCancelled(Booking $booking): ?NotificationOutbox
     {
+        $this->cancelBookingReminders($booking);
+
         return $this->enqueue(
             $this->actorForBooking($booking),
             'booking_cancelled',
@@ -69,16 +73,39 @@ class NotificationEnqueuer
         );
     }
 
-    public function bookingRefunded(Booking $booking): ?NotificationOutbox
+    /**
+     * A partial refund can be followed by the full one, so each gets its own
+     * kind and key; sharing one key would swallow the second notice.
+     */
+    public function bookingRefunded(Booking $booking, bool $partial = false): ?NotificationOutbox
     {
+        $this->cancelBookingReminders($booking);
+
+        $kind = $partial ? 'booking_partially_refunded' : 'booking_refunded';
+
         return $this->enqueue(
             $this->actorForBooking($booking),
-            'booking_refunded',
-            'booking_refunded:'.$booking->id,
-            'Refund processed',
-            sprintf('A refund for booking %s is on its way.', $booking->reference),
+            $kind,
+            $kind.':'.$booking->id,
+            $partial ? 'Partial refund processed' : 'Refund processed',
+            $partial
+                ? sprintf('A partial refund for booking %s is on its way.', $booking->reference)
+                : sprintf('A refund for booking %s is on its way.', $booking->reference),
             $this->bookingPayload($booking),
         );
+    }
+
+    /**
+     * Reminders are scheduled at confirmation. Once the booking is off, any
+     * that have not gone out yet must not fire.
+     */
+    private function cancelBookingReminders(Booking $booking): int
+    {
+        return NotificationOutbox::query()
+            ->where('kind', 'booking_reminder')
+            ->where('idempotency_key', 'like', 'booking_reminder:'.$booking->id.':%')
+            ->where('status', 'scheduled')
+            ->update(['status' => 'cancelled']);
     }
 
     public function destinationImportFinished(DestinationImport $import): ?NotificationOutbox
