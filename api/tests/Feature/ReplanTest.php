@@ -145,8 +145,25 @@ class ReplanTest extends TestCase
 
         $this->assertSame(1, NotificationOutbox::query()->where('kind', 'replan_proposed')->count());
         $this->assertDatabaseHas('notifications_outbox', [
-            'idempotency_key' => 'replan_weather:'.$trip->id.':'.CarbonImmutable::now()->toDateString(),
+            'idempotency_key' => 'replan_weather:'.$trip->id.':'.CarbonImmutable::now($trip->journey->destination->timezone)->toDateString(),
         ]);
+        $this->assertTrue(app(ItineraryReplanner::class)->proposedForWeatherToday($trip->fresh()));
+    }
+
+    public function test_an_interactive_replan_does_not_count_as_todays_weather_proposal(): void
+    {
+        [$actor, $trip, $date] = $this->scenario();
+
+        app(ItineraryPlanner::class)->generate($actor, $trip, [
+            'from' => $date->toDateString(),
+            'to' => $date->toDateString(),
+        ]);
+        app(ItineraryReplanner::class)->propose($actor, $trip->fresh(), [
+            'from' => $date->toDateString(),
+            'to' => $date->toDateString(),
+        ]);
+
+        $this->assertFalse(app(ItineraryReplanner::class)->proposedForWeatherToday($trip->fresh()));
     }
 
     private function fixedWeather(string $condition): WeatherProvider

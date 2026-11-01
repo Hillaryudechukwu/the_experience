@@ -56,12 +56,7 @@ class CheckTripWeather extends Command
             }
 
             /* One weather proposal per trip per day is enough. */
-            $alreadyProposedToday = $trip->itineraries()
-                ->where('is_current', false)
-                ->whereDate('created_at', $today)
-                ->exists();
-
-            if ($alreadyProposedToday) {
+            if ($replanner->proposedForWeatherToday($trip)) {
                 continue;
             }
 

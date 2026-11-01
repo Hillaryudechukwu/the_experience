@@ -61,7 +61,7 @@ class ItineraryReplanner
         if (($options['notify'] ?? false) === true && $changes !== []) {
             $key = null;
             if (($trigger['type'] ?? null) === 'weather') {
-                $key = 'replan_weather:'.$trip->id.':'.CarbonImmutable::now()->toDateString();
+                $key = 'replan_weather:'.$trip->id.':'.self::localToday($trip)->toDateString();
             }
 
             rescue(
@@ -97,10 +97,36 @@ class ItineraryReplanner
             return null;
         }
 
-        return $this->propose($actor, $trip, array_merge($options, [
+        $result = $this->propose($actor, $trip, array_merge($options, [
             'trigger' => $trigger,
             'notify' => true,
         ]));
+
+        /* Mark it so the hourly watch can tell its own proposals from ones the
+           traveller asked for on the Plan tab. */
+        $result['proposal']?->forceFill([
+            'diagnostics' => array_merge($result['proposal']->diagnostics ?? [], ['trigger' => 'weather']),
+        ])->save();
+
+        return $result;
+    }
+
+    /**
+     * Whether the weather watch already proposed for this trip today, in the
+     * destination's own day rather than the server's.
+     */
+    public function proposedForWeatherToday(Trip $trip): bool
+    {
+        return $trip->itineraries()
+            ->where('is_current', false)
+            ->where('diagnostics->trigger', 'weather')
+            ->where('created_at', '>=', self::localToday($trip)->startOfDay()->utc())
+            ->exists();
+    }
+
+    private static function localToday(Trip $trip): CarbonImmutable
+    {
+        return CarbonImmutable::now($trip->journey?->destination?->timezone ?? config('app.timezone'));
     }
 
     public function accept(Trip $trip, Itinerary $proposal): Itinerary

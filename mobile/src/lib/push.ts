@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import type { Router } from 'expo-router';
+import type { ImperativeRouter } from 'expo-router';
 
 import { http } from '../api/client';
 
@@ -67,19 +67,29 @@ export function routeForNotification(data: NotificationRouteData | undefined | n
   return '/account/notifications';
 }
 
+const handledResponses = new Set<string>();
+
 /**
  * Wire tap → navigate once for the app lifetime.
  *
  * Cold starts use getLastNotificationResponseAsync; warm taps use the listener.
  * Returns an unsubscribe so the root layout can clean up.
  */
-export function wirePushNavigation(router: Router): () => void {
+export function wirePushNavigation(router: ImperativeRouter): () => void {
   if (Platform.OS === 'web') {
     return () => {};
   }
 
   const open = (response: Notifications.NotificationResponse | null) => {
     if (!response) return;
+
+    /* The OS keeps the last response until cleared, and a cold start can
+       deliver the same tap to both paths below. Handle each tap once. */
+    const id = response.notification.request.identifier;
+    if (handledResponses.has(id)) return;
+    handledResponses.add(id);
+    Notifications.clearLastNotificationResponse();
+
     const data = response.notification.request.content.data as NotificationRouteData;
     const path = routeForNotification(data);
     try {
