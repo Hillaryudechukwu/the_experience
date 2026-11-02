@@ -102,11 +102,12 @@ today's Discover with `romantic` for the rest of the day.
 
 ### Saving the plan
 
-Phase 1: "Add to my trip" posts each stop to the existing
-`POST itineraries/{id}/items` with the stop's `date` and `starts_at`. That
-endpoint already rejects anchor clashes. If there's no trip or itinerary yet, the
-button says "Start a trip to save this". Phase 2: a dedicated saved-plan object
-(see open questions).
+"Add to my trip" posts the whole evening to `POST itineraries/{id}/date-night`,
+which adds every stop to the trip or none of them (a clash with a fixed plan
+refuses the lot), and schedules one reminder for the day: 15:00 local, or two
+hours before the first stop if that is earlier. The reminder is withdrawn when
+the last of the evening's stops is removed. If there's no trip or itinerary yet,
+the screen says "Start a trip plan to save this evening to it".
 
 ## Mobile
 
@@ -169,7 +170,7 @@ app has a harness for them.
 1. ~~**Placement:**~~ Decided: Date Night **replaces** `30 min`.
 2. ~~**Paywall:**~~ Decided: Date Night stays behind `subscribed` like the rest
    of discovery.
-3. **Saving:** is putting each stop into the trip itinerary enough, or should a
-   date night be its own saved object, with a reminder notification on the day?
+3. ~~**Saving:**~~ Decided: stops go into the trip itinerary, with a reminder on
+   the day. A separate saved date night (usable without a trip) is not planned.
 4. **Booking:** reserving dinner (OpenTable or Viator offers) is left out of this
    plan and would be a follow-up.

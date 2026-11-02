@@ -46,6 +46,7 @@ class SubscriptionGateCoverageTest extends TestCase
         'api/experiences/{experience}/offers',
         'api/experiences/{experience}/save',
         'api/itineraries/{itinerary}/items',
+        'api/itineraries/{itinerary}/date-night',
         'api/itinerary-items/{item}',
         'api/trips',
         'api/trips/{trip}',

@@ -96,6 +96,9 @@ return [
         'max_days_ahead' => 90,
         'opener_min_evening_minutes' => 180,
         'max_nightcap_travel_minutes' => 15,
+        /* A saved evening gets one nudge on the day, at this local time or two
+           hours before the first stop, whichever comes first. */
+        'reminder_at' => '15:00',
         'stops' => [
             'opener' => ['categories' => ['romantic', 'culture', 'nature', 'iconic'], 'min' => 45, 'max' => 75],
             'dinner' => ['categories' => ['food_experience'], 'min' => 75, 'max' => 120],

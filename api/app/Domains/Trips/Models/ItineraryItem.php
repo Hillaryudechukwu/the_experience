@@ -27,6 +27,11 @@ class ItineraryItem extends Model
         ];
     }
 
+    public function day(): BelongsTo
+    {
+        return $this->belongsTo(ItineraryDay::class, 'itinerary_day_id');
+    }
+
     public function experience(): BelongsTo
     {
         return $this->belongsTo(Experience::class);

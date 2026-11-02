@@ -7,16 +7,22 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\Journeys\Models\JourneyAnchor;
+use App\Domains\Notifications\Services\NotificationEnqueuer;
 use App\Domains\Shared\ValueObjects\TimeWindow;
 use App\Domains\Trips\Models\Itinerary;
 use App\Domains\Trips\Models\ItineraryItem;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ItineraryItemController extends ApiController
 {
-    public function __construct(private readonly RecordBehaviouralEvent $events) {}
+    public function __construct(
+        private readonly RecordBehaviouralEvent $events,
+        private readonly NotificationEnqueuer $notifications,
+    ) {}
 
     public function store(Request $request, string $itinerary): JsonResponse
     {
@@ -29,33 +35,71 @@ class ItineraryItemController extends ApiController
         $model = Itinerary::with('trip.journey.anchors', 'days')->findOrFail($itinerary);
         $this->assertOwned($request, $model);
 
-        $experience = Experience::findOrFail($data['experience_id']);
-        $starts = CarbonImmutable::parse($data['starts_at']);
-        $ends = $starts->addMinutes($experience->expected_duration_minutes);
-
-        $this->assertNoAnchorClash($model, new TimeWindow($starts, $ends));
-
-        $day = $model->days()->firstOrCreate(
-            ['date' => CarbonImmutable::parse($data['date'])->toDateString()],
-            ['summary' => 'Added by you'],
+        $item = $this->add(
+            $request,
+            $model,
+            Experience::findOrFail($data['experience_id']),
+            $data['date'],
+            CarbonImmutable::parse($data['starts_at']),
+            null,
+            'You added this',
         );
 
-        $item = $day->items()->create([
-            'kind' => 'experience',
-            'experience_id' => $experience->id,
-            'title' => $experience->title,
-            'starts_at' => $starts,
-            'ends_at' => $ends,
-            'reason' => 'You added this',
-            'sort' => $day->items()->count(),
-        ]);
-
-        $this->events->record($this->actor($request), 'add_to_itinerary', [
-            'subject_type' => 'experience',
-            'subject_id' => $experience->id,
-        ]);
-
         return response()->json(['data' => $this->present($item)], 201);
+    }
+
+    /**
+     * A whole date night in one go: every stop or none, so a clash on the
+     * nightcap does not leave half an evening in the trip. Saving it also
+     * schedules the reminder on the day.
+     */
+    public function storeDateNight(Request $request, string $itinerary): JsonResponse
+    {
+        $data = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d'],
+            'stops' => ['required', 'array', 'min:1', 'max:3'],
+            'stops.*.role' => ['required', 'distinct', Rule::in(['opener', 'dinner', 'nightcap'])],
+            'stops.*.experience_id' => ['required', 'uuid', 'exists:experiences,id'],
+            'stops.*.starts_at' => ['required', 'date'],
+            'stops.*.ends_at' => ['required', 'date'],
+        ]);
+
+        $model = Itinerary::with('trip.journey.anchors', 'trip.journey.destination', 'days')->findOrFail($itinerary);
+        $this->assertOwned($request, $model);
+
+        /** @var array<string, ItineraryItem> $stops */
+        $stops = DB::transaction(function () use ($request, $model, $data) {
+            $stops = [];
+            foreach ($data['stops'] as $stop) {
+                $starts = CarbonImmutable::parse($stop['starts_at']);
+                $ends = CarbonImmutable::parse($stop['ends_at']);
+                abort_unless($ends->greaterThan($starts), 422, 'Each stop has to end after it starts.');
+
+                $stops[$stop['role']] = $this->add(
+                    $request,
+                    $model,
+                    Experience::findOrFail($stop['experience_id']),
+                    $data['date'],
+                    $starts,
+                    $ends,
+                    'Your date night',
+                );
+            }
+
+            return $stops;
+        });
+
+        $reminder = $this->notifications->dateNightPlanned(
+            $this->actor($request),
+            $model,
+            $stops,
+            $model->trip->journey->destination->timezone ?? 'UTC',
+        );
+
+        return response()->json(['data' => [
+            'items' => array_values(array_map(fn (ItineraryItem $item) => $this->present($item), $stops)),
+            'reminder_at' => $reminder?->scheduled_for?->toIso8601String(),
+        ]], 201);
     }
 
     public function update(Request $request, string $item): JsonResponse
@@ -100,8 +144,46 @@ class ItineraryItemController extends ApiController
         ]);
 
         $model->delete();
+        $this->notifications->withdrawDateNightReminder($model);
 
         return response()->json(['status' => 'deleted']);
+    }
+
+    /** Without an end, the item runs for the experience's usual length. */
+    private function add(
+        Request $request,
+        Itinerary $itinerary,
+        Experience $experience,
+        string $date,
+        CarbonImmutable $starts,
+        ?CarbonImmutable $ends,
+        string $reason,
+    ): ItineraryItem {
+        $ends ??= $starts->addMinutes($experience->expected_duration_minutes);
+
+        $this->assertNoAnchorClash($itinerary, new TimeWindow($starts, $ends));
+
+        $day = $itinerary->days()->firstOrCreate(
+            ['date' => CarbonImmutable::parse($date)->toDateString()],
+            ['summary' => 'Added by you'],
+        );
+
+        $item = $day->items()->create([
+            'kind' => 'experience',
+            'experience_id' => $experience->id,
+            'title' => $experience->title,
+            'starts_at' => $starts,
+            'ends_at' => $ends,
+            'reason' => $reason,
+            'sort' => $day->items()->count(),
+        ]);
+
+        $this->events->record($this->actor($request), 'add_to_itinerary', [
+            'subject_type' => 'experience',
+            'subject_id' => $experience->id,
+        ]);
+
+        return $item;
     }
 
     /** Acceptance 56: an itinerary never overlaps a fixed anchor. */

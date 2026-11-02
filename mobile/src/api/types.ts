@@ -221,6 +221,17 @@ export type DateNightRefusal =
   | 'date_night_too_late'
   | 'date_night_clashes';
 
+export type DateNightSave = {
+  date: string;
+  stops: { role: DateNightRole; experience_id: string; starts_at: string; ends_at: string }[];
+};
+
+/** What saving an evening to the trip did; no reminder when its time has passed. */
+export type DateNightSaved = {
+  items: { id: string; title: string; starts_at: string; ends_at: string }[];
+  reminder_at: string | null;
+};
+
 export type Destination = {
   id: string;
   slug: string;

@@ -123,6 +123,7 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
         Route::post('trips/{trip}/itineraries/{itinerary}/accept', [TripController::class, 'acceptReplan']);
 
         Route::post('itineraries/{itinerary}/items', [ItineraryItemController::class, 'store']);
+        Route::post('itineraries/{itinerary}/date-night', [ItineraryItemController::class, 'storeDateNight']);
         Route::patch('itinerary-items/{item}', [ItineraryItemController::class, 'update']);
         Route::delete('itinerary-items/{item}', [ItineraryItemController::class, 'destroy']);
 

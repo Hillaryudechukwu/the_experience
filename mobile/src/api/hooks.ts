@@ -9,6 +9,8 @@ import type {
   DestinationDetail,
   DestinationImport,
   DateNightOptions,
+  DateNightSave,
+  DateNightSaved,
   DateNightResponse,
   DiscoveryResponse,
   ExperienceCard,
@@ -324,17 +326,13 @@ export function useDateNight(options: DateNightOptions | null, { nearMe }: { nea
 }
 
 /** Add stops to the trip's current itinerary, one item each. */
-export function useAddToItinerary(tripId: string | null, itineraryId: string | null) {
+/** The whole evening in one request: every stop or none, plus the reminder on the day. */
+export function useSaveDateNight(tripId: string | null, itineraryId: string | null) {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async (items: { experience_id: string; date: string; starts_at: string }[]) => {
-      /* In order, so a clash on the second stop leaves the first in place
-         and the error names the one that failed. */
-      for (const item of items) {
-        await http.post(`/itineraries/${itineraryId}/items`, item);
-      }
-    },
+    mutationFn: (body: DateNightSave) =>
+      wrapped(http.post<{ data: DateNightSaved }>(`/itineraries/${itineraryId}/date-night`, body)),
     onSettled: () => client.invalidateQueries({ queryKey: keys.trip(tripId ?? '') }),
   });
 }

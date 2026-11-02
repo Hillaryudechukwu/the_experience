@@ -108,9 +108,18 @@ POST   /trips/{trip}/generate-itinerary   §8
 POST   /trips/{trip}/replan               §8.3 — returns a proposal, not a change
 POST   /trips/{trip}/itineraries/{itinerary}/accept
 POST   /itineraries/{itinerary}/items
+POST   /itineraries/{itinerary}/date-night   a planned date night, all stops at once
 PATCH  /itinerary-items/{item}
 DELETE /itinerary-items/{item}
 ```
+
+`POST /itineraries/{itinerary}/date-night` takes `date` and `stops[]`, each with
+`role`, `experience_id`, `starts_at` and `ends_at` as `/discovery/date-night`
+returned them. Every stop is added or none is: a clash with a fixed plan on any
+of them returns 422 and adds nothing. It schedules one `date_night_reminder` for
+the day, at 15:00 local time or two hours before the first stop, whichever is
+earlier, and returns its time as `reminder_at` (null when that time has already
+passed). Removing stops keeps the reminder until the last one is gone.
 
 ## Bookings
 

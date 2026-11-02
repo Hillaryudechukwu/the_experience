@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ApiError } from '../src/api/client';
-import { useAddToItinerary, useDateNight, useTrip } from '../src/api/hooks';
+import { useDateNight, useSaveDateNight, useTrip } from '../src/api/hooks';
 import type { DateNightOptions, DateNightRefusal, DateNightRole, DateNightStop } from '../src/api/types';
 import { addDays } from '../src/components/DateNightSheet';
 import { ExperienceCardView } from '../src/components/ExperienceCard';
@@ -64,11 +64,11 @@ export default function DateNight() {
   const plan = useDateNight(options, { nearMe: params.date === today });
   const { data: trip } = useTrip(session.tripId);
   const itineraryId = trip?.itinerary?.id ?? null;
-  const addToTrip = useAddToItinerary(session.tripId, itineraryId);
+  const saveDateNight = useSaveDateNight(session.tripId, itineraryId);
 
   /* Which alternative each slot is showing; 0 is the planner's own pick. */
   const [choice, setChoice] = useState<Partial<Record<DateNightRole, number>>>({});
-  const [added, setAdded] = useState(false);
+  const [saved, setSaved] = useState<{ reminderAt: string | null } | null>(null);
 
   const header = (
     <Gutter style={{ paddingTop: space.sm }}>
@@ -160,12 +160,18 @@ export default function DateNight() {
 
   const saveToTrip = async () => {
     try {
-      await addToTrip.mutateAsync(
-        shown.map(({ stop, card }) => ({ experience_id: card.id, date: evening.date, starts_at: stop.starts_at })),
-      );
-      setAdded(true);
+      const result = await saveDateNight.mutateAsync({
+        date: evening.date,
+        stops: shown.map(({ stop, card }) => ({
+          role: stop.role,
+          experience_id: card.id,
+          starts_at: stop.starts_at,
+          ends_at: stop.ends_at,
+        })),
+      });
+      setSaved({ reminderAt: result.reminder_at });
     } catch (cause) {
-      showAlert('Not all of it was added', cause instanceof Error ? cause.message : 'Try again in a moment.');
+      showAlert('This evening was not added', cause instanceof Error ? cause.message : 'Try again in a moment.');
     }
   };
 
@@ -265,12 +271,19 @@ export default function DateNight() {
 
       <Gutter style={{ marginTop: space.xl, marginBottom: space.xxl, gap: space.xs }}>
         {itineraryId ? (
-          <Button
-            label={added ? 'Added to your trip' : 'Add to my trip'}
-            disabled={added}
-            loading={addToTrip.isPending}
-            onPress={saveToTrip}
-          />
+          <>
+            <Button
+              label={saved ? 'Added to your trip' : 'Add to my trip'}
+              disabled={saved !== null}
+              loading={saveDateNight.isPending}
+              onPress={saveToTrip}
+            />
+            {saved?.reminderAt ? (
+              <T variant="small" color={colors.text.secondary}>
+                We will remind you at {clock(saved.reminderAt, tz)} on the day.
+              </T>
+            ) : null}
+          </>
         ) : (
           <T variant="small" color={colors.text.secondary}>
             Start a trip plan to save this evening to it.
