@@ -8,6 +8,8 @@ import type {
   DestinationActivation,
   DestinationDetail,
   DestinationImport,
+  DateNightOptions,
+  DateNightResponse,
   DiscoveryResponse,
   ExperienceCard,
   ExperienceDetail,
@@ -48,6 +50,7 @@ export const keys = {
   journal: (id: string) => ['journal', id] as const,
   recap: (journeyId: string) => ['recap', journeyId] as const,
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
+  dateNight: (payload: unknown) => ['date-night', payload] as const,
   missionSuggestions: (reason: string, destination?: string | null, familiarity?: string | null) =>
     ['mission-suggestions', reason, destination ?? '', familiarity ?? ''] as const,
   notifications: () => ['notifications'] as const,
@@ -293,6 +296,46 @@ export function useSurpriseMe() {
   return useMutation({
     mutationFn: (payload: Record<string, unknown> = {}) =>
       http.post<{ data: ExperienceCard | null; message?: string }>('/discovery/surprise-me', discoveryPayload(payload)),
+  });
+}
+
+/**
+ * A date night for the given evening.
+ *
+ * A query rather than a mutation so the plan screen can be reopened or
+ * refreshed from its route alone. Not under the 'discovery' key on purpose:
+ * clearing today's mood or window must not throw away next week's plan.
+ */
+export function useDateNight(options: DateNightOptions | null, { nearMe }: { nearMe: boolean }) {
+  const session = useSession();
+  const { lat: _lat, lng: _lng, location_precision: _precision, ...cityWide } = discoveryPayload({ ...options }) as Record<string, unknown>;
+  /* Where the phone is now says where tonight starts. It says nothing about
+     next Saturday, which is planned around the city instead. */
+  const body = nearMe ? discoveryPayload({ ...options }) : cityWide;
+
+  return useQuery({
+    enabled: !!options && session.ready && (!!session.destinationId || !!session.coords),
+    queryKey: keys.dateNight(body),
+    queryFn: () => http.post<DateNightResponse>('/discovery/date-night', body),
+    staleTime: 5 * 60_000,
+    /* A 422 is an answer about the evening, not a blip worth retrying. */
+    retry: (count, error) => !(error instanceof ApiError && error.status === 422) && count < 2,
+  });
+}
+
+/** Add stops to the trip's current itinerary, one item each. */
+export function useAddToItinerary(tripId: string | null, itineraryId: string | null) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (items: { experience_id: string; date: string; starts_at: string }[]) => {
+      /* In order, so a clash on the second stop leaves the first in place
+         and the error names the one that failed. */
+      for (const item of items) {
+        await http.post(`/itineraries/${itineraryId}/items`, item);
+      }
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: keys.trip(tripId ?? '') }),
   });
 }
 

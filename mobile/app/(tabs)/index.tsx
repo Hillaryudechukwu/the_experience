@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, API_URL, http } from '../../src/api/client';
 import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip, useUpdateJourney } from '../../src/api/hooks';
 import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
+import { DateNightSheet } from '../../src/components/DateNightSheet';
 import { DateRangeCalendar } from '../../src/components/DateRangeCalendar';
 import { DestinationHero } from '../../src/components/DestinationHero';
 import { QUICK_ACTIONS_OVERLAP, QuickActions } from '../../src/components/QuickActions';
@@ -47,8 +48,10 @@ function discoveryFailureMessage(error: unknown): string {
   return `Could not reach the API at ${API_URL}. Check the connection, then pull down to retry.`;
 }
 
+/* Thirty minutes made way for Date night, which sits first in the row. The
+   API still takes a 30-minute window, so a short gap tapped in "Your day"
+   works as before. */
 const TIME_WINDOWS = [
-  { minutes: 30, label: '30 min' },
   { minutes: 60, label: '1 hour' },
   { minutes: 120, label: '2 hours' },
   { minutes: 180, label: '3 hours' },
@@ -89,6 +92,7 @@ export default function Discover() {
      means untouched on this visit; the sheet works from the journey until
      then. */
   const [datesOpen, setDatesOpen] = useState(false);
+  const [dateNightOpen, setDateNightOpen] = useState(false);
   const [draftDates, setDraftDates] = useState<{ startsOn: string | null; endsOn: string | null } | undefined>();
   const [datesError, setDatesError] = useState<string | null>(null);
 
@@ -382,6 +386,14 @@ export default function Discover() {
               setMood(null);
             });
           }}
+        />
+        {/* Like the dates chip, an action rather than a filter: it plans an
+            evening on its own screen and never stays lit here. */}
+        <Chip
+          label="Date night"
+          tone="accent"
+          icon={<Icon name="moon" size={14} color={colors.action.primary} />}
+          onPress={() => setDateNightOpen(true)}
         />
         {TIME_WINDOWS.map((option) => (
           <Chip
@@ -790,6 +802,25 @@ export default function Discover() {
           </View>
         </Sheet>
       ) : null}
+
+      <DateNightSheet
+        visible={dateNightOpen}
+        onClose={() => setDateNightOpen(false)}
+        today={isoDate(new Date(), tz)}
+        maxDate={journey?.ends_on ?? undefined}
+        onPlan={(options) => {
+          setDateNightOpen(false);
+          router.push({
+            pathname: '/date-night',
+            params: {
+              date: options.date,
+              ...(options.starts_at ? { starts_at: options.starts_at } : {}),
+              ...(options.budget ? { budget: options.budget } : {}),
+              nightcap: options.include_nightcap === false ? '0' : '1',
+            },
+          });
+        }}
+      />
     </Screen>
   );
 }

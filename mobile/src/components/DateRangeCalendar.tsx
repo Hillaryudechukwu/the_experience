@@ -71,15 +71,21 @@ export function DateRangeCalendar({
   endsOn,
   onChange,
   minDate,
+  maxDate,
   maxSpanDays = MAX_PLANNED_DAYS,
+  mode = 'range',
 }: {
   startsOn: string | null;
   endsOn: string | null;
   onChange: (startsOn: string | null, endsOn: string | null) => void;
   /** Today where the traveller is going, so their own today is never "past". */
   minDate: string;
+  /** Last pickable day, e.g. the end of the trip. */
+  maxDate?: string;
   /** The planner only builds this many days; see the note below the grid. */
   maxSpanDays?: number;
+  /** "single" picks one day: every tap sets startsOn, endsOn stays null. */
+  mode?: 'range' | 'single';
 }) {
   const colors = useTheme();
 
@@ -115,6 +121,11 @@ export function DateRangeCalendar({
 
   const select = (iso: string) => {
     setClampedFrom(null);
+    if (mode === 'single') {
+      onChange(iso, null);
+      return;
+    }
+
     /* First tap sets the start. Second extends it. A third starts again, which
        is how every booking calendar behaves and saves an explicit "clear". */
     if (!startsOn || (startsOn && endsOn)) {
@@ -185,7 +196,7 @@ export function DateRangeCalendar({
                 return <View key={`blank-${weekIndex}-${index}`} style={{ flex: 1, height: TOUCH_TARGET }} />;
               }
 
-              const past = iso < minDate;
+              const past = iso < minDate || (!!maxDate && iso > maxDate);
               const isStart = iso === startsOn;
               const isEnd = iso === endsOn;
               const within = !!startsOn && !!endsOn && iso > startsOn && iso < endsOn;
@@ -237,7 +248,7 @@ export function DateRangeCalendar({
         ))}
       </View>
 
-      {startsOn && !endsOn ? (
+      {mode === 'range' && startsOn && !endsOn ? (
         <T variant="caption" color={colors.text.tertiary}>
           Now pick the day you leave.
         </T>

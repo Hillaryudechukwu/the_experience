@@ -175,6 +175,52 @@ export type DiscoveryResponse = {
   interpreted?: { understood_as: string[]; filters: Record<string, unknown> };
 };
 
+export type DateNightRole = 'opener' | 'dinner' | 'nightcap';
+
+export type DateNightStop = {
+  role: DateNightRole;
+  starts_at: string;
+  ends_at: string;
+  travel_minutes_from_previous: number | null;
+  travel_mode: string | null;
+  experience: ExperienceCard;
+  /** Swaps for the same slot, scored for the same moment. */
+  alternatives: ExperienceCard[];
+};
+
+export type DateNightOptions = {
+  /** Destination-local YYYY-MM-DD. */
+  date: string;
+  /** HH:mm, destination-local. */
+  starts_at?: string;
+  duration_minutes?: number;
+  budget?: 'low' | 'relaxed' | 'splurge';
+  include_nightcap?: boolean;
+};
+
+export type DateNightResponse = {
+  data: {
+    date: string;
+    starts_at: string;
+    ends_at: string;
+    stops: DateNightStop[];
+    weather: DiscoveryContext['weather'];
+    /** Set when the date is past the forecast. */
+    weather_note: string | null;
+  } | null;
+  recommendation_set_id: string;
+  context: DiscoveryContext;
+  candidates_considered: number;
+  notice: string | null;
+};
+
+/** Why an evening could not be planned at all; the 422 body's `code`. */
+export type DateNightRefusal =
+  | 'date_night_in_past'
+  | 'date_night_out_of_range'
+  | 'date_night_too_late'
+  | 'date_night_clashes';
+
 export type Destination = {
   id: string;
   slug: string;
