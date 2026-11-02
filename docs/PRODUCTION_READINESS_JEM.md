@@ -14,6 +14,8 @@
 - [`DYNAMIC_DESTINATION_RUNBOOK.md`](DYNAMIC_DESTINATION_RUNBOOK.md) — activation operations
 - [`DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md`](DYNAMIC_DESTINATION_DEPLOY_CHECKLIST.md) — dark deploy and progressive rollout
 - [`BROWSER_TESTS.md`](BROWSER_TESTS.md) — Playwright layout/accessibility suite
+- [`PAID_LAUNCH_GATES_JEM.md`](PAID_LAUNCH_GATES_JEM.md) — paid UK launch Gates 1–5 engineering plan
+- [`PAID_LAUNCH_OWNER_RUNBOOK.md`](PAID_LAUNCH_OWNER_RUNBOOK.md) — owner-only store, bank, secrets, and cutover runbook
 
 ---
 

@@ -17,6 +17,11 @@ correct, safe and reliable. Do not repeat its work. If it has not been run
 recently, say so and treat that as a finding — shipping without it is a
 decision somebody should make deliberately.
 
+**Implementation companions.** Closing Gates 1–5 is specified in
+`docs/PAID_LAUNCH_GATES_JEM.md` (engineering phases G0–G5). Everything that
+only a human can do in App Store Connect, Play Console, banking, hosting, and
+support is checklisted in `docs/PAID_LAUNCH_OWNER_RUNBOOK.md`.
+
 ---
 
 ## 1. THE EVIDENCE RULE

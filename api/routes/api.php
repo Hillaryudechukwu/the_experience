@@ -82,8 +82,13 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::delete('journeys/{journey}/anchors/{anchor}', [JourneyController::class, 'destroyAnchor']);
 
     /* Outside the gate on purpose: the paywall has to be able to ask
-       whether there is a paid month before there is one. */
+       whether there is a paid month before there is one, and refresh has to
+       work for someone who is locked out. */
     Route::get('billing/entitlement', [BillingController::class, 'entitlement']);
+    Route::post('billing/apple/refresh', [BillingController::class, 'refreshApple'])
+        ->middleware(['auth:sanctum', 'throttle:30,1']);
+    Route::post('billing/google/refresh', [BillingController::class, 'refreshGoogle'])
+        ->middleware(['auth:sanctum', 'throttle:30,1']);
 
     Route::get('destinations', [DestinationController::class, 'index']);
     Route::post('destinations/activate', [DestinationController::class, 'activate'])->middleware(['subscribed', 'throttle:6,1']);

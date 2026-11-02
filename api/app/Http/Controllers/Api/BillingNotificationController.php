@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Billing\Services\AppleNotificationMapper;
 use App\Domains\Billing\Services\AppleNotificationVerifier;
 use App\Domains\Billing\Services\GoogleNotificationMapper;
+use App\Domains\Billing\Services\GooglePlaySubscriptionReader;
 use App\Domains\Billing\Services\GooglePubSubVerifier;
 use App\Domains\Billing\Services\SubscriptionWriter;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,7 @@ class BillingNotificationController extends ApiController
         private readonly AppleNotificationMapper $appleMapper,
         private readonly GooglePubSubVerifier $googleVerifier,
         private readonly GoogleNotificationMapper $googleMapper,
+        private readonly GooglePlaySubscriptionReader $playSubscriptions,
     ) {}
 
     public function apple(Request $request): JsonResponse
@@ -78,7 +80,13 @@ class BillingNotificationController extends ApiController
             return response()->json(['code' => 'malformed'], Response::HTTP_BAD_REQUEST);
         }
 
-        $notification = $this->googleMapper->map($payload);
+        $token = (string) ($payload['subscriptionNotification']['purchaseToken'] ?? '');
+        $productId = isset($payload['subscriptionNotification']['subscriptionId'])
+            ? (string) $payload['subscriptionNotification']['subscriptionId']
+            : null;
+
+        $detail = $token !== '' ? $this->playSubscriptions->read($token, $productId) : null;
+        $notification = $this->googleMapper->map($payload, $detail);
 
         if ($notification === null) {
             return response()->json(['code' => 'ignored']);

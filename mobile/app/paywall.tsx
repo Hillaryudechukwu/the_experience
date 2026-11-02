@@ -5,8 +5,10 @@ import { useRouter } from 'expo-router';
 import { useEntitlement, useProfile } from '../src/api/hooks';
 import { BRAND } from '../src/brand';
 import { Icon } from '../src/components/Icon';
+import { NativeSubscriptionActions } from '../src/components/NativeSubscriptionActions';
 import { Button, Card, Gutter, Loading, Note, Row, Screen, T } from '../src/components/primitives';
 import { showAlert } from '../src/lib/alert';
+import { isNativeStorePlatform } from '../src/lib/billing';
 import { PRIVACY_POLICY_URL, STORE_NAME, TERMS_URL } from '../src/lib/legal';
 import { radius, space, useTheme } from '../src/theme';
 
@@ -109,27 +111,16 @@ export default function Paywall() {
             Subscribe in the {BRAND.name} app on iPhone or Android. Your month works everywhere once
             it is active, including here.
           </Note>
-        ) : signedIn ? (
-          <>
-            <Button
-              label={pending ? 'Waiting for the store…' : `Subscribe — ${PRICE} a month`}
-              size="large"
-              disabled={pending}
-              onPress={() =>
-                showAlert(
-                  'Not available in this build',
-                  'In-app purchase needs a store build. This is the paywall; the purchase arrives with it.',
-                )
-              }
-              haptic="medium"
-            />
-            <Button
-              label={isRefetching ? 'Checking…' : 'Restore a subscription'}
-              tone="secondary"
-              disabled={isRefetching}
-              onPress={() => refetch()}
-            />
-          </>
+        ) : signedIn && isNativeStorePlatform() ? (
+          <NativeSubscriptionActions
+            priceLabel={PRICE}
+            pending={pending}
+            isRefetching={isRefetching}
+            onEntitled={() => {
+              void refetch();
+              router.replace('/(tabs)');
+            }}
+          />
         ) : (
           <>
             {/* A receipt belongs to an account. Without one there is nothing to

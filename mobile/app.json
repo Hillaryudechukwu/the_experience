@@ -90,7 +90,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-iap"
     ],
     "scheme": [
       "wayoa",

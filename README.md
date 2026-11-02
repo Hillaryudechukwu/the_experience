@@ -186,3 +186,6 @@ content. Ingestion fills their gaps and never overwrites them.
 - [`docs/DESTINATION_ACTIVATION_GA_RUNBOOK.md`](docs/DESTINATION_ACTIVATION_GA_RUNBOOK.md) — P5 controlled city proof and rollout ladder.
 - [`docs/TRIP_STAY_DURATION_JEM.md`](docs/TRIP_STAY_DURATION_JEM.md) — stay length in onboarding → journey dates → multi-day itinerary.
 - [`docs/SUBSCRIPTION_JEM.md`](docs/SUBSCRIPTION_JEM.md) — £1.99 monthly access, pause at the period boundary, and the store, legal, and account steps outside the code.
+- [`docs/PAID_LAUNCH_GATES_JEM.md`](docs/PAID_LAUNCH_GATES_JEM.md) — phase-by-phase engineering plan to close market-readiness Gates 1–5 (pay, store accept, legal, worth £1.99, operability).
+- [`docs/PAID_LAUNCH_OWNER_RUNBOOK.md`](docs/PAID_LAUNCH_OWNER_RUNBOOK.md) — App Store / Play / bank / secrets / sandbox walk / spend / on-call checklist that cannot be done from the repo.
+- [`docs/STORE_REVIEW_WALK.md`](docs/STORE_REVIEW_WALK.md) — device walk matching App Store / Play review notes before submit.

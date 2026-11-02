@@ -10,6 +10,8 @@
 - [`API.md`](API.md) — current route surface; billing routes below are new
 - [`RELEASE.md`](RELEASE.md) — privacy URL, store listings, and the release sequence
 - [`PRODUCTION_READINESS_JEM.md`](PRODUCTION_READINESS_JEM.md) — store release (P6) must include this paywall before a public subscription build
+- [`PAID_LAUNCH_GATES_JEM.md`](PAID_LAUNCH_GATES_JEM.md) — Gates 1–5 engineering phases (refresh, Play read, expo-iap, store/legal/ops close)
+- [`PAID_LAUNCH_OWNER_RUNBOOK.md`](PAID_LAUNCH_OWNER_RUNBOOK.md) — console, bank, secrets, sandbox walk, and cutover owned outside the repo
 
 The customer-facing name is WAYOA. Store identifiers stay `uk.co.synteric.experience`.
 
@@ -497,13 +499,14 @@ Code state as of 21 October 2026. Everything below is merged to `main`.
 | P0 | Legal shell | Code complete; both pages answer 200 on the public domain | Both URLs into both store listings |
 | P1 | Entitlement | Code complete | Console product ids before sandbox |
 | P2 | Server gate | Code complete, **enforcement off** (`BILLING_ENFORCED=false`) | Nothing. Turn it on when the stores can sell a month |
-| P3 | Store notifications | Mapping, idempotency and fail-closed verification complete. **Not built:** the Play Developer API read, and the refresh endpoints | Apple key and notification URL, Play service account, Pub/Sub topic, and the env vars — including `GOOGLE_PUBSUB_SERVICE_ACCOUNT`, which section 10.D does not list yet |
-| P4 | Paywall and purchase | Paywall, entitlement read, foreground refetch and the 402 redirect complete. **Not built:** the purchase itself; `expo-iap` is not installed | EAS build, TestFlight and the Play internal track |
+| P3 | Store notifications | Mapping, idempotency, Play subscription read, and refresh endpoints complete | Apple key and notification URL, Play service account, Pub/Sub topic, and the env vars — including `GOOGLE_PUBSUB_SERVICE_ACCOUNT` |
+| P4 | Paywall and purchase | Paywall + `expo-iap` Subscribe/Restore wired to refresh | EAS build, TestFlight and the Play internal track |
 | P5 | Pause | Code complete; the period-boundary rule is asserted on both engines | Play pause enabled on the base plan |
 | P6 | Sandbox proof and submit | Gate coverage pinned; the app matches the section 16 review notes | All of section 10, the walk, then submit |
 
-**Two code gaps block the walk itself**, and both wait on the consoles: a
-traveller cannot buy a month (P4), and a device cannot post a receipt (P3).
-Neither was written blind.
+**Code gaps that blocked the walk are closed** (`GooglePlaySubscriptionReader`,
+`POST /billing/{apple,google}/refresh`, `expo-iap`). The walk itself still
+waits on console products, secrets, and a store build — see
+[`PAID_LAUNCH_OWNER_RUNBOOK.md`](PAID_LAUNCH_OWNER_RUNBOOK.md).
 
 Update this table as phases exit.

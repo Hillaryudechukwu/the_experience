@@ -218,6 +218,32 @@ export function useEntitlement() {
   });
 }
 
+/** Posts a StoreKit 2 JWS (iOS purchaseToken) so Laravel can claim the month. */
+export function useRefreshAppleSubscription() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (signed_transaction: string) =>
+      wrapped(http.post<{ data: Entitlement }>('/billing/apple/refresh', { signed_transaction })),
+    onSuccess: (data) => {
+      client.setQueryData(keys.entitlement(), data);
+    },
+  });
+}
+
+/** Posts a Play purchase token so Laravel can read the period and claim it. */
+export function useRefreshGoogleSubscription() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: { purchase_token: string; product_id?: string }) =>
+      wrapped(http.post<{ data: Entitlement }>('/billing/google/refresh', body)),
+    onSuccess: (data) => {
+      client.setQueryData(keys.entitlement(), data);
+    },
+  });
+}
+
 export function useProfile() {
   return useQuery({
     queryKey: keys.profile(),
