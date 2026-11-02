@@ -300,6 +300,75 @@ class BillingRefreshTest extends TestCase
             ->assertJsonPath('code', 'incomplete_receipt');
     }
 
+    public function test_apple_restore_of_a_cancelled_month_does_not_turn_renewal_back_on(): void
+    {
+        $user = User::factory()->create();
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'store' => 'apple',
+            'product_id' => 'wayoa.monthly',
+            'original_transaction_id' => 'apple-txn-cancelled',
+            'state' => SubscriptionState::ActiveUntilPeriodEnd,
+            'paid_until' => CarbonImmutable::now()->addDays(12),
+            'auto_renew' => false,
+            'environment' => 'sandbox',
+        ]);
+        Sanctum::actingAs($user);
+
+        $this->mock(AppleTransactionVerifier::class, function ($mock) {
+            $mock->shouldReceive('verify')->once()->andReturn([
+                'originalTransactionId' => 'apple-txn-cancelled',
+                'transactionId' => 'apple-txn-cancelled-1',
+                'productId' => 'wayoa.monthly',
+                'expiresDate' => CarbonImmutable::now()->addDays(12)->getTimestampMs(),
+                'environment' => 'Sandbox',
+            ]);
+        });
+
+        $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here'])
+            ->assertOk()
+            ->assertJsonPath('data.can_use', true)
+            ->assertJsonPath('data.auto_renew', false);
+    }
+
+    public function test_google_refresh_refuses_a_v1_free_trial(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->mock(GooglePlaySubscriptionReader::class, function ($mock) {
+            $mock->shouldReceive('read')->once()->andReturn([
+                'expiryTimeMillis' => CarbonImmutable::now()->addDays(7)->getTimestampMs(),
+                'productId' => 'wayoa_monthly',
+                'paymentState' => 2,
+            ]);
+        });
+
+        $this->postJson('/api/billing/google/refresh', ['purchase_token' => 'play-token-trial'])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'incomplete_receipt');
+
+        $this->assertDatabaseMissing('subscriptions', ['original_transaction_id' => 'play-token-trial']);
+    }
+
+    public function test_google_refresh_refuses_a_paid_period_that_has_ended(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->mock(GooglePlaySubscriptionReader::class, function ($mock) {
+            $mock->shouldReceive('read')->once()->andReturn([
+                'expiryTimeMillis' => CarbonImmutable::now()->subHour()->getTimestampMs(),
+                'productId' => 'wayoa_monthly',
+                'subscriptionState' => 'SUBSCRIPTION_STATE_ACTIVE',
+            ]);
+        });
+
+        $this->postJson('/api/billing/google/refresh', ['purchase_token' => 'play-token-stale'])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'expired');
+
+        $this->assertDatabaseMissing('subscriptions', ['original_transaction_id' => 'play-token-stale']);
+    }
+
     public function test_refresh_requires_a_signed_in_user(): void
     {
         $this->postJson('/api/billing/apple/refresh', [

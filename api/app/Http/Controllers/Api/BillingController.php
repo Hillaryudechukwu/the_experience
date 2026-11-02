@@ -93,7 +93,11 @@ class BillingController extends ApiController
             state: SubscriptionState::Active,
             productId: isset($claims['productId']) ? (string) $claims['productId'] : null,
             paidUntil: $paidUntil,
-            autoRenew: true,
+            /* A transaction says nothing about renewal; that lives in signed
+               renewal info, which only App Store notifications bring here.
+               Left unset, a restore of a cancelled month cannot switch
+               renewal back on. */
+            autoRenew: null,
             environment: $environment,
             notificationId: isset($claims['transactionId'])
                 ? 'refresh:apple:'.(string) $claims['transactionId']
@@ -137,6 +141,12 @@ class BillingController extends ApiController
 
         [$state, $paid] = $period;
         $expiry = CarbonImmutable::createFromTimestampMs((int) $detail['expiryTimeMillis']);
+
+        /* Same rule as Apple: a paid period that has already ended is a
+           stale read, not a month, and must not leave a row claiming one. */
+        if ($paid && ! $expiry->isFuture()) {
+            return response()->json(['code' => 'expired'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $environment = app()->environment('production') ? 'production' : 'sandbox';
 
@@ -183,9 +193,10 @@ class BillingController extends ApiController
             };
         }
 
-        /* v1 fallback has no state, only whether the period was paid:
-           1 received, 2 free trial. Anything else is not a month. */
-        return in_array($detail['paymentState'] ?? null, [1, 2], true)
+        /* v1 fallback has no state, only whether the period was paid. Only
+           1 (payment received) is a month: there is no free trial, so 2 is
+           refused alongside 0 pending and 3 deferred. */
+        return ($detail['paymentState'] ?? null) === 1
             ? [SubscriptionState::Active, true]
             : null;
     }

@@ -33,48 +33,48 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
   const [busy, setBusy] = useState(false);
   const productId = storeProductId();
 
+  /**
+   * `claimed` means Laravel accepted and recorded the receipt, even if the
+   * month is not open yet (grace, pending). The store transaction is
+   * finished on either `claimed` or `entitled` — Play refunds a purchase
+   * nobody acknowledges within three days, and StoreKit replays an
+   * unfinished one on every launch. Only a refusal leaves it open to retry.
+   */
   const verifyOnServer = useCallback(
-    async (purchase: Purchase): Promise<boolean> => {
+    async (purchase: Purchase): Promise<'entitled' | 'claimed' | 'refused'> => {
       const token = purchase.purchaseToken;
       if (!token) {
         showAlert('Purchase incomplete', 'The store did not return a receipt to verify.');
-        return false;
+        return 'refused';
       }
 
       try {
-        if (Platform.OS === 'ios') {
-          const entitlement = await refreshApple.mutateAsync(token);
-          if (entitlement.can_use) {
-            onEntitled();
-            return true;
-          }
-          showAlert('Still confirming', 'The charge is recorded; open the app again in a moment.');
-          return false;
-        }
-
-        const entitlement = await refreshGoogle.mutateAsync({
-          purchase_token: token,
-          product_id: purchase.productId || GOOGLE_PRODUCT_ID,
-        });
+        const entitlement =
+          Platform.OS === 'ios'
+            ? await refreshApple.mutateAsync(token)
+            : await refreshGoogle.mutateAsync({
+                purchase_token: token,
+                product_id: purchase.productId || GOOGLE_PRODUCT_ID,
+              });
         if (entitlement.can_use) {
           onEntitled();
-          return true;
+          return 'entitled';
         }
         showAlert('Still confirming', 'The charge is recorded; open the app again in a moment.');
-        return false;
+        return 'claimed';
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           showAlert(
             'Already linked',
             'This subscription belongs to another WAYOA account. Sign in there, or use a different store account.',
           );
-          return false;
+          return 'refused';
         }
         showAlert(
           'Could not confirm',
           error instanceof Error ? error.message : 'The store charge could not be verified yet.',
         );
-        return false;
+        return 'refused';
       }
     },
     [onEntitled, refreshApple, refreshGoogle],
@@ -84,8 +84,7 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
     onPurchaseSuccess: async (purchase) => {
       setBusy(true);
       try {
-        const ok = await verifyOnServer(purchase);
-        if (ok) {
+        if ((await verifyOnServer(purchase)) !== 'refused') {
           await finishTransaction({ purchase, isConsumable: false });
         }
       } finally {
@@ -181,16 +180,16 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
         return;
       }
 
-      let restored = false;
+      let linked = false;
       for (const purchase of candidates) {
-        if (await verifyOnServer(purchase)) {
-          await finishTransaction({ purchase, isConsumable: false });
-          restored = true;
-          break;
-        }
+        const result = await verifyOnServer(purchase);
+        if (result === 'refused') continue;
+        await finishTransaction({ purchase, isConsumable: false });
+        linked = true;
+        if (result === 'entitled') break;
       }
 
-      if (!restored) {
+      if (!linked) {
         showAlert('Could not restore', 'A store purchase was found but could not be linked to this account.');
       }
     } catch (error) {
