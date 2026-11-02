@@ -167,8 +167,8 @@ app has a harness for them.
 ## Open questions
 
 1. ~~**Placement:**~~ Decided: Date Night **replaces** `30 min`.
-2. **Paywall:** keep it behind `subscribed` like the rest of discovery, or offer
-   it as a free taster?
+2. ~~**Paywall:**~~ Decided: Date Night stays behind `subscribed` like the rest
+   of discovery.
 3. **Saving:** is putting each stop into the trip itinerary enough, or should a
    date night be its own saved object, with a reminder notification on the day?
 4. **Booking:** reserving dinner (OpenTable or Viator offers) is left out of this
