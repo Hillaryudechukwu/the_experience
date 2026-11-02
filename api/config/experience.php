@@ -81,7 +81,29 @@ return [
         'social', 'inspired', 'energetic', 'different',
     ],
 
-    'time_windows' => [30, 60, 120, 180, 300, 600],
+    'time_windows' => [60, 120, 180, 300, 600],
+
+    /*
+     * Date night: an evening for two, planned for tonight or a later date.
+     * Stops run in this order; the opener only goes in when the evening is
+     * long enough to hold it without squeezing dinner.
+     */
+    'date_night' => [
+        'default_start' => '19:00',
+        'default_duration_minutes' => 240,
+        'latest_end' => '23:30',
+        'min_tonight_minutes' => 90,
+        'max_days_ahead' => 90,
+        'opener_min_evening_minutes' => 180,
+        'max_nightcap_travel_minutes' => 15,
+        'stops' => [
+            'opener' => ['categories' => ['romantic', 'culture', 'nature', 'quick_experience', 'iconic'], 'min' => 45, 'max' => 75],
+            'dinner' => ['categories' => ['food_experience'], 'min' => 75, 'max' => 120],
+            'nightcap' => ['categories' => ['nightlife'], 'min' => 45, 'max' => 60],
+        ],
+        /* Per person, in the minor unit of the destination's currency. */
+        'budgets' => ['low' => 3000, 'relaxed' => 7500, 'splurge' => null],
+    ],
 
     /*
      * Reason-for-travel playbooks (spec s3.5). Each playbook biases ranking;
@@ -478,6 +500,9 @@ return [
     'weather' => [
         'driver' => env('EXPERIENCE_WEATHER_DRIVER', 'seeded'),
         'cache_seconds' => 900,
+        /* How far ahead the provider forecasts. Past this there is no
+           forecast, and the context carries none rather than a made-up one. */
+        'forecast_days' => 3,
         'poor_conditions' => ['rain', 'heavy_rain', 'snow', 'storm', 'sleet'],
         'clothing_enabled' => (bool) env('WEATHER_CLOTHING_ENABLED', true),
     ],

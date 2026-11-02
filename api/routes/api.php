@@ -106,6 +106,7 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
         Route::post('discovery/intent', [DiscoveryController::class, 'intent']);
         Route::post('discovery/search', [DiscoveryController::class, 'search']);
         Route::post('discovery/surprise-me', [DiscoveryController::class, 'surpriseMe']);
+        Route::post('discovery/date-night', [DiscoveryController::class, 'dateNight']);
 
         Route::get('experiences/saved', [ExperienceController::class, 'saved']);
         Route::get('experiences/{experience}', [ExperienceController::class, 'show']);

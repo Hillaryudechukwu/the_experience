@@ -31,7 +31,7 @@ class OpenMeteoWeatherProvider implements WeatherProvider
                 'longitude' => $point->lng,
                 'hourly' => 'temperature_2m,precipitation_probability,weathercode',
                 'daily' => 'sunrise,sunset',
-                'forecast_days' => 3,
+                'forecast_days' => (int) config('experience.weather.forecast_days', 3),
                 'timezone' => 'auto',
             ])->throw()->json();
         });

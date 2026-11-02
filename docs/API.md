@@ -60,6 +60,7 @@ POST   /discovery/mood                    §4.3
 POST   /discovery/intent                  remember or clear mood, window, categories
 POST   /discovery/search                  §5.6  natural language; echoes how it was read
 POST   /discovery/surprise-me             §14.6 constrained roulette
+POST   /discovery/date-night              an evening for two, tonight or a later date
 ```
 
 Every discovery response carries `context` (local time, location precision, weather,
@@ -71,6 +72,18 @@ next anchor, engine version), `primary` (the one thing to do right now, or null)
 forecast. It is separate from a place's dress code. `POST /discovery/intent`
 with `clear` forgets those fields for the rest of the local day. Omitting a
 field on the next discovery call does not clear it.
+
+`POST /discovery/date-night` takes `date` (destination-local `Y-m-d`), and
+optionally `starts_at` (`H:i`, default 19:00), `duration_minutes` (120–360,
+default 240), `budget` (`low` | `relaxed` | `splurge`), and `include_nightcap`.
+It returns `data.stops`: an opener, dinner, and nightcap, in order. Each stop
+has its own `starts_at`/`ends_at`, `travel_minutes_from_previous`, an
+`experience` card, and up to two `alternatives`. Every stop is checked as open
+at the time it is planned for. Tonight, a start that has already passed moves to
+the next quarter hour. An evening that cannot be planned returns 422 with a
+`code`: `date_night_in_past`, `date_night_out_of_range`, `date_night_too_late`,
+or `date_night_clashes`. Past the forecast horizon, `data.weather` is null and
+`data.weather_note` says so. Date night neither reads nor writes live intent.
 
 ## Experiences
 
