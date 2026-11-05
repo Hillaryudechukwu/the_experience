@@ -189,6 +189,14 @@ only, respecting `privacy.store_location_history = false`.
   parking, price tiers); no profile fit yet.
 - **Declined location** shows a "Back to Discover" path rather than the
   destination picker, since that picker changes the trip's city.
+- **No `SURFACE_LABEL` entry.** Explore is a Discover chip, not a surface the
+  label map is shown for.
+- **Time zone of an uncovered city** comes from PHP's own zone data (nearest
+  zone in the candidate's country), so the event ranges follow the
+  traveller's clock without an extra request.
+- **`explore_city_opened`** is recorded once per traveller and city every
+  10 min, so polling while a city is prepared and switching range chips do not
+  count as new opens.
 
 ## Order of work
 

@@ -10,6 +10,7 @@ use App\Domains\Destinations\ValueObjects\DestinationCandidate;
 use App\Domains\ExternalSources\Providers\NominatimGeocoder;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Shared\ValueObjects\GeoPoint;
+use DateTimeZone;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -49,6 +50,38 @@ class CityResolver
             ->filter(fn (array $pair) => $pair[1] <= $radius)
             ->sortBy(fn (array $pair) => $pair[1])
             ->first()[0] ?? null;
+    }
+
+    /**
+     * The local time zone at a point we have no destination for.
+     *
+     * Taken from the zone whose principal city is nearest, within the country
+     * when it is known, so "today" and "this weekend" follow the traveller's
+     * clock rather than the server's. Worked out from PHP's own zone data, so
+     * it costs no request.
+     */
+    public function timezoneFor(GeoPoint $point, ?string $countryCode = null): string
+    {
+        $zones = $countryCode === null ? [] : DateTimeZone::listIdentifiers(DateTimeZone::PER_COUNTRY, strtoupper($countryCode));
+        if ($zones === []) {
+            $zones = DateTimeZone::listIdentifiers();
+        }
+
+        $best = null;
+        $bestDistance = INF;
+        foreach ($zones as $zone) {
+            $location = (new DateTimeZone($zone))->getLocation();
+            if ($location === false || ($location['country_code'] ?? '??') === '??') {
+                continue;
+            }
+            $distance = $point->distanceTo(new GeoPoint((float) $location['latitude'], (float) $location['longitude']));
+            if ($distance < $bestDistance) {
+                $best = $zone;
+                $bestDistance = $distance;
+            }
+        }
+
+        return $best ?? (string) config('app.timezone');
     }
 
     /**

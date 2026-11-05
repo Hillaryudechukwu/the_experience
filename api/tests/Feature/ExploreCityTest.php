@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domains\Analytics\Models\BehaviouralEvent;
+use App\Domains\Destinations\Enums\DestinationCoverageStatus;
 use App\Domains\Destinations\Models\Destination;
 use App\Domains\Discovery\Services\EventFinder;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\BuildsTravelScenarios;
 use Tests\TestCase;
@@ -153,6 +156,80 @@ class ExploreCityTest extends TestCase
         $this->assertCount(1, $sections['top_picks']);
         $this->assertCount(1, $sections['free']);
         $this->assertSame($ids, array_values(array_unique($ids)));
+    }
+
+    public function test_an_uncovered_city_counts_its_days_in_its_own_time_zone(): void
+    {
+        /* 15:00 in London is already midnight in Tokyo, so "today" there runs
+           to the end of the 5th, not the 4th. */
+        config(['experience.providers.ticketmaster.api_key' => 'tm-key']);
+        Http::fake([
+            'nominatim.test/reverse*' => Http::response([
+                'osm_type' => 'relation',
+                'osm_id' => 445566,
+                'lat' => '35.6812',
+                'lon' => '139.7671',
+                'addresstype' => 'city',
+                'address' => ['city' => 'Tokyo', 'country' => 'Japan', 'country_code' => 'jp'],
+            ]),
+            'tm.test/*' => Http::response(['_embedded' => ['events' => []]]),
+        ]);
+
+        $this->explore(['lat' => 35.6812, 'lng' => 139.7671])
+            ->assertOk()
+            ->assertJsonPath('data.timezone', 'Asia/Tokyo');
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'tm.test')
+            && $request['startDateTime'] === '2026-11-04T15:00:00Z'
+            && $request['endDateTime'] === '2026-11-05T14:59:59Z');
+    }
+
+    public function test_approximate_location_is_coarsened_before_anyone_sees_it(): void
+    {
+        config(['experience.providers.ticketmaster.api_key' => 'tm-key']);
+        Http::fake(['tm.test/*' => Http::response(['_embedded' => ['events' => []]])]);
+
+        $this->explore(['lat' => 51.50744, 'lng' => -0.12781, 'location_precision' => 'approximate'])->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'latlong=51.5100%2C-0.1300'));
+    }
+
+    public function test_a_matinee_and_an_evening_show_are_both_listed(): void
+    {
+        config(['experience.providers.ticketmaster.api_key' => 'tm-key']);
+        $show = fn (string $id, string $at) => [
+            'id' => $id,
+            'name' => 'The Play',
+            'dates' => ['start' => ['dateTime' => $at], 'status' => ['code' => 'onsale']],
+            '_embedded' => ['venues' => [['name' => 'Theatre', 'location' => ['latitude' => '51.51', 'longitude' => '-0.13']]]],
+        ];
+        Http::fake(['tm.test/*' => Http::response(['_embedded' => ['events' => [
+            $show('p1', '2026-11-04T16:30:00Z'),
+            $show('p2', '2026-11-04T19:30:00Z'),
+            $show('p2-vip', '2026-11-04T19:30:00Z'),
+        ]]])]);
+
+        $this->assertCount(2, $this->explore()->assertOk()->json('data.events'));
+    }
+
+    public function test_a_city_being_prepared_answers_with_events_and_counts_one_open_across_polls(): void
+    {
+        Queue::fake();
+        $this->destination->update(['coverage_status' => DestinationCoverageStatus::Queued]);
+
+        $response = $this->explore()->assertOk()
+            ->assertJsonPath('data.city.destination_id', $this->destination->id)
+            ->assertJsonPath('data.preparing.code', 'destination_preparing')
+            ->assertJsonPath('data.sections', null)
+            ->assertJsonPath('data.events', []);
+        $this->assertArrayHasKey('import_id', $response->json('data.preparing'));
+
+        /* The app polls while it waits, as the same guest. */
+        $this->withHeader('X-Guest-Token', $response->headers->get('X-Guest-Token'));
+        $this->explore()->assertOk();
+        $this->explore()->assertOk();
+
+        $this->assertSame(1, BehaviouralEvent::where('type', 'explore_city_opened')->count());
     }
 
     public function test_coordinates_are_required(): void

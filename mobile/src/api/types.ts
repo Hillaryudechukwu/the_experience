@@ -279,6 +279,8 @@ export type ExploreCityResponse = {
     /** Set when it is in a city we do not cover yet; it can be activated. */
     candidate: UncoveredPlace | null;
     preparing: ExplorePreparing | null;
+    /** The local zone the event ranges were worked out in. */
+    timezone: string;
     when: ExploreRange;
     events: LiveEvent[];
     /** False when no events provider is configured, so the section can stay hidden. */

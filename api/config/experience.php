@@ -119,6 +119,8 @@ return [
         'events_limit' => 20,
         /* Listings change slowly and the provider meters by the day. */
         'events_cache_seconds' => 1800,
+        /* One visit counts as one open, however often the app asks again. */
+        'opened_dedupe_seconds' => 600,
         'section_size' => 6,
         'neighbourhoods' => 3,
         'per_neighbourhood' => 3,

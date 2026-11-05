@@ -25,6 +25,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 /**
@@ -226,10 +227,16 @@ class DiscoveryController extends ApiController
 
         $actor = $this->actor($request);
         $point = new GeoPoint((float) $data['lat'], (float) $data['lng']);
+        /* Approximate is enforced here, not trusted to the app: the city
+           match, the geocoder and the events provider only see ~1 km. */
+        if (($data['location_precision'] ?? 'precise') === 'approximate') {
+            $point = new GeoPoint(round($point->lat, 2), round($point->lng, 2));
+        }
         $range = $data['when'] ?? 'today';
         $destination = $this->cities->nearest($point);
         $candidate = $destination === null ? $this->cities->candidate($point, $actor) : null;
-        $now = CarbonImmutable::now($destination?->timezone ?? config('app.timezone'));
+        $timezone = $destination?->timezone ?? $this->cities->timezoneFor($point, $candidate['country_code'] ?? null);
+        $now = CarbonImmutable::now($timezone);
 
         $preparing = null;
         $sections = null;
@@ -261,16 +268,21 @@ class DiscoveryController extends ApiController
 
         $events = $this->eventFinder->near($point, $range, $now);
 
-        $this->events->record($actor, 'explore_city_opened', [
-            'subject_type' => $destination === null ? null : 'destination',
-            'subject_id' => $destination?->id,
-            'surface' => 'explore_city',
-            'properties' => [
-                'when' => $range,
-                'covered' => $destination !== null,
-                'events' => count($events),
-            ],
-        ]);
+        /* The app asks again every few seconds while a city is prepared, and
+           again on each range chip; one visit is one open. */
+        $openedKey = sprintf('explore_city_opened:%s:%s', $actor->key(), $destination?->id ?? sprintf('%.2f,%.2f', $point->lat, $point->lng));
+        if (Cache::add($openedKey, true, (int) config('experience.explore_city.opened_dedupe_seconds', 600))) {
+            $this->events->record($actor, 'explore_city_opened', [
+                'subject_type' => $destination === null ? null : 'destination',
+                'subject_id' => $destination?->id,
+                'surface' => 'explore_city',
+                'properties' => [
+                    'when' => $range,
+                    'covered' => $destination !== null,
+                    'events' => count($events),
+                ],
+            ]);
+        }
 
         return response()->json([
             'data' => [
@@ -283,6 +295,7 @@ class DiscoveryController extends ApiController
                     'currency' => $destination->currency,
                 ],
                 'candidate' => $candidate,
+                'timezone' => $timezone,
                 'preparing' => $preparing,
                 'when' => $range,
                 'events' => $events,

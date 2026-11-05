@@ -67,8 +67,11 @@ class EventFinder
             ->reject(fn (LiveEvent $event) => $event->startsAt->gt($to))
             ->sortBy(fn (LiveEvent $event) => $event->startsAt->getTimestamp())
             /* One show, one row: listings repeat for VIP packages, parking
-               and each price tier under the same name and venue. */
-            ->unique(fn (LiveEvent $event) => mb_strtolower(trim($event->title)).'|'.mb_strtolower((string) $event->venueName).'|'.$event->startsAt->toDateString())
+               and each price tier under the same name, venue and start. A
+               matinee and an evening performance start at different times
+               and stay as two. */
+            ->unique(fn (LiveEvent $event) => mb_strtolower(trim($event->title)).'|'.mb_strtolower((string) $event->venueName).'|'
+                .($event->timeKnown ? $event->startsAt->utc()->format('Y-m-d H:i') : $event->startsAt->toDateString()))
             ->take($limit)
             ->map(fn (LiveEvent $event) => $event->toArray($point))
             ->values()
