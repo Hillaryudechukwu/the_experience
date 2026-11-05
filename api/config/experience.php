@@ -109,6 +109,22 @@ return [
     ],
 
     /*
+     * Explore my city: what is on, and what is always good, wherever the phone
+     * is. The phone is matched to the nearest covered city within this reach;
+     * past it, the city is offered for activation instead.
+     */
+    'explore_city' => [
+        'match_radius_metres' => 30000,
+        'events_radius_km' => 15,
+        'events_limit' => 20,
+        /* Listings change slowly and the provider meters by the day. */
+        'events_cache_seconds' => 1800,
+        'section_size' => 6,
+        'neighbourhoods' => 3,
+        'per_neighbourhood' => 3,
+    ],
+
+    /*
      * Reason-for-travel playbooks (spec s3.5). Each playbook biases ranking;
      * none of them can override a hard constraint.
      */
@@ -418,6 +434,8 @@ return [
             'getyourguide' => 60,
             'viator' => 60,
             'tiqets' => 60,
+            /* Ticketmaster's free tier allows 5 requests a second and 5,000 a day. */
+            'ticketmaster' => 120,
         ],
     ],
 
@@ -592,6 +610,12 @@ return [
            until Booking API access is granted. */
         'tiqets' => [
             'api_key' => env('TIQETS_API_KEY'),
+        ],
+        /* What's on: concerts, sport, theatre. Without a key Explore my city
+           shows experiences only. */
+        'ticketmaster' => [
+            'api_key' => env('TICKETMASTER_API_KEY'),
+            'base_url' => env('TICKETMASTER_BASE_URL', 'https://app.ticketmaster.com/discovery/v2'),
         ],
     ],
 

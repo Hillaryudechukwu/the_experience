@@ -33,6 +33,7 @@ class SubscriptionGateCoverageTest extends TestCase
         'api/destination-imports/{import}/retry',
         'api/destinations/activate',
         'api/discovery/date-night',
+        'api/discovery/explore-city',
         'api/discovery/intent',
         'api/discovery/mood',
         'api/discovery/now',

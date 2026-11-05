@@ -242,6 +242,59 @@ export type DateNightSaved = {
   reminder_at: string | null;
 };
 
+export type ExploreRange = 'today' | 'weekend' | 'week';
+
+/** Something dated on near the traveller: a gig, a match, a show. */
+export type LiveEvent = {
+  id: string;
+  source: string;
+  title: string;
+  category: 'music' | 'sport' | 'arts' | 'film' | 'other' | null;
+  genre: string | null;
+  starts_at: string;
+  /** False when the listing has a date but no time yet. */
+  time_known: boolean;
+  venue: { name: string | null; lat: number | null; lng: number | null } | null;
+  distance_metres: number | null;
+  price_from_minor: number | null;
+  currency: string | null;
+  image_url: string | null;
+  ticket_url: string | null;
+};
+
+/** The 409 body for a city still being prepared, passed through as data. */
+export type ExplorePreparing = {
+  code: 'destination_preparing' | 'destination_unavailable';
+  message: string;
+  destination_id: string;
+  coverage_status: string;
+  import_id: string | null;
+  retry_after_seconds: number | null;
+};
+
+export type ExploreCityResponse = {
+  data: {
+    /** Set when the phone is in (or near) a city we cover. */
+    city: { destination_id: string; slug: string; name: string; country: string; timezone: string; currency: string } | null;
+    /** Set when it is in a city we do not cover yet; it can be activated. */
+    candidate: UncoveredPlace | null;
+    preparing: ExplorePreparing | null;
+    when: ExploreRange;
+    events: LiveEvent[];
+    /** False when no events provider is configured, so the section can stay hidden. */
+    events_available: boolean;
+    sections: {
+      top_picks: ExperienceCard[];
+      hidden_gems: ExperienceCard[];
+      free: ExperienceCard[];
+      by_neighbourhood: { neighbourhood: string; items: ExperienceCard[] }[];
+    } | null;
+    weather: DiscoveryContext['weather'];
+  };
+  recommendation_set_id: string | null;
+  context: DiscoveryContext | null;
+};
+
 export type Destination = {
   id: string;
   slug: string;

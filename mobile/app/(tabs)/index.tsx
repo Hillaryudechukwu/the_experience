@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, API_URL, http } from '../../src/api/client';
-import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useJourney, useProfile, useSaved, useSurpriseMe, useTrip, useUpdateJourney } from '../../src/api/hooks';
+import { SURFACE_LABEL, useDestination, useDestinationImport, useDiscovery, useEntitlement, useJourney, useProfile, useSaved, useSurpriseMe, useTrip, useUpdateJourney } from '../../src/api/hooks';
 import { AnchorStrip, hasUpcomingAnchors } from '../../src/components/AnchorStrip';
 import { DateNightSheet } from '../../src/components/DateNightSheet';
 import { DateRangeCalendar } from '../../src/components/DateRangeCalendar';
@@ -48,12 +48,11 @@ function discoveryFailureMessage(error: unknown): string {
   return `Could not reach the API at ${API_URL}. Check the connection, then pull down to retry.`;
 }
 
-/* Thirty minutes made way for Date night, which sits first in the row. The
-   API still takes a 30-minute window, so a short gap tapped in "Your day"
-   works as before. */
+/* Thirty minutes made way for Date night, and two hours for Explore my city,
+   which follow Right now in the row. The API still takes any window, so a gap
+   of either length tapped in "Your day" works as before. */
 const TIME_WINDOWS = [
   { minutes: 60, label: '1 hour' },
-  { minutes: 120, label: '2 hours' },
   { minutes: 180, label: '3 hours' },
   { minutes: 300, label: 'Half day' },
   { minutes: 600, label: 'All day' },
@@ -123,6 +122,7 @@ export default function Discover() {
   const { data: saved } = useSaved();
   const { data: profile } = useProfile();
   const surprise = useSurpriseMe();
+  const entitlement = useEntitlement();
   const updateJourney = useUpdateJourney(session.journeyId ?? '');
   const { syncPlanToDates, working: buildingPlan } = usePlanForDates(session.journeyId, session.tripId);
 
@@ -394,6 +394,15 @@ export default function Discover() {
           tone="accent"
           icon={<Icon name="moon" size={14} color={colors.action.primary} />}
           onPress={() => setDateNightOpen(true)}
+        />
+        {/* Also an action. It follows the phone rather than the trip, so it
+            asks for location on its own screen; a lapsed month goes straight
+            to the paywall instead of being asked for a position first. */}
+        <Chip
+          label="Explore my city"
+          tone="accent"
+          icon={<Icon name="compass" size={14} color={colors.action.primary} />}
+          onPress={() => router.push(entitlement.data?.can_use === false ? '/paywall' : '/explore-city')}
         />
         {TIME_WINDOWS.map((option) => (
           <Chip

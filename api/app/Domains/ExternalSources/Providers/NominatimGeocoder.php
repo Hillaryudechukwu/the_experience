@@ -87,11 +87,17 @@ class NominatimGeocoder
         );
     }
 
-    /** @return array{city:?string,country:?string,country_code:?string}|null */
+    /**
+     * The city a point is in. At zoom 10 Nominatim answers with the city
+     * itself, so its id and centre come back too — enough to offer it for
+     * activation the same way a typed search does.
+     *
+     * @return array{city:?string,country:?string,country_code:?string,region:?string,osm_id:?string,lat:?float,lng:?float,kind:?string}|null
+     */
     public function reverse(GeoPoint $point): ?array
     {
         return Cache::remember(
-            sprintf('nominatim:reverse:%.3f:%.3f', $point->lat, $point->lng),
+            sprintf('nominatim:reverse:v2:%.3f:%.3f', $point->lat, $point->lng),
             (int) config('experience.place_data.osm.geocode_cache_seconds', 604800),
             function () use ($point) {
                 $response = $this->http
@@ -101,18 +107,26 @@ class NominatimGeocoder
                         'lon' => $point->lng,
                         'format' => 'jsonv2',
                         'zoom' => 10,
+                        'addressdetails' => 1,
+                        'accept-language' => config('app.locale', 'en'),
                     ]);
 
-                if ($response->failed()) {
+                if ($response->failed() || $response->json('error') !== null) {
                     return null;
                 }
 
-                $address = $response->json('address') ?? [];
+                $row = $response->json() ?? [];
+                $address = $row['address'] ?? [];
 
                 return [
-                    'city' => $address['city'] ?? $address['town'] ?? $address['municipality'] ?? null,
+                    'city' => $address['city'] ?? $address['town'] ?? $address['village'] ?? $address['municipality'] ?? null,
                     'country' => $address['country'] ?? null,
                     'country_code' => isset($address['country_code']) ? mb_strtoupper($address['country_code']) : null,
+                    'region' => $address['state'] ?? $address['region'] ?? $address['county'] ?? null,
+                    'osm_id' => isset($row['osm_id']) ? ($row['osm_type'] ?? 'node').'/'.$row['osm_id'] : null,
+                    'lat' => isset($row['lat']) ? (float) $row['lat'] : null,
+                    'lng' => isset($row['lon']) ? (float) $row['lon'] : null,
+                    'kind' => $row['addresstype'] ?? $row['type'] ?? null,
                 ];
             },
         );

@@ -14,6 +14,8 @@ import type {
   DateNightResponse,
   DiscoveryResponse,
   ExperienceCard,
+  ExploreCityResponse,
+  ExploreRange,
   ExperienceDetail,
   ExperienceDna,
   Itinerary,
@@ -53,6 +55,7 @@ export const keys = {
   recap: (journeyId: string) => ['recap', journeyId] as const,
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
   dateNight: (payload: unknown) => ['date-night', payload] as const,
+  exploreCity: (payload: unknown) => ['explore-city', payload] as const,
   missionSuggestions: (reason: string, destination?: string | null, familiarity?: string | null) =>
     ['mission-suggestions', reason, destination ?? '', familiarity ?? ''] as const,
   notifications: () => ['notifications'] as const,
@@ -325,7 +328,43 @@ export function useDateNight(options: DateNightOptions | null, { nearMe }: { nea
   });
 }
 
-/** Add stops to the trip's current itinerary, one item each. */
+/**
+ * Explore my city: what is on and what is good where the phone is.
+ *
+ * Takes the position explicitly rather than from the session, because the
+ * screen reads it fresh and the session's may be the city centre. Only the
+ * journey rides along from the session: the server drops it if it belongs to
+ * another city. Not under the 'discovery' key, for the same reason as date
+ * night: clearing today's mood must not throw this away.
+ */
+export function useExploreCity(
+  position: { lat: number; lng: number; precision: 'precise' | 'approximate' } | null,
+  when: ExploreRange,
+) {
+  const journeyId = useSession((s) => s.journeyId);
+  const body = position
+    ? {
+        lat: position.lat,
+        lng: position.lng,
+        location_precision: position.precision,
+        when,
+        ...(journeyId ? { journey_id: journeyId } : {}),
+      }
+    : null;
+
+  return useQuery({
+    enabled: !!body,
+    queryKey: keys.exploreCity(body),
+    queryFn: () => http.post<ExploreCityResponse>('/discovery/explore-city', body),
+    staleTime: 5 * 60_000,
+    /* A city still being prepared is not an error here; poll it until it is ready. */
+    refetchInterval: (query) => {
+      const preparing = query.state.data?.data.preparing;
+      return preparing?.code === 'destination_preparing' ? (preparing.retry_after_seconds ?? 3) * 1000 : false;
+    },
+  });
+}
+
 /** The whole evening in one request: every stop or none, plus the reminder on the day. */
 export function useSaveDateNight(tripId: string | null, itineraryId: string | null) {
   const client = useQueryClient();
