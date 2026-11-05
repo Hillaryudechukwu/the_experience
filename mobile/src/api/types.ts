@@ -196,6 +196,8 @@ export type DateNightStop = {
   experience: DateNightCard;
   /** Swaps for the same slot, scored for the same moment. */
   alternatives: DateNightCard[];
+  /** The slot's choices in the planner's order, the shown one included; stable across swaps. */
+  options: string[];
 };
 
 export type DateNightOptions = {
@@ -206,6 +208,8 @@ export type DateNightOptions = {
   duration_minutes?: number;
   budget?: 'low' | 'relaxed' | 'splurge';
   include_nightcap?: boolean;
+  /** A swap: the slot fixed to one of its choices, the evening re-timed around it. */
+  pins?: Partial<Record<DateNightRole, string>>;
 };
 
 export type DateNightResponse = {
@@ -218,7 +222,8 @@ export type DateNightResponse = {
     /** Set when the date is past the forecast. */
     weather_note: string | null;
   } | null;
-  recommendation_set_id: string;
+  /** Null when nothing fitted, which is not recorded as a recommendation. */
+  recommendation_set_id: string | null;
   context: DiscoveryContext;
   candidates_considered: number;
   notice: string | null;

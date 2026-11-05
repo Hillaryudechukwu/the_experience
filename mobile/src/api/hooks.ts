@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, clearIdentity, http, setAuthToken } from './client';
 import { showAlert } from '../lib/alert';
@@ -320,12 +320,13 @@ export function useDateNight(options: DateNightOptions | null, { nearMe }: { nea
     queryKey: keys.dateNight(body),
     queryFn: () => http.post<DateNightResponse>('/discovery/date-night', body),
     staleTime: 5 * 60_000,
+    /* A swap re-plans the evening; keep the current one on screen meanwhile. */
+    placeholderData: keepPreviousData,
     /* A 422 is an answer about the evening, not a blip worth retrying. */
     retry: (count, error) => !(error instanceof ApiError && error.status === 422) && count < 2,
   });
 }
 
-/** Add stops to the trip's current itinerary, one item each. */
 /** The whole evening in one request: every stop or none, plus the reminder on the day. */
 export function useSaveDateNight(tripId: string | null, itineraryId: string | null) {
   const client = useQueryClient();

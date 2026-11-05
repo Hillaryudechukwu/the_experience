@@ -139,6 +139,8 @@ class DiscoveryController extends ApiController
             'duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:120', 'max:360'],
             'budget' => ['sometimes', 'nullable', Rule::in(array_keys(config('experience.date_night.budgets')))],
             'include_nightcap' => ['sometimes', 'boolean'],
+            'pins' => ['sometimes', 'array:opener,dinner,nightcap'],
+            'pins.*' => ['uuid'],
         ]);
 
         try {
@@ -165,13 +167,14 @@ class DiscoveryController extends ApiController
                         fn (ScoredExperience $alt) => $this->dateNightCard($alt),
                         $stop->alternatives,
                     ),
+                    'options' => $stop->options,
                 ], $plan->stops),
                 'weather' => $weather?->toArray(),
                 'weather_note' => $weather === null ? 'The forecast arrives closer to the day.' : null,
             ],
-            'recommendation_set_id' => $plan->set->id,
+            'recommendation_set_id' => $plan->set?->id,
             'context' => $this->contextPayload($plan->context),
-            'candidates_considered' => $plan->set->candidates_considered,
+            'candidates_considered' => $plan->candidatesConsidered,
             'notice' => $plan->notice,
         ]);
     }

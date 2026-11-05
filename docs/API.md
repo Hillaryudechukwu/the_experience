@@ -79,7 +79,13 @@ default 240), `budget` (`low` | `relaxed` | `splurge`), and `include_nightcap`.
 It returns `data.stops`: an opener, dinner, and nightcap, in order. Each stop
 has its own `starts_at`/`ends_at`, `travel_minutes_from_previous`, an
 `experience` card, and up to two `alternatives`. Each of those cards carries
-`booking`: `required`, `lead_time_hours`, and the venue's `phone` and `website`. Every stop is checked as open
+`booking`: `required`, `lead_time_hours`, and the venue's `phone` and `website`.
+Each stop also lists `options`, the slot's choices in the planner's order. To
+swap, send `pins` (`{"dinner": "<experience id>"}`): that slot is fixed to the
+choice and the rest of the evening is re-timed around it. A pin that no longer
+fits gives way to the best choice. When nothing fits, `data` and
+`recommendation_set_id` are null and nothing is recorded. A fixed plan that
+cuts the evening below the minimum is `date_night_clashes`, not `too_late`. Every stop is checked as open
 at the time it is planned for. Tonight, a start that has already passed moves to
 the next quarter hour. An evening that cannot be planned returns 422 with a
 `code`: `date_night_in_past`, `date_night_out_of_range`, `date_night_too_late`,
@@ -120,7 +126,9 @@ returned them. Every stop is added or none is: a clash with a fixed plan on any
 of them returns 422 and adds nothing. It schedules one `date_night_reminder` for
 the day, at 15:00 local time or two hours before the first stop, whichever is
 earlier, and returns its time as `reminder_at` (null when that time has already
-passed). Removing stops keeps the reminder until the last one is gone.
+passed). Removing stops keeps the reminder until the last one is gone. Stops
+are taken in time order whatever order they are sent in; stops that overlap
+each other, or anything already in the trip, are refused with 422.
 
 ## Bookings
 

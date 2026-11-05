@@ -15,8 +15,10 @@ final readonly class DateNightPlan
         public ScoringContext $context,
         public TimeWindow $evening,
         public array $stops,
-        public RecommendationSet $set,
+        /** Null when nothing fitted: an empty evening is not a recommendation. */
+        public ?RecommendationSet $set,
         public ?string $notice,
+        public int $candidatesConsidered = 0,
     ) {}
 
     public function hasDinner(): bool

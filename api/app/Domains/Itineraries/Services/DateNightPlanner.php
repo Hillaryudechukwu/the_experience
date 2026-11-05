@@ -54,8 +54,11 @@ class DateNightPlanner
     ) {}
 
     /**
+     * `pins` fixes a slot to one of its choices (a swap); the rest of the
+     * evening is re-timed around it.
+     *
      * @param  array<string, mixed>  $input  The usual discovery input (location, journey, destination).
-     * @param  array{date: string, starts_at?: ?string, duration_minutes?: ?int, budget?: ?string, include_nightcap?: ?bool}  $options
+     * @param  array{date: string, starts_at?: ?string, duration_minutes?: ?int, budget?: ?string, include_nightcap?: ?bool, pins?: array<string, string>}  $options
      *
      * @throws DateNightUnavailable
      */
@@ -87,12 +90,14 @@ class DateNightPlanner
         $includeNightcap = (bool) ($options['include_nightcap'] ?? true);
         $withOpener = $evening->minutes() >= (int) $config['opener_min_evening_minutes'];
 
-        $stops = $this->sequence($pool, $base, $evening, $withOpener, $includeNightcap, $config);
+        $pins = $options['pins'] ?? [];
+
+        $stops = $this->sequence($pool, $base, $evening, $withOpener, $includeNightcap, $config, $pins);
 
         /* A first stop that ate the time dinner needed is the wrong trade:
            dinner is the evening, the opener is a nice-to-have. */
         if ($withOpener && ! $this->hasRole($stops, 'dinner')) {
-            $withoutOpener = $this->sequence($pool, $base, $evening, false, $includeNightcap, $config);
+            $withoutOpener = $this->sequence($pool, $base, $evening, false, $includeNightcap, $config, $pins);
             if ($this->hasRole($withoutOpener, 'dinner')) {
                 $stops = $withoutOpener;
             }
@@ -104,9 +109,10 @@ class DateNightPlanner
             default => null,
         };
 
-        $set = $this->persist($actor, $base, $input, $options, count($pool), $stops, $started);
+        /* Nothing fitted is an answer, not a recommendation: no set, no impressions. */
+        $set = $stops === [] ? null : $this->persist($actor, $base, $input, $options, count($pool), $stops, $started);
 
-        return new DateNightPlan($base, $evening, $stops, $set, $notice);
+        return new DateNightPlan($base, $evening, $stops, $set, $notice, count($pool));
     }
 
     /**
@@ -145,9 +151,18 @@ class DateNightPlanner
         $latest = $day->setTimeFromTimeString($config['latest_end']);
         $end = $start->addMinutes($duration)->min($latest);
 
-        $evening = $this->aroundAnchors($context, new TimeWindow($start, $end), $config);
+        $requestedWindow = new TimeWindow($start, $end);
+        $evening = $this->aroundAnchors($context, $requestedWindow, $config);
+        $minimum = (int) $config['min_tonight_minutes'];
 
-        if (! $evening->isPositive() || $evening->minutes() < (int) $config['min_tonight_minutes']) {
+        /* Long enough before the fixed plans cut it down: the plans are why it
+           will not work, and saying "too late" would send them the wrong way. */
+        if ($evening->minutes() < $minimum && $requestedWindow->minutes() >= $minimum
+            && ! ($evening->start->equalTo($requestedWindow->start) && $evening->end->equalTo($requestedWindow->end))) {
+            throw new DateNightUnavailable('date_night_clashes', 'Something already in your plans leaves too little of that evening.');
+        }
+
+        if (! $evening->isPositive() || $evening->minutes() < $minimum) {
             throw new DateNightUnavailable('date_night_too_late', $tonight
                 ? 'Tonight is nearly over. Plan for tomorrow instead?'
                 : 'That leaves too little of the evening. Try an earlier start.');
@@ -191,6 +206,7 @@ class DateNightPlanner
         bool $withOpener,
         bool $includeNightcap,
         array $config,
+        array $pins = [],
     ): array {
         $roles = array_values(array_filter([
             $withOpener ? 'opener' : null,
@@ -204,7 +220,7 @@ class DateNightPlanner
         $position = $base->location;
 
         foreach ($roles as $role) {
-            $stop = $this->bestFor($role, $pool, $base, $cursor, $position, $evening->end, $used, $config, $stops === []);
+            $stop = $this->bestFor($role, $pool, $base, $cursor, $position, $evening->end, $used, $config, $stops === [], $pins[$role] ?? null);
             if ($stop === null) {
                 continue;
             }
@@ -229,6 +245,7 @@ class DateNightPlanner
         array $used,
         array $config,
         bool $first,
+        ?string $pinned = null,
     ): ?DateNightStop {
         $slot = $config['stops'][$role];
         $feasible = [];
@@ -296,8 +313,24 @@ class DateNightPlanner
                 ?: strcmp($a->candidate->experience->id, $b->candidate->experience->id);
         });
 
+        /* A pinned choice wins its slot if it still fits; one that no longer
+           does (an earlier swap moved the clock) gives way to the best. */
+        $options = array_map(fn (ScoredExperience $s) => $s->candidate->experience->id, array_slice($ranked, 0, 3));
         $winner = $ranked[0];
-        $rest = array_slice($ranked, 1);
+        foreach ($ranked as $candidate) {
+            if ($candidate->candidate->experience->id === $pinned) {
+                $winner = $candidate;
+                if (! in_array($pinned, $options, true)) {
+                    $options = [$pinned, ...array_slice($options, 0, 2)];
+                }
+                break;
+            }
+        }
+
+        $rest = array_values(array_filter(
+            $ranked,
+            fn (ScoredExperience $s) => $s !== $winner && in_array($s->candidate->experience->id, $options, true),
+        ));
         [, $start, $end, $travel] = $feasible[$winner->candidate->experience->id];
 
         return new DateNightStop(
@@ -307,7 +340,8 @@ class DateNightPlanner
             endsAt: $end,
             travelMinutesFromPrevious: $travel?->minutes,
             travelMode: $travel?->mode,
-            alternatives: array_slice($rest, 0, 2),
+            alternatives: $rest,
+            options: $options,
         );
     }
 
