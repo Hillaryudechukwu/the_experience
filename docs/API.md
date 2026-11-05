@@ -78,7 +78,8 @@ optionally `starts_at` (`H:i`, default 19:00), `duration_minutes` (120–360,
 default 240), `budget` (`low` | `relaxed` | `splurge`), and `include_nightcap`.
 It returns `data.stops`: an opener, dinner, and nightcap, in order. Each stop
 has its own `starts_at`/`ends_at`, `travel_minutes_from_previous`, an
-`experience` card, and up to two `alternatives`. Every stop is checked as open
+`experience` card, and up to two `alternatives`. Each of those cards carries
+`booking`: `required`, `lead_time_hours`, and the venue's `phone` and `website`. Every stop is checked as open
 at the time it is planned for. Tonight, a start that has already passed moves to
 the next quarter hour. An evening that cannot be planned returns 422 with a
 `code`: `date_night_in_past`, `date_night_out_of_range`, `date_night_too_late`,

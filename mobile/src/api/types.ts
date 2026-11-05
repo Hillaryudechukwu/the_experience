@@ -177,15 +177,25 @@ export type DiscoveryResponse = {
 
 export type DateNightRole = 'opener' | 'dinner' | 'nightcap';
 
+/** What it takes to get a table, carried on each card so a swap brings its own. */
+export type DateNightBooking = {
+  required: boolean;
+  lead_time_hours: number | null;
+  phone: string | null;
+  website: string | null;
+};
+
+export type DateNightCard = ExperienceCard & { booking: DateNightBooking };
+
 export type DateNightStop = {
   role: DateNightRole;
   starts_at: string;
   ends_at: string;
   travel_minutes_from_previous: number | null;
   travel_mode: string | null;
-  experience: ExperienceCard;
+  experience: DateNightCard;
   /** Swaps for the same slot, scored for the same moment. */
-  alternatives: ExperienceCard[];
+  alternatives: DateNightCard[];
 };
 
 export type DateNightOptions = {

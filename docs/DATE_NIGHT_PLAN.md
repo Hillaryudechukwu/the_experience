@@ -172,5 +172,8 @@ app has a harness for them.
    of discovery.
 3. ~~**Saving:**~~ Decided: stops go into the trip itinerary, with a reminder on
    the day. A separate saved date night (usable without a trip) is not planned.
-4. **Booking:** reserving dinner (OpenTable or Viator offers) is left out of this
-   plan and would be a follow-up.
+4. **Booking:** first step done: the dinner stop (and any stop that needs
+   booking) shows the venue's Call and Website buttons and a "book ahead" line,
+   warning when the evening is closer than the usual booking lead time. Booking
+   inside the app needs a partner (TheFork or OpenTable links that earn
+   commission, or OpenTable/Resy/SevenRooms access) and is a follow-up.

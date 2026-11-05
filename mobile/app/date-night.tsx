@@ -1,10 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ApiError } from '../src/api/client';
 import { useDateNight, useSaveDateNight, useTrip } from '../src/api/hooks';
-import type { DateNightOptions, DateNightRefusal, DateNightRole, DateNightStop } from '../src/api/types';
+import type {
+  DateNightBooking,
+  DateNightOptions,
+  DateNightRefusal,
+  DateNightRole,
+  DateNightStop,
+} from '../src/api/types';
 import { addDays } from '../src/components/DateNightSheet';
 import { ExperienceCardView } from '../src/components/ExperienceCard';
 import { Icon } from '../src/components/Icon';
@@ -265,6 +271,8 @@ export default function DateNight() {
               surface="date_night"
               onPress={() => router.push(`/experience/${card.id}`)}
             />
+
+            <GettingATable booking={card.booking} role={stop.role} startsAt={stop.starts_at} />
           </View>
         ))}
       </Gutter>
@@ -292,6 +300,65 @@ export default function DateNight() {
       </Gutter>
     </Screen>
   );
+}
+
+/**
+ * How to secure the stop: a word on booking ahead, and the venue's own phone
+ * and website. Dinner always gets the buttons; another stop only when it
+ * needs booking, since nobody calls ahead for a viewpoint.
+ */
+function GettingATable({ booking, role, startsAt }: { booking: DateNightBooking; role: DateNightRole; startsAt: string }) {
+  const colors = useTheme();
+  const line = bookingLine(booking, role, startsAt);
+  const contact = role === 'dinner' || booking.required;
+  const phone = contact ? booking.phone : null;
+  const website = contact ? booking.website : null;
+
+  if (!line && !phone && !website) return null;
+
+  const open = (url: string, what: string) =>
+    Linking.openURL(url).catch(() => showAlert(`Could not open the ${what}`, url));
+
+  return (
+    <View style={{ gap: space.xs }}>
+      {line ? (
+        <T variant="small" color={colors.text.secondary}>
+          {line}
+        </T>
+      ) : null}
+      {phone || website ? (
+        <Row gap={space.xs}>
+          {phone ? (
+            <Button
+              label="Call"
+              tone="secondary"
+              size="small"
+              onPress={() => open(`tel:${phone.replace(/[^\d+]/g, '')}`, 'phone')}
+            />
+          ) : null}
+          {website ? <Button label="Website" tone="secondary" size="small" onPress={() => open(website, 'website')} /> : null}
+        </Row>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Too close to the evening for the usual notice reads differently from plenty
+ * of time. Dinner and drinks are a table; a viewpoint or a show is a slot.
+ */
+function bookingLine(booking: DateNightBooking, role: DateNightRole, startsAt: string): string | null {
+  if (!booking.required) return null;
+
+  const what = role === 'opener' ? 'a slot' : 'a table';
+  const hoursAhead = (Date.parse(startsAt) - Date.now()) / 3_600_000;
+  if (booking.lead_time_hours && hoursAhead < booking.lead_time_hours) {
+    return `Usually booked about ${booking.lead_time_hours} hours ahead, so check there is still ${what}.`;
+  }
+
+  return booking.lead_time_hours
+    ? `Book ahead: about ${booking.lead_time_hours} hours is usual.`
+    : 'Book ahead: this place needs a booking.';
 }
 
 /** The planner's pick, or one of its alternatives for the same slot. */

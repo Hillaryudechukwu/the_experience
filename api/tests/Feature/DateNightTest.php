@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Domains\Destinations\Models\Destination;
 use App\Domains\Discovery\Models\LiveIntent;
+use App\Domains\Experiences\Models\Experience;
 use App\Domains\Identity\Models\GuestSession;
 use App\Domains\Shared\ValueObjects\Actor;
 use Carbon\CarbonImmutable;
@@ -201,6 +202,24 @@ class DateNightTest extends TestCase
             'surface' => 'date_night',
         ]);
         $this->assertDatabaseCount('recommendations', 3);
+    }
+
+    public function test_each_stop_says_how_to_get_a_table(): void
+    {
+        $this->evening();
+        $bistro = Experience::query()->where('slug', 'bistro')->sole();
+        $bistro->update(['requires_booking' => true, 'booking_lead_time_hours' => 48]);
+        $bistro->place->update(['phone' => '+44 20 7946 0000', 'website' => 'https://bistro.example']);
+
+        $response = $this->plan(['date' => '2026-11-02'])->assertOk();
+
+        $this->assertSame([
+            'required' => true,
+            'lead_time_hours' => 48,
+            'phone' => '+44 20 7946 0000',
+            'website' => 'https://bistro.example',
+        ], $response->json('data.stops.1.experience.booking'));
+        $this->assertFalse($response->json('data.stops.0.experience.booking.required'));
     }
 
     public function test_a_date_is_required(): void

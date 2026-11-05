@@ -160,9 +160,9 @@ class DiscoveryController extends ApiController
                     'ends_at' => $stop->endsAt->toIso8601String(),
                     'travel_minutes_from_previous' => $stop->travelMinutesFromPrevious,
                     'travel_mode' => $stop->travelMode,
-                    'experience' => $this->presenter->card($stop->scored->candidate->experience, $stop->scored),
+                    'experience' => $this->dateNightCard($stop->scored),
                     'alternatives' => array_map(
-                        fn (ScoredExperience $alt) => $this->presenter->card($alt->candidate->experience, $alt),
+                        fn (ScoredExperience $alt) => $this->dateNightCard($alt),
                         $stop->alternatives,
                     ),
                 ], $plan->stops),
@@ -174,6 +174,28 @@ class DiscoveryController extends ApiController
             'candidates_considered' => $plan->set->candidates_considered,
             'notice' => $plan->notice,
         ]);
+    }
+
+    /**
+     * A date-night stop's card, plus what it takes to get a table: whether the
+     * place needs booking, how far ahead, and how to reach it. It rides on each
+     * card rather than the stop, so a swap brings its own.
+     *
+     * @return array<string, mixed>
+     */
+    private function dateNightCard(ScoredExperience $scored): array
+    {
+        $experience = $scored->candidate->experience;
+        $place = $experience->place;
+
+        return $this->presenter->card($experience, $scored) + [
+            'booking' => [
+                'required' => (bool) $experience->requires_booking,
+                'lead_time_hours' => $experience->booking_lead_time_hours,
+                'phone' => $place?->phone,
+                'website' => $place?->website,
+            ],
+        ];
     }
 
     /** Spec s14.6 — a constrained "surprise me". */
