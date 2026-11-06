@@ -151,6 +151,36 @@ class DateNightReminderTest extends TestCase
         $this->assertSame('cancelled', NotificationOutbox::query()->where('kind', 'date_night_reminder')->sole()->status);
     }
 
+    public function test_stops_sent_out_of_order_still_remind_from_the_first_one(): void
+    {
+        $this->save('2026-11-07', ['dinner' => ['20:15', '22:00'], 'opener' => ['19:00', '20:00']])->assertCreated();
+
+        $reminder = NotificationOutbox::query()->where('kind', 'date_night_reminder')->sole();
+        $this->assertStringContainsString('starts at 19:00 with Sunset viewpoint', $reminder->body);
+        $this->assertSame(
+            ItineraryItem::query()->where('title', 'Sunset viewpoint')->sole()->id,
+            $reminder->payload['item_ids'][0],
+        );
+    }
+
+    public function test_an_evening_that_lands_on_one_already_saved_is_refused(): void
+    {
+        $this->save('2026-11-07', ['opener' => ['19:00', '20:00'], 'dinner' => ['20:15', '22:00']])->assertCreated();
+
+        $this->save('2026-11-07', ['dinner' => ['21:00', '22:30']])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'That evening overlaps "Candlelit bistro", already in your trip from 20:15 to 22:00.');
+
+        $this->assertSame(2, ItineraryItem::query()->count());
+    }
+
+    public function test_stops_that_overlap_each_other_are_refused(): void
+    {
+        $this->save('2026-11-07', ['opener' => ['19:00', '20:30'], 'dinner' => ['20:00', '21:30']])->assertStatus(422);
+
+        $this->assertSame(0, ItineraryItem::query()->count());
+    }
+
     public function test_someone_elses_itinerary_is_not_found(): void
     {
         $stranger = GuestSession::create(['token' => Str::random(40)]);

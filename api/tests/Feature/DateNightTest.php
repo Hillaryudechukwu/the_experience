@@ -204,6 +204,92 @@ class DateNightTest extends TestCase
         $this->assertDatabaseCount('recommendations', 3);
     }
 
+    public function test_swapping_a_stop_re_times_the_rest_of_the_evening_around_it(): void
+    {
+        $this->evening();
+        $this->experience($this->destination, [
+            'slug' => 'gallery-late',
+            'title' => 'Gallery late',
+            'categories' => ['culture'],
+            'mood_affinity' => ['romantic' => 70],
+            'romance_score' => 70,
+            'expected_duration_minutes' => 75,
+            'lat' => 51.5076, 'lng' => -0.1279,
+        ]);
+
+        $planned = $this->plan(['date' => '2026-11-02'])->assertOk();
+        $this->assertSame('Sunset viewpoint', $planned->json('data.stops.0.experience.title'));
+        $options = $planned->json('data.stops.0.options');
+        $gallery = Experience::query()->where('slug', 'gallery-late')->sole()->id;
+        $this->assertContains($gallery, $options);
+
+        $swapped = $this->plan(['date' => '2026-11-02', 'pins' => ['opener' => $gallery]])->assertOk();
+
+        /* The swap's own length, and dinner moved to follow it. */
+        $this->assertSame('Gallery late', $swapped->json('data.stops.0.experience.title'));
+        $this->assertStringStartsWith('2026-11-02T20:15', $swapped->json('data.stops.0.ends_at'));
+        $this->assertGreaterThanOrEqual(
+            CarbonImmutable::parse($swapped->json('data.stops.0.ends_at')),
+            CarbonImmutable::parse($swapped->json('data.stops.1.starts_at')),
+        );
+
+        /* The choices keep their order, so the next swap goes on to the next one. */
+        $this->assertSame($options, $swapped->json('data.stops.0.options'));
+    }
+
+    public function test_an_evening_where_nothing_fits_is_not_recorded(): void
+    {
+        $this->experience($this->destination, ['slug' => 'office', 'title' => 'Office tour', 'categories' => []]);
+
+        $response = $this->plan(['date' => '2026-11-02'])->assertOk();
+
+        $this->assertNull($response->json('data'));
+        $this->assertNull($response->json('recommendation_set_id'));
+        $this->assertDatabaseCount('recommendation_sets', 0);
+    }
+
+    public function test_a_fixed_plan_that_leaves_too_little_of_the_evening_is_a_clash(): void
+    {
+        $this->evening();
+        $guest = GuestSession::create(['token' => Str::random(40)]);
+        $journey = $this->journey($this->destination, new Actor(guestSessionId: $guest->id), [
+            'starts_on' => '2026-11-01',
+            'ends_on' => '2026-11-10',
+        ]);
+        $journey->anchors()->create([
+            'type' => 'restaurant',
+            'title' => 'Team dinner',
+            'starts_at' => CarbonImmutable::parse('2026-11-07 20:00', 'Europe/London'),
+            'ends_at' => CarbonImmutable::parse('2026-11-07 23:00', 'Europe/London'),
+            'buffer_before_minutes' => 20,
+        ]);
+
+        $this->plan(['date' => '2026-11-07', 'journey_id' => $journey->id], ['X-Guest-Token' => $guest->token])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'date_night_clashes');
+    }
+
+    public function test_a_memorial_is_never_the_first_stop(): void
+    {
+        $this->evening();
+        $this->experience($this->destination, [
+            'slug' => 'memorial',
+            'title' => 'War memorial',
+            'categories' => ['quick_experience'],
+            'mood_affinity' => ['romantic' => 100],
+            'romance_score' => 100,
+            'expected_duration_minutes' => 20,
+            'lat' => 51.5075, 'lng' => -0.1278,
+        ]);
+
+        $stops = $this->plan(['date' => '2026-11-02'])->assertOk()->json('data.stops');
+
+        $this->assertNotContains('War memorial', array_column(array_column($stops, 'experience'), 'title'));
+        foreach ($stops as $stop) {
+            $this->assertNotContains('War memorial', array_column($stop['alternatives'], 'title'));
+        }
+    }
+
     public function test_each_stop_says_how_to_get_a_table(): void
     {
         $this->evening();

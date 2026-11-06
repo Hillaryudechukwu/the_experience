@@ -67,21 +67,28 @@ class ItineraryItemController extends ApiController
         $model = Itinerary::with('trip.journey.anchors', 'trip.journey.destination', 'days')->findOrFail($itinerary);
         $this->assertOwned($request, $model);
 
-        /** @var array<string, ItineraryItem> $stops */
-        $stops = DB::transaction(function () use ($request, $model, $data) {
-            $stops = [];
-            foreach ($data['stops'] as $stop) {
-                $starts = CarbonImmutable::parse($stop['starts_at']);
-                $ends = CarbonImmutable::parse($stop['ends_at']);
-                abort_unless($ends->greaterThan($starts), 422, 'Each stop has to end after it starts.');
+        /* In the order they happen, whatever order they were sent in: the
+           reminder and the trip both read the first stop as the start. */
+        $requested = collect($data['stops'])
+            ->map(fn (array $stop) => $stop + [
+                'window' => new TimeWindow(CarbonImmutable::parse($stop['starts_at']), CarbonImmutable::parse($stop['ends_at'])),
+            ])
+            ->sortBy(fn (array $stop) => $stop['window']->start->getTimestamp())
+            ->values();
 
+        $this->assertEveningFits($model, $requested->pluck('window')->all(), $model->trip->journey->destination->timezone ?? 'UTC');
+
+        /** @var array<string, ItineraryItem> $stops */
+        $stops = DB::transaction(function () use ($request, $model, $data, $requested) {
+            $stops = [];
+            foreach ($requested as $stop) {
                 $stops[$stop['role']] = $this->add(
                     $request,
                     $model,
                     Experience::findOrFail($stop['experience_id']),
                     $data['date'],
-                    $starts,
-                    $ends,
+                    $stop['window']->start,
+                    $stop['window']->end,
                     'Your date night',
                 );
             }
@@ -184,6 +191,42 @@ class ItineraryItemController extends ApiController
         ]);
 
         return $item;
+    }
+
+    /**
+     * The evening's stops must run one after another, and must not land on
+     * anything already in the trip — a second date night on the same evening
+     * included. Fixed commitments are checked separately, with their buffers.
+     *
+     * @param  list<TimeWindow>  $windows  in order
+     */
+    private function assertEveningFits(Itinerary $itinerary, array $windows, string $timezone): void
+    {
+        foreach ($windows as $i => $window) {
+            abort_unless($window->isPositive(), 422, 'Each stop has to end after it starts.');
+            abort_if($i > 0 && $window->overlaps($windows[$i - 1]), 422, 'The stops of an evening cannot overlap.');
+        }
+
+        $existing = ItineraryItem::query()
+            ->whereIn('itinerary_day_id', $itinerary->days()->select('id'))
+            ->where('kind', '!=', 'anchor')
+            ->where('starts_at', '<', end($windows)->end)
+            ->where('ends_at', '>', $windows[0]->start)
+            ->orderBy('starts_at')
+            ->get();
+
+        foreach ($existing as $item) {
+            foreach ($windows as $window) {
+                if ($window->overlaps($item->window())) {
+                    abort(422, sprintf(
+                        'That evening overlaps "%s", already in your trip from %s to %s.',
+                        $item->title,
+                        $item->starts_at->setTimezone($timezone)->format('H:i'),
+                        $item->ends_at->setTimezone($timezone)->format('H:i'),
+                    ));
+                }
+            }
+        }
     }
 
     /** Acceptance 56: an itinerary never overlaps a fixed anchor. */

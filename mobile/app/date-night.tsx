@@ -51,29 +51,40 @@ export default function DateNight() {
   const goBack = useBackTo('/(tabs)');
   const session = useSession();
   const tz = session.destinationTimezone ?? undefined;
-  const params = useLocalSearchParams<{ date?: string; starts_at?: string; budget?: string; nightcap?: string }>();
+  const params = useLocalSearchParams<{
+    date?: string;
+    starts_at?: string;
+    budget?: string;
+    nightcap?: string;
+    pin_opener?: string;
+    pin_dinner?: string;
+    pin_nightcap?: string;
+  }>();
 
   const today = isoDate(new Date(), tz);
-  const options = useMemo<DateNightOptions | null>(
-    () =>
-      params.date
-        ? {
-            date: params.date,
-            ...(params.starts_at ? { starts_at: params.starts_at } : {}),
-            ...(params.budget ? { budget: params.budget as DateNightOptions['budget'] } : {}),
-            include_nightcap: params.nightcap !== '0',
-          }
-        : null,
-    [params.date, params.starts_at, params.budget, params.nightcap],
-  );
+  const options = useMemo<DateNightOptions | null>(() => {
+    if (!params.date) return null;
+
+    const pins = Object.fromEntries(
+      (['opener', 'dinner', 'nightcap'] as const)
+        .map((role) => [role, params[`pin_${role}`]] as const)
+        .filter(([, id]) => !!id),
+    );
+
+    return {
+      date: params.date,
+      ...(params.starts_at ? { starts_at: params.starts_at } : {}),
+      ...(params.budget ? { budget: params.budget as DateNightOptions['budget'] } : {}),
+      include_nightcap: params.nightcap !== '0',
+      ...(Object.keys(pins).length ? { pins } : {}),
+    };
+  }, [params.date, params.starts_at, params.budget, params.nightcap, params.pin_opener, params.pin_dinner, params.pin_nightcap]);
 
   const plan = useDateNight(options, { nearMe: params.date === today });
   const { data: trip } = useTrip(session.tripId);
   const itineraryId = trip?.itinerary?.id ?? null;
   const saveDateNight = useSaveDateNight(session.tripId, itineraryId);
 
-  /* Which alternative each slot is showing; 0 is the planner's own pick. */
-  const [choice, setChoice] = useState<Partial<Record<DateNightRole, number>>>({});
   const [saved, setSaved] = useState<{ reminderAt: string | null } | null>(null);
 
   const header = (
@@ -162,7 +173,19 @@ export default function DateNight() {
     );
   }
 
-  const shown = evening.stops.map((stop) => ({ stop, card: cardFor(stop, choice[stop.role] ?? 0) }));
+  const shown = evening.stops.map((stop) => ({ stop, card: stop.experience }));
+  /* While a swap is being re-planned the old evening is still on screen;
+     saving it then would save times that are about to change. */
+  const settling = plan.isPlaceholderData || plan.isFetching;
+
+  /* A swap asks the planner again with that slot fixed, so the times, the
+     travel and the rest of the evening are worked out for the new choice. */
+  const swap = (stop: DateNightStop) => {
+    const at = stop.options.indexOf(stop.experience.id);
+    const next = stop.options[(at + 1) % stop.options.length];
+    setSaved(null);
+    router.setParams({ [`pin_${stop.role}`]: next });
+  };
 
   const saveToTrip = async () => {
     try {
@@ -245,17 +268,14 @@ export default function DateNight() {
                   {clock(stop.starts_at, tz)}–{clock(stop.ends_at, tz)}
                 </T>
               </View>
-              {stop.alternatives.length > 0 ? (
+              {stop.options.length > 1 ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Swap ${ROLE_LABEL[stop.role].toLowerCase()}`}
+                  accessibilityState={{ disabled: settling }}
+                  disabled={settling}
                   hitSlop={10}
-                  onPress={() =>
-                    setChoice((current) => ({
-                      ...current,
-                      [stop.role]: ((current[stop.role] ?? 0) + 1) % (stop.alternatives.length + 1),
-                    }))
-                  }
+                  onPress={() => swap(stop)}
                 >
                   <T variant="smallStrong" color={colors.action.primary}>
                     Swap
@@ -267,7 +287,7 @@ export default function DateNight() {
             <ExperienceCardView
               card={card}
               variant="compact"
-              recommendationSetId={plan.data?.recommendation_set_id}
+              recommendationSetId={plan.data?.recommendation_set_id ?? undefined}
               surface="date_night"
               onPress={() => router.push(`/experience/${card.id}`)}
             />
@@ -282,7 +302,7 @@ export default function DateNight() {
           <>
             <Button
               label={saved ? 'Added to your trip' : 'Add to my trip'}
-              disabled={saved !== null}
+              disabled={saved !== null || settling}
               loading={saveDateNight.isPending}
               onPress={saveToTrip}
             />
@@ -336,7 +356,9 @@ function GettingATable({ booking, role, startsAt }: { booking: DateNightBooking;
               onPress={() => open(`tel:${phone.replace(/[^\d+]/g, '')}`, 'phone')}
             />
           ) : null}
-          {website ? <Button label="Website" tone="secondary" size="small" onPress={() => open(website, 'website')} /> : null}
+          {website ? (
+            <Button label="Website" tone="secondary" size="small" onPress={() => open(withScheme(website), 'website')} />
+          ) : null}
         </Row>
       ) : null}
     </View>
@@ -361,9 +383,9 @@ function bookingLine(booking: DateNightBooking, role: DateNightRole, startsAt: s
     : 'Book ahead: this place needs a booking.';
 }
 
-/** The planner's pick, or one of its alternatives for the same slot. */
-function cardFor(stop: DateNightStop, index: number) {
-  return index === 0 ? stop.experience : (stop.alternatives[index - 1] ?? stop.experience);
+/** Venue data often carries "example.com" with no scheme, which nothing will open. */
+function withScheme(url: string): string {
+  return /^[a-z][a-z\d+.-]*:/i.test(url) ? url : `https://${url.replace(/^\/+/, '')}`;
 }
 
 function refusalOf(error: unknown): { code: DateNightRefusal; message: string } | null {

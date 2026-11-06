@@ -178,11 +178,12 @@ class NotificationEnqueuer
      * before the first stop if the evening starts early. An evening saved too
      * late for that needs no reminder; it was planned moments ago.
      *
-     * @param  array<string, ItineraryItem>  $stops  keyed by role, in order
+     * @param  array<string, ItineraryItem>  $stops  keyed by role
      */
     public function dateNightPlanned(Actor $actor, Itinerary $itinerary, array $stops, string $timezone): ?NotificationOutbox
     {
-        $first = reset($stops);
+        /* The earliest stop, not the first one handed over. */
+        $first = collect($stops)->sortBy(fn (ItineraryItem $item) => $item->starts_at->getTimestamp())->first();
         if (! $first instanceof ItineraryItem) {
             return null;
         }
