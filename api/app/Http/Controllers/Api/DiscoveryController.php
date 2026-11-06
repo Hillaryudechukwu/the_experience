@@ -6,7 +6,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Domains\AI\Services\IntentParser;
 use App\Domains\Analytics\Actions\RecordBehaviouralEvent;
+use App\Domains\Destinations\Services\CityResolver;
 use App\Domains\Destinations\Services\EnsureDestinationReadyForDiscovery;
+use App\Domains\Discovery\Services\EventFinder;
 use App\Domains\Discovery\Services\LiveIntentStore;
 use App\Domains\Discovery\Services\NameRelevance;
 use App\Domains\Discovery\Services\PrimaryActionComposer;
@@ -17,9 +19,13 @@ use App\Domains\Itineraries\Services\DateNightPlanner;
 use App\Domains\Itineraries\Services\DateNightUnavailable;
 use App\Domains\Recommendations\DTO\ScoredExperience;
 use App\Domains\Recommendations\Services\RecommendationService;
+use App\Domains\Shared\ValueObjects\Actor;
+use App\Domains\Shared\ValueObjects\GeoPoint;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 /**
@@ -37,6 +43,8 @@ class DiscoveryController extends ApiController
         private readonly LiveIntentStore $liveIntents,
         private readonly PrimaryActionComposer $primary,
         private readonly DateNightPlanner $dateNights,
+        private readonly CityResolver $cities,
+        private readonly EventFinder $eventFinder,
     ) {}
 
     /** Spec s4.1 — "I'm Here Now". */
@@ -198,6 +206,183 @@ class DiscoveryController extends ApiController
                 'phone' => $place?->phone,
                 'website' => $place?->website,
             ],
+        ];
+    }
+
+    /**
+     * Explore my city: what is on, and what is always good, wherever the
+     * phone is — not wherever the trip says.
+     *
+     * Events do not depend on our catalogue, so they come back even while the
+     * city is still being prepared or is not covered at all; the experience
+     * sections fill in once it is. Like date night, this neither records nor
+     * reads live intent: a mood picked on Discover is not a filter here.
+     */
+    public function exploreCity(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'lat' => ['required', 'numeric', 'between:-90,90'],
+            'lng' => ['required', 'numeric', 'between:-180,180'],
+            'location_precision' => ['sometimes', Rule::in(['precise', 'approximate'])],
+            'journey_id' => ['sometimes', 'nullable', 'uuid'],
+            'when' => ['sometimes', Rule::in(EventFinder::RANGES)],
+        ]);
+
+        $actor = $this->actor($request);
+        $point = new GeoPoint((float) $data['lat'], (float) $data['lng']);
+        /* Approximate is enforced here, not trusted to the app: the city
+           match, the geocoder and the events provider only see ~1 km. */
+        if (($data['location_precision'] ?? 'precise') === 'approximate') {
+            $point = new GeoPoint(round($point->lat, 2), round($point->lng, 2));
+        }
+        $range = $data['when'] ?? 'today';
+        $destination = $this->cities->nearest($point);
+        $candidate = $destination === null ? $this->cities->candidate($point, $actor) : null;
+        $timezone = $destination?->timezone ?? $this->cities->timezoneFor($point, $candidate['country_code'] ?? null);
+        $now = CarbonImmutable::now($timezone);
+
+        $preparing = null;
+        $sections = null;
+        $context = null;
+        $setId = null;
+
+        if ($destination !== null) {
+            $input = array_filter([
+                'surface' => 'explore_city',
+                'lat' => $point->lat,
+                'lng' => $point->lng,
+                'location_precision' => $data['location_precision'] ?? null,
+                'destination_id' => $destination->id,
+                'journey_id' => $data['journey_id'] ?? null,
+            ], fn ($v) => $v !== null);
+
+            try {
+                $this->destinationReadiness->handle($actor, $input);
+            } catch (HttpResponseException $e) {
+                /* Not an error here: the events still stand, and the app
+                   polls the import and asks again once the city is ready. */
+                $preparing = $e->getResponse()->getData(true);
+            }
+
+            if ($preparing === null) {
+                [$sections, $context, $setId] = $this->exploreSections($actor, $input);
+            }
+        }
+
+        $events = $this->eventFinder->near($point, $range, $now);
+
+        /* The app asks again every few seconds while a city is prepared, and
+           again on each range chip; one visit is one open. */
+        $openedKey = sprintf('explore_city_opened:%s:%s', $actor->key(), $destination?->id ?? sprintf('%.2f,%.2f', $point->lat, $point->lng));
+        if (Cache::add($openedKey, true, (int) config('experience.explore_city.opened_dedupe_seconds', 600))) {
+            $this->events->record($actor, 'explore_city_opened', [
+                'subject_type' => $destination === null ? null : 'destination',
+                'subject_id' => $destination?->id,
+                'surface' => 'explore_city',
+                'properties' => [
+                    'when' => $range,
+                    'covered' => $destination !== null,
+                    'events' => count($events),
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'city' => $destination === null ? null : [
+                    'destination_id' => $destination->id,
+                    'slug' => $destination->slug,
+                    'name' => $destination->name,
+                    'country' => $destination->country,
+                    'timezone' => $destination->timezone,
+                    'currency' => $destination->currency,
+                ],
+                'candidate' => $candidate,
+                'timezone' => $timezone,
+                'preparing' => $preparing,
+                'when' => $range,
+                'events' => $events,
+                'events_available' => $this->eventFinder->available(),
+                'sections' => $sections,
+                'weather' => $context?->weather?->toArray(),
+            ],
+            'recommendation_set_id' => $setId,
+            'context' => $context === null ? null : $this->contextPayload($context),
+        ]);
+    }
+
+    /**
+     * Top picks, hidden gems, free, and the best few neighbourhoods.
+     *
+     * Each list is asked for explicitly with every intent field set, so the
+     * traveller's live mood or window cannot leak in through the merge.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{0: array<string, mixed>, 1: \App\Domains\Recommendations\DTO\ScoringContext, 2: string}
+     */
+    private function exploreSections(Actor $actor, array $input): array
+    {
+        $input += [
+            'mood' => null,
+            'window_minutes' => null,
+            'categories' => [],
+            'exclude_categories' => [],
+            'free_only' => false,
+        ];
+        $size = (int) config('experience.explore_city.section_size', 6);
+        $cards = fn (array $results) => array_map(
+            fn (ScoredExperience $scored) => $this->presenter->card($scored->candidate->experience, $scored),
+            $results,
+        );
+
+        $top = $this->recommendations->recommend($actor, $input, 30);
+        /* Asked for twice what a row shows, since the ones already shown
+           higher up are taken out. */
+        $gems = $this->recommendations->recommend($actor, array_merge($input, ['categories' => ['hidden_gem']]), $size * 2);
+        $free = $this->recommendations->recommend($actor, array_merge($input, ['free_only' => true]), $size * 2);
+
+        /* Each row shows only what no row above it has: the same five
+           favourites repeated four times down the page reads as a short list. */
+        $shown = [];
+        $fresh = function (array $cards, int $limit) use (&$shown): array {
+            $kept = array_slice(array_values(array_filter($cards, fn (array $card) => ! isset($shown[$card['id']]))), 0, $limit);
+            foreach ($kept as $card) {
+                $shown[$card['id']] = true;
+            }
+
+            return $kept;
+        };
+
+        $topCards = $cards($top['results']);
+        $topPicks = $fresh($topCards, $size);
+        /* Relaxed answers are the closest fit, not a hidden gem or a free
+           one: better an empty row than a mislabelled one. */
+        $hiddenGems = in_array('categories', $gems['relaxed'] ?? [], true) ? [] : $fresh($cards($gems['results']), $size);
+        $freeCards = $fresh($cards($free['results']), $size);
+
+        /* Neighbourhoods ranked by their best remaining experience, so the
+           strongest areas lead; each keeps a handful of its own. */
+        $byNeighbourhood = collect($topCards)
+            ->reject(fn (array $card) => isset($shown[$card['id']]))
+            ->filter(fn (array $card) => filled($card['location']['neighbourhood'] ?? null))
+            ->groupBy(fn (array $card) => $card['location']['neighbourhood'])
+            ->take((int) config('experience.explore_city.neighbourhoods', 3))
+            ->map(fn ($items, string $name) => [
+                'neighbourhood' => $name,
+                'items' => $items->take((int) config('experience.explore_city.per_neighbourhood', 3))->values()->all(),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            [
+                'top_picks' => $topPicks,
+                'hidden_gems' => $hiddenGems,
+                'free' => $freeCards,
+                'by_neighbourhood' => $byNeighbourhood,
+            ],
+            $top['context'],
+            $top['set']->id,
         ];
     }
 

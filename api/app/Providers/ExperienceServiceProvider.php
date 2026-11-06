@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Domains\ExternalSources\Contracts\CurrencyProvider;
+use App\Domains\ExternalSources\Contracts\EventProvider;
 use App\Domains\ExternalSources\Contracts\PlaceDataProvider;
 use App\Domains\ExternalSources\Contracts\PlaceEnricher;
 use App\Domains\ExternalSources\Contracts\RoutingProvider;
@@ -19,6 +20,7 @@ use App\Domains\ExternalSources\Providers\OverpassPlaceProvider;
 use App\Domains\ExternalSources\Providers\SandboxTicketProvider;
 use App\Domains\ExternalSources\Providers\SeededWeatherProvider;
 use App\Domains\ExternalSources\Providers\GetYourGuideProvider;
+use App\Domains\ExternalSources\Providers\TicketmasterEventProvider;
 use App\Domains\ExternalSources\Providers\TiqetsProvider;
 use App\Domains\ExternalSources\Providers\ViatorProvider;
 use App\Domains\ExternalSources\Providers\WikimediaEnricher;
@@ -80,6 +82,8 @@ class ExperienceServiceProvider extends ServiceProvider
         $this->app->singleton(PlaceEnricher::class, fn ($app) => $app->make(WikimediaEnricher::class));
 
         $this->app->singleton(CurrencyProvider::class, fn ($app) => $app->make(FrankfurterCurrencyProvider::class));
+
+        $this->app->singleton(EventProvider::class, fn ($app) => $app->make(TicketmasterEventProvider::class));
     }
 
     public function boot(): void
