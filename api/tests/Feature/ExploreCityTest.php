@@ -14,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use RuntimeException;
 use Tests\Support\BuildsTravelScenarios;
@@ -347,7 +348,7 @@ class ExploreCityTest extends TestCase
         $this->assertSame('2026-11-08 23:59', $to->format('Y-m-d H:i'));
     }
 
-    private function explore(array $body = []): \Illuminate\Testing\TestResponse
+    private function explore(array $body = []): TestResponse
     {
         return $this->postJson('/api/discovery/explore-city', array_merge([
             'lat' => 51.5074,
