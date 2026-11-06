@@ -31,7 +31,7 @@ export function DateNightSheet({
   visible,
   onClose,
   today,
-  maxDate,
+  maxDate: maxDateProp,
   onPlan,
 }: {
   visible: boolean;
@@ -49,6 +49,9 @@ export function DateNightSheet({
   const [budget, setBudget] = useState<NonNullable<DateNightOptions['budget']>>('relaxed');
   const [nightcap, setNightcap] = useState(true);
 
+  /* A trip that has already ended is no limit: without this every day,
+     tomorrow included, was greyed out for someone back home. */
+  const maxDate = maxDateProp && maxDateProp >= today ? maxDateProp : undefined;
   const tomorrow = addDays(today, 1);
   const tomorrowAvailable = !maxDate || tomorrow <= maxDate;
   const date = day === 'tonight' ? today : day === 'tomorrow' ? tomorrow : picked;

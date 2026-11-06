@@ -132,7 +132,13 @@ class DateNightPlanner
             throw new DateNightUnavailable('date_night_in_past', 'That date has already gone. Pick tonight or a later date.');
         }
 
+        /* Only a trip still under way bounds the evening. One that has already
+           ended would otherwise refuse every date, tonight included, for
+           someone who is simply back home. */
         $endsOn = $context->journey?->ends_on;
+        if ($endsOn !== null && $endsOn->toDateString() < $today->toDateString()) {
+            $endsOn = null;
+        }
         if ($day > $today->addDays((int) $config['max_days_ahead'])
             || ($endsOn !== null && $day->toDateString() > $endsOn->toDateString())) {
             throw new DateNightUnavailable('date_night_out_of_range', 'That date is outside your trip. Pick a date while you are there.');

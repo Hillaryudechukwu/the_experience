@@ -100,13 +100,20 @@ class CityResolver
             return null;
         }
 
-        if ($found === null
-            || $found['city'] === null
-            || $found['country'] === null
-            || $found['country_code'] === null
+        if ($found === null || $found['country'] === null || $found['country_code'] === null) {
+            return null;
+        }
+
+        /* Zoom 10 answers with the city itself only in some countries. Elsewhere
+           it is a district (Shomolu, in Lagos) or a borough (Manhattan), so the
+           city it sits in is looked up by name, as a typed search would. */
+        if ($found['city'] === null
             || $found['osm_id'] === null
             || ! in_array($found['kind'] ?? '', self::TRAVELLABLE, true)) {
-            return null;
+            $found = $this->containingCity($point, $found);
+            if ($found === null) {
+                return null;
+            }
         }
 
         $candidate = new DestinationCandidate(
@@ -136,5 +143,54 @@ class CityResolver
             'coverage_status' => 'discoverable',
             'candidate_token' => $this->candidateTokens->issue($candidate),
         ];
+    }
+
+    /**
+     * The nearest travellable place named in a reverse answer that was not
+     * one itself: its city or town, else its state, which in Lagos is the
+     * city's own name. Too far away and it is somewhere else that shares it.
+     *
+     * @param  array<string, mixed>  $found
+     * @return array<string, mixed>|null
+     */
+    private function containingCity(GeoPoint $point, array $found): ?array
+    {
+        $radius = (int) config('experience.explore_city.candidate_radius_metres', 50000);
+
+        foreach (array_unique(array_filter([$found['city'], $found['region']])) as $name) {
+            /* Guarded like the reverse lookup: a rate-limited geocoder means
+               no candidate, never a failed screen. A wider page than a typed
+               search's five, so a common name does not push the city off it. */
+            try {
+                $rows = $this->geocoder->search("{$name}, {$found['country']}", 10);
+            } catch (Throwable $e) {
+                Log::info('geocode.unavailable', ['search' => true, 'message' => $e->getMessage()]);
+
+                return null;
+            }
+
+            $match = collect($rows)
+                ->filter(fn (array $row) => in_array($row['kind'] ?? '', self::TRAVELLABLE, true)
+                    && ($row['country_code'] ?? null) === $found['country_code'])
+                ->map(fn (array $row) => [$row, $point->distanceTo(new GeoPoint($row['lat'], $row['lng']))])
+                ->filter(fn (array $pair) => $pair[1] <= $radius)
+                ->sortBy(fn (array $pair) => $pair[1])
+                ->first()[0] ?? null;
+
+            if ($match !== null) {
+                return [
+                    'city' => $match['name'],
+                    'country' => $match['country'] ?? $found['country'],
+                    'country_code' => $found['country_code'],
+                    'region' => $match['region'] ?? $found['region'],
+                    'osm_id' => $match['osm_id'],
+                    'lat' => $match['lat'],
+                    'lng' => $match['lng'],
+                    'kind' => $match['kind'],
+                ];
+            }
+        }
+
+        return null;
     }
 }
