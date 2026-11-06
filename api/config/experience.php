@@ -115,6 +115,8 @@ return [
      */
     'explore_city' => [
         'match_radius_metres' => 30000,
+        /* How far a district may be from the city it is named after. */
+        'candidate_radius_metres' => 50000,
         'events_radius_km' => 15,
         'events_limit' => 20,
         /* Listings change slowly and the provider meters by the day. */

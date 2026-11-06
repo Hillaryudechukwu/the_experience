@@ -105,6 +105,21 @@ class DateNightTest extends TestCase
             ->assertJsonPath('code', 'date_night_out_of_range');
     }
 
+    public function test_a_trip_that_has_already_ended_does_not_limit_the_date(): void
+    {
+        $this->evening();
+        $guest = GuestSession::create(['token' => Str::random(40)]);
+        $journey = $this->journey($this->destination, new Actor(guestSessionId: $guest->id), [
+            'starts_on' => '2026-10-20',
+            'ends_on' => '2026-10-25',
+        ]);
+
+        $this->plan(['date' => '2026-11-02', 'journey_id' => $journey->id], ['X-Guest-Token' => $guest->token])
+            ->assertOk();
+        $this->plan(['date' => '2026-11-06', 'journey_id' => $journey->id], ['X-Guest-Token' => $guest->token])
+            ->assertOk();
+    }
+
     public function test_a_future_date_is_planned_for_that_day_so_a_restaurant_closed_then_is_never_dinner(): void
     {
         $this->evening();

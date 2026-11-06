@@ -123,6 +123,40 @@ class ExploreCityTest extends TestCase
         $this->assertCount(2, $response->json('data.events'));
     }
 
+    public function test_a_district_is_offered_as_the_city_it_belongs_to(): void
+    {
+        /* What Nominatim really answers at zoom 10 in Lagos: a county with no
+           city in its address, only the state that shares the city's name. */
+        Http::fake([
+            'nominatim.test/reverse*' => Http::response([
+                'osm_type' => 'relation',
+                'osm_id' => 3718199,
+                'lat' => '6.5390',
+                'lon' => '3.3850',
+                'addresstype' => 'county',
+                'address' => ['county' => 'Shomolu', 'state' => 'Lagos', 'country' => 'Nigeria', 'country_code' => 'ng'],
+            ]),
+            'nominatim.test/search*' => Http::response([
+                [
+                    'osm_type' => 'relation', 'osm_id' => 3718182, 'name' => 'Lagos State', 'lat' => '6.55', 'lon' => '3.60',
+                    'addresstype' => 'state', 'address' => ['state' => 'Lagos', 'country' => 'Nigeria', 'country_code' => 'ng'],
+                ],
+                [
+                    'osm_type' => 'node', 'osm_id' => 29000, 'name' => 'Lagos', 'lat' => '6.4550', 'lon' => '3.3941',
+                    'addresstype' => 'city', 'address' => ['city' => 'Lagos', 'state' => 'Lagos', 'country' => 'Nigeria', 'country_code' => 'ng'],
+                ],
+            ]),
+        ]);
+
+        $response = $this->explore(['lat' => 6.5244, 'lng' => 3.3792]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.city', null)
+            ->assertJsonPath('data.candidate.name', 'Lagos')
+            ->assertJsonPath('data.candidate.country_code', 'NG');
+        $this->assertNotEmpty($response->json('data.candidate.candidate_token'));
+    }
+
     public function test_somewhere_that_is_not_a_city_gets_no_candidate(): void
     {
         Http::fake([
