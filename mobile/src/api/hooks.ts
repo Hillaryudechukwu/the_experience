@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, clearIdentity, http, setAuthToken } from './client';
 import { showAlert } from '../lib/alert';
@@ -8,6 +8,10 @@ import type {
   DestinationActivation,
   DestinationDetail,
   DestinationImport,
+  DateNightOptions,
+  DateNightSave,
+  DateNightSaved,
+  DateNightResponse,
   DiscoveryResponse,
   ExperienceCard,
   ExperienceDetail,
@@ -48,6 +52,7 @@ export const keys = {
   journal: (id: string) => ['journal', id] as const,
   recap: (journeyId: string) => ['recap', journeyId] as const,
   discovery: (surface: string, payload: unknown) => ['discovery', surface, payload] as const,
+  dateNight: (payload: unknown) => ['date-night', payload] as const,
   missionSuggestions: (reason: string, destination?: string | null, familiarity?: string | null) =>
     ['mission-suggestions', reason, destination ?? '', familiarity ?? ''] as const,
   notifications: () => ['notifications'] as const,
@@ -319,6 +324,43 @@ export function useSurpriseMe() {
   return useMutation({
     mutationFn: (payload: Record<string, unknown> = {}) =>
       http.post<{ data: ExperienceCard | null; message?: string }>('/discovery/surprise-me', discoveryPayload(payload)),
+  });
+}
+
+/**
+ * A date night for the given evening.
+ *
+ * A query rather than a mutation so the plan screen can be reopened or
+ * refreshed from its route alone. Not under the 'discovery' key on purpose:
+ * clearing today's mood or window must not throw away next week's plan.
+ */
+export function useDateNight(options: DateNightOptions | null, { nearMe }: { nearMe: boolean }) {
+  const session = useSession();
+  const { lat: _lat, lng: _lng, location_precision: _precision, ...cityWide } = discoveryPayload({ ...options }) as Record<string, unknown>;
+  /* Where the phone is now says where tonight starts. It says nothing about
+     next Saturday, which is planned around the city instead. */
+  const body = nearMe ? discoveryPayload({ ...options }) : cityWide;
+
+  return useQuery({
+    enabled: !!options && session.ready && (!!session.destinationId || !!session.coords),
+    queryKey: keys.dateNight(body),
+    queryFn: () => http.post<DateNightResponse>('/discovery/date-night', body),
+    staleTime: 5 * 60_000,
+    /* A swap re-plans the evening; keep the current one on screen meanwhile. */
+    placeholderData: keepPreviousData,
+    /* A 422 is an answer about the evening, not a blip worth retrying. */
+    retry: (count, error) => !(error instanceof ApiError && error.status === 422) && count < 2,
+  });
+}
+
+/** The whole evening in one request: every stop or none, plus the reminder on the day. */
+export function useSaveDateNight(tripId: string | null, itineraryId: string | null) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: DateNightSave) =>
+      wrapped(http.post<{ data: DateNightSaved }>(`/itineraries/${itineraryId}/date-night`, body)),
+    onSettled: () => client.invalidateQueries({ queryKey: keys.trip(tripId ?? '') }),
   });
 }
 

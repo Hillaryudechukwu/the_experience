@@ -51,8 +51,10 @@ class ContextEngine
         $destination ??= $journey?->destination;
 
         $timezone = $destination?->timezone ?? 'UTC';
+        /* A `now` without an offset ("2026-11-14 19:00") is a local time at
+           the destination, not in the server's zone. */
         $now = isset($input['now'])
-            ? CarbonImmutable::parse($input['now'])->setTimezone($timezone)
+            ? CarbonImmutable::parse($input['now'], $timezone)->setTimezone($timezone)
             : CarbonImmutable::now($timezone);
 
         $location = GeoPoint::fromArray($input) ?? $destination?->point();
@@ -81,8 +83,15 @@ class ContextEngine
             }
         }
 
+        /* Past the provider's horizon there is nothing to forecast. Asking
+           anyway came back as a clear, 0°C placeholder that scored and read
+           as if it were real. */
+        $horizon = CarbonImmutable::now($timezone)
+            ->addDays((int) config('experience.weather.forecast_days', 3) - 1)
+            ->endOfDay();
+
         $weather = null;
-        if ($location !== null) {
+        if ($location !== null && $now <= $horizon) {
             $weather = rescue(
                 fn () => $this->weather->forecast($location, $now, 12),
                 function (\Throwable $e) {

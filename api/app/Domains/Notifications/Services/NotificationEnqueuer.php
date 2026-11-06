@@ -9,6 +9,7 @@ use App\Domains\Destinations\Models\DestinationImport;
 use App\Domains\Notifications\Models\NotificationOutbox;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\Trips\Models\Itinerary;
+use App\Domains\Trips\Models\ItineraryItem;
 use App\Domains\Trips\Models\Trip;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -170,6 +171,85 @@ class NotificationEnqueuer
                 : 'There is a suggested change to your '.$city.' plan. Nothing moves until you accept it.',
             ['trip_id' => $trip->id, 'itinerary_id' => $proposal->id],
         );
+    }
+
+    /**
+     * One nudge on the day of a saved date night: mid-afternoon, or two hours
+     * before the first stop if the evening starts early. An evening saved too
+     * late for that needs no reminder; it was planned moments ago.
+     *
+     * @param  array<string, ItineraryItem>  $stops  keyed by role
+     */
+    public function dateNightPlanned(Actor $actor, Itinerary $itinerary, array $stops, string $timezone): ?NotificationOutbox
+    {
+        /* The earliest stop, not the first one handed over. */
+        $first = collect($stops)->sortBy(fn (ItineraryItem $item) => $item->starts_at->getTimestamp())->first();
+        if (! $first instanceof ItineraryItem) {
+            return null;
+        }
+
+        $startsAt = $first->starts_at->setTimezone($timezone);
+        $afternoon = $startsAt->setTimeFromTimeString((string) config('experience.date_night.reminder_at', '15:00'));
+        $twoHoursBefore = $startsAt->subHours(2);
+        $remindAt = $afternoon->lessThan($twoHoursBefore) ? $afternoon : $twoHoursBefore;
+
+        if (! $remindAt->greaterThan(CarbonImmutable::now())) {
+            return null;
+        }
+
+        $dinner = $stops['dinner'] ?? null;
+        $body = $dinner === null || $dinner === $first
+            ? sprintf('Your evening starts at %s with %s.', $startsAt->format('H:i'), $first->title)
+            : sprintf(
+                'Your evening starts at %s with %s, then dinner at %s at %s.',
+                $startsAt->format('H:i'),
+                $first->title,
+                $dinner->title,
+                $dinner->starts_at->setTimezone($timezone)->format('H:i'),
+            );
+
+        return $this->enqueue(
+            $actor,
+            'date_night_reminder',
+            'date_night_reminder:'.$first->id,
+            'Date night tonight',
+            $body,
+            [
+                'trip_id' => $itinerary->trip_id,
+                'itinerary_id' => $itinerary->id,
+                'starts_at' => $startsAt->toIso8601String(),
+                'item_ids' => array_values(array_map(fn (ItineraryItem $item) => $item->id, $stops)),
+            ],
+            $remindAt,
+        );
+    }
+
+    /**
+     * Taking one stop out of a date night still leaves an evening to remind
+     * about. Taking the last one out leaves nothing, so the reminder goes.
+     */
+    public function withdrawDateNightReminder(ItineraryItem $removed): int
+    {
+        $withdrawn = 0;
+
+        $rows = NotificationOutbox::query()
+            ->where('kind', 'date_night_reminder')
+            ->where('status', 'scheduled')
+            ->whereJsonContains('payload->item_ids', $removed->id)
+            ->get();
+
+        foreach ($rows as $row) {
+            $remaining = ItineraryItem::query()
+                ->whereIn('id', $row->payload['item_ids'] ?? [])
+                ->whereKeyNot($removed->id)
+                ->exists();
+
+            if (! $remaining) {
+                $withdrawn += $row->update(['status' => 'cancelled']) ? 1 : 0;
+            }
+        }
+
+        return $withdrawn;
     }
 
     /**

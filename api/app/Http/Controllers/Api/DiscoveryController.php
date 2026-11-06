@@ -12,6 +12,9 @@ use App\Domains\Discovery\Services\NameRelevance;
 use App\Domains\Discovery\Services\PrimaryActionComposer;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\Experiences\Services\ExperiencePresenter;
+use App\Domains\Itineraries\DTO\DateNightStop;
+use App\Domains\Itineraries\Services\DateNightPlanner;
+use App\Domains\Itineraries\Services\DateNightUnavailable;
 use App\Domains\Recommendations\DTO\ScoredExperience;
 use App\Domains\Recommendations\Services\RecommendationService;
 use Carbon\CarbonImmutable;
@@ -33,6 +36,7 @@ class DiscoveryController extends ApiController
         private readonly EnsureDestinationReadyForDiscovery $destinationReadiness,
         private readonly LiveIntentStore $liveIntents,
         private readonly PrimaryActionComposer $primary,
+        private readonly DateNightPlanner $dateNights,
     ) {}
 
     /** Spec s4.1 — "I'm Here Now". */
@@ -119,6 +123,82 @@ class DiscoveryController extends ApiController
         $this->liveIntents->clear($this->actor($request), $data, $data['clear']);
 
         return response()->json(['status' => 'cleared']);
+    }
+
+    /**
+     * An evening for two, tonight or on a later date.
+     *
+     * Not recorded as live intent, and not shaped by it: planning next
+     * week's date must leave today's Discover exactly as it was.
+     */
+    public function dateNight(Request $request): JsonResponse
+    {
+        $options = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d'],
+            'starts_at' => ['sometimes', 'nullable', 'date_format:H:i'],
+            'duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:120', 'max:360'],
+            'budget' => ['sometimes', 'nullable', Rule::in(array_keys(config('experience.date_night.budgets')))],
+            'include_nightcap' => ['sometimes', 'boolean'],
+            'pins' => ['sometimes', 'array:opener,dinner,nightcap'],
+            'pins.*' => ['uuid'],
+        ]);
+
+        try {
+            $plan = $this->dateNights->plan($this->actor($request), $this->common($request, 'date_night'), $options);
+        } catch (DateNightUnavailable $e) {
+            return response()->json(['code' => $e->reason, 'message' => $e->getMessage()], 422);
+        }
+
+        $weather = $plan->context->weather;
+
+        return response()->json([
+            'data' => $plan->stops === [] ? null : [
+                'date' => $plan->evening->start->toDateString(),
+                'starts_at' => $plan->evening->start->toIso8601String(),
+                'ends_at' => $plan->evening->end->toIso8601String(),
+                'stops' => array_map(fn (DateNightStop $stop) => [
+                    'role' => $stop->role,
+                    'starts_at' => $stop->startsAt->toIso8601String(),
+                    'ends_at' => $stop->endsAt->toIso8601String(),
+                    'travel_minutes_from_previous' => $stop->travelMinutesFromPrevious,
+                    'travel_mode' => $stop->travelMode,
+                    'experience' => $this->dateNightCard($stop->scored),
+                    'alternatives' => array_map(
+                        fn (ScoredExperience $alt) => $this->dateNightCard($alt),
+                        $stop->alternatives,
+                    ),
+                    'options' => $stop->options,
+                ], $plan->stops),
+                'weather' => $weather?->toArray(),
+                'weather_note' => $weather === null ? 'The forecast arrives closer to the day.' : null,
+            ],
+            'recommendation_set_id' => $plan->set?->id,
+            'context' => $this->contextPayload($plan->context),
+            'candidates_considered' => $plan->candidatesConsidered,
+            'notice' => $plan->notice,
+        ]);
+    }
+
+    /**
+     * A date-night stop's card, plus what it takes to get a table: whether the
+     * place needs booking, how far ahead, and how to reach it. It rides on each
+     * card rather than the stop, so a swap brings its own.
+     *
+     * @return array<string, mixed>
+     */
+    private function dateNightCard(ScoredExperience $scored): array
+    {
+        $experience = $scored->candidate->experience;
+        $place = $experience->place;
+
+        return $this->presenter->card($experience, $scored) + [
+            'booking' => [
+                'required' => (bool) $experience->requires_booking,
+                'lead_time_hours' => $experience->booking_lead_time_hours,
+                'phone' => $place?->phone,
+                'website' => $place?->website,
+            ],
+        ];
     }
 
     /** Spec s14.6 — a constrained "surprise me". */

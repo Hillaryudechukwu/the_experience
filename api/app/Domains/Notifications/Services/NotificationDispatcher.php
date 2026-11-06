@@ -279,6 +279,7 @@ class NotificationDispatcher
             str_starts_with($kind, 'booking_') => '/(tabs)/bookings',
             str_starts_with($kind, 'destination_import_') => '/(tabs)/index',
             str_starts_with($kind, 'replan_') => '/(tabs)/trip',
+            str_starts_with($kind, 'date_night_') => '/(tabs)/trip',
             default => '/account/notifications',
         };
     }
@@ -297,6 +298,7 @@ class NotificationDispatcher
             str_starts_with($row->kind, 'booking_') => 'Open WAYOA → Bookings to see the details.',
             str_starts_with($row->kind, 'destination_import_') => 'Open WAYOA → Discover to browse the city.',
             str_starts_with($row->kind, 'replan_') => 'Open WAYOA → Plan to review the suggested change. Nothing moves until you accept it.',
+            str_starts_with($row->kind, 'date_night_') => 'Open WAYOA → Plan to see the evening.',
             default => 'Open the WAYOA app for the full details.',
         };
 

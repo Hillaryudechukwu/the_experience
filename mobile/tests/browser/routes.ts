@@ -5,6 +5,9 @@
  * means adding one line here, and the checks that follow apply to it
  * automatically. A screen missing from this list is a screen nothing looks at.
  */
+/** Three days out: never "too late tonight" whenever CI runs, and inside the forecast. */
+export const DATE_NIGHT_DAY = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+
 export const ROUTES = [
   '/',
   '/map',
@@ -29,4 +32,6 @@ export const ROUTES = [
   '/onboarding/style',
   '/onboarding/mission',
   '/onboarding/ready',
+  '/date-night',
+  `/date-night?date=${DATE_NIGHT_DAY}&starts_at=19:00`,
 ] as const;

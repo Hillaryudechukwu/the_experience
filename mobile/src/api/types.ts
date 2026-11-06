@@ -175,6 +175,78 @@ export type DiscoveryResponse = {
   interpreted?: { understood_as: string[]; filters: Record<string, unknown> };
 };
 
+export type DateNightRole = 'opener' | 'dinner' | 'nightcap';
+
+/** What it takes to get a table, carried on each card so a swap brings its own. */
+export type DateNightBooking = {
+  required: boolean;
+  lead_time_hours: number | null;
+  phone: string | null;
+  website: string | null;
+};
+
+export type DateNightCard = ExperienceCard & { booking: DateNightBooking };
+
+export type DateNightStop = {
+  role: DateNightRole;
+  starts_at: string;
+  ends_at: string;
+  travel_minutes_from_previous: number | null;
+  travel_mode: string | null;
+  experience: DateNightCard;
+  /** Swaps for the same slot, scored for the same moment. */
+  alternatives: DateNightCard[];
+  /** The slot's choices in the planner's order, the shown one included; stable across swaps. */
+  options: string[];
+};
+
+export type DateNightOptions = {
+  /** Destination-local YYYY-MM-DD. */
+  date: string;
+  /** HH:mm, destination-local. */
+  starts_at?: string;
+  duration_minutes?: number;
+  budget?: 'low' | 'relaxed' | 'splurge';
+  include_nightcap?: boolean;
+  /** A swap: the slot fixed to one of its choices, the evening re-timed around it. */
+  pins?: Partial<Record<DateNightRole, string>>;
+};
+
+export type DateNightResponse = {
+  data: {
+    date: string;
+    starts_at: string;
+    ends_at: string;
+    stops: DateNightStop[];
+    weather: DiscoveryContext['weather'];
+    /** Set when the date is past the forecast. */
+    weather_note: string | null;
+  } | null;
+  /** Null when nothing fitted, which is not recorded as a recommendation. */
+  recommendation_set_id: string | null;
+  context: DiscoveryContext;
+  candidates_considered: number;
+  notice: string | null;
+};
+
+/** Why an evening could not be planned at all; the 422 body's `code`. */
+export type DateNightRefusal =
+  | 'date_night_in_past'
+  | 'date_night_out_of_range'
+  | 'date_night_too_late'
+  | 'date_night_clashes';
+
+export type DateNightSave = {
+  date: string;
+  stops: { role: DateNightRole; experience_id: string; starts_at: string; ends_at: string }[];
+};
+
+/** What saving an evening to the trip did; no reminder when its time has passed. */
+export type DateNightSaved = {
+  items: { id: string; title: string; starts_at: string; ends_at: string }[];
+  reminder_at: string | null;
+};
+
 export type Destination = {
   id: string;
   slug: string;
