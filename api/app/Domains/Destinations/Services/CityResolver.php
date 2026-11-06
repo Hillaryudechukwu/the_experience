@@ -158,7 +158,18 @@ class CityResolver
         $radius = (int) config('experience.explore_city.candidate_radius_metres', 50000);
 
         foreach (array_unique(array_filter([$found['city'], $found['region']])) as $name) {
-            $match = collect($this->geocoder->search("{$name}, {$found['country']}"))
+            /* Guarded like the reverse lookup: a rate-limited geocoder means
+               no candidate, never a failed screen. A wider page than a typed
+               search's five, so a common name does not push the city off it. */
+            try {
+                $rows = $this->geocoder->search("{$name}, {$found['country']}", 10);
+            } catch (Throwable $e) {
+                Log::info('geocode.unavailable', ['search' => true, 'message' => $e->getMessage()]);
+
+                return null;
+            }
+
+            $match = collect($rows)
                 ->filter(fn (array $row) => in_array($row['kind'] ?? '', self::TRAVELLABLE, true)
                     && ($row['country_code'] ?? null) === $found['country_code'])
                 ->map(fn (array $row) => [$row, $point->distanceTo(new GeoPoint($row['lat'], $row['lng']))])

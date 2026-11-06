@@ -8,12 +8,14 @@ use App\Domains\Analytics\Models\BehaviouralEvent;
 use App\Domains\Destinations\Enums\DestinationCoverageStatus;
 use App\Domains\Destinations\Models\Destination;
 use App\Domains\Discovery\Services\EventFinder;
+use App\Domains\ExternalSources\Providers\NominatimGeocoder;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
+use RuntimeException;
 use Tests\Support\BuildsTravelScenarios;
 use Tests\TestCase;
 
@@ -155,6 +157,49 @@ class ExploreCityTest extends TestCase
             ->assertJsonPath('data.candidate.name', 'Lagos')
             ->assertJsonPath('data.candidate.country_code', 'NG');
         $this->assertNotEmpty($response->json('data.candidate.candidate_token'));
+    }
+
+    public function test_a_borough_is_offered_as_the_city_named_in_its_address(): void
+    {
+        /* Manhattan: the address names the city, but the answer is a suburb. */
+        Http::fake([
+            'nominatim.test/reverse*' => Http::response([
+                'osm_type' => 'relation',
+                'osm_id' => 8398124,
+                'lat' => '40.7834',
+                'lon' => '-73.9663',
+                'addresstype' => 'suburb',
+                'address' => ['suburb' => 'Manhattan', 'city' => 'New York', 'state' => 'New York', 'country' => 'United States', 'country_code' => 'us'],
+            ]),
+            'nominatim.test/search*' => Http::response([
+                [
+                    'osm_type' => 'relation', 'osm_id' => 175905, 'name' => 'City of New York', 'lat' => '40.7127', 'lon' => '-74.0060',
+                    'addresstype' => 'city', 'address' => ['city' => 'City of New York', 'state' => 'New York', 'country' => 'United States', 'country_code' => 'us'],
+                ],
+            ]),
+        ]);
+
+        $this->explore(['lat' => 40.7128, 'lng' => -74.0060])
+            ->assertOk()
+            ->assertJsonPath('data.candidate.name', 'City of New York')
+            ->assertJsonPath('data.candidate.country_code', 'US');
+    }
+
+    public function test_a_failing_city_search_means_no_candidate_not_a_failed_screen(): void
+    {
+        /* OutboundHttp throws once Nominatim's one-a-second limit is reached. */
+        $this->mock(NominatimGeocoder::class, function ($mock) {
+            $mock->shouldReceive('reverse')->andReturn([
+                'city' => null, 'country' => 'Nigeria', 'country_code' => 'NG', 'region' => 'Lagos',
+                'osm_id' => 'relation/3718199', 'lat' => 6.539, 'lng' => 3.385, 'kind' => 'county',
+            ]);
+            $mock->shouldReceive('search')->andThrow(new RuntimeException('Rate limit reached for nominatim.'));
+        });
+
+        $this->explore(['lat' => 6.5244, 'lng' => 3.3792])
+            ->assertOk()
+            ->assertJsonPath('data.city', null)
+            ->assertJsonPath('data.candidate', null);
     }
 
     public function test_somewhere_that_is_not_a_city_gets_no_candidate(): void
