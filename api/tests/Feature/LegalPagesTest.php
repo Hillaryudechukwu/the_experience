@@ -27,9 +27,10 @@ class LegalPagesTest extends TestCase
     {
         $page = $this->get('/legal/delete-account')->assertOk();
 
-        $page->assertSee('Delete your account', false);
-        $page->assertSee('Delete in the app', false);
-        $page->assertSee('Request deletion by email', false);
+        $page->assertSee('How to request deletion', false);
+        $page->assertSee('Data that is deleted', false);
+        $page->assertSee('Data that is kept, and for how long', false);
+        $page->assertSee('Typically up to six years', false);
         $page->assertSee('not</strong> cancel', false);
     }
 

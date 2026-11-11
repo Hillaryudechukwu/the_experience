@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Delete your account — {{ config('app.name') }}</title>
-  <meta name="description" content="Request deletion of your {{ config('app.name') }} account and associated data.">
+  <title>Delete your {{ config('app.name') }} account and data</title>
+  <meta name="description" content="How to request deletion of your {{ config('app.name') }} account and associated data.">
   <style>
     :root { color-scheme: light dark; --ink: #0D1B2A; --muted: #4A5468; --rule: #E4E8EF; --bg: #FFFFFF; --accent: #2856F6; }
     @media (prefers-color-scheme: dark) {
@@ -33,54 +33,73 @@
       margin: 24px 0;
     }
     .box p:last-child { margin-bottom: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.9rem; display: block; overflow-x: auto; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    th { color: var(--ink); font-weight: 600; white-space: nowrap; }
+    td { color: var(--muted); }
   </style>
 </head>
 <body>
 <main>
-  <h1>Delete your account</h1>
-  <p class="updated">{{ config('app.name') }} · Account and data deletion</p>
+  <h1>Delete your {{ config('app.name') }} account and data</h1>
+  <p class="updated">{{ config('app.name') }} · Request account and data deletion</p>
 
   <p class="lede">
-    You can erase your {{ config('app.name') }} account and the data attached to it at any time.
-    Deletion is immediate and cannot be undone.
+    This page is for the {{ config('app.name') }} app. You can request that we delete your account
+    and the personal data we hold about you. Deletion is immediate once we process the request
+    and cannot be undone.
   </p>
 
-  <h2>Delete in the app (fastest)</h2>
+  <h2>How to request deletion</h2>
+  <p><strong>In the app (fastest)</strong></p>
   <ol>
-    <li>Open {{ config('app.name') }} on your phone.</li>
-    <li>Go to <strong>You</strong>, or open the subscription screen.</li>
+    <li>Open the {{ config('app.name') }} app on your phone.</li>
+    <li>Go to <strong>You</strong>, or open the subscription / paywall screen.</li>
     <li>Tap <strong>Delete your account</strong> and confirm.</li>
   </ol>
   <p>
-    Guests can erase their data the same way. If you signed in with email, you will be asked for
-    your password. If you signed in with Google or Apple, you will be asked to confirm with that
-    provider.
+    Guests can erase their data the same way. Email sign-in asks for your password. Google or
+    Apple sign-in asks you to confirm with that provider.
   </p>
 
-  <h2>Request deletion by email</h2>
   <div class="box">
-    <p>
-      If you cannot use the app, email
-      <a href="mailto:{{ $contact }}?subject={{ rawurlencode(config('app.name').' account deletion request') }}">{{ $contact }}</a>
-      from the address on your account.
-    </p>
-    <p>
-      Include the subject line <strong>{{ config('app.name') }} account deletion request</strong>
-      and the email address of the account you want deleted. We will delete the account and
-      associated data, then confirm by email.
-    </p>
+    <p><strong>By email</strong> — if you cannot use the app:</p>
+    <ol>
+      <li>Email <a href="mailto:{{ $contact }}?subject={{ rawurlencode(config('app.name').' data deletion request') }}">{{ $contact }}</a> from the address on your account (or the email you used as a guest, if any).</li>
+      <li>Use the subject line <strong>{{ config('app.name') }} data deletion request</strong>.</li>
+      <li>Include the account email (or enough detail for us to find your data) and say you want your account and associated data deleted.</li>
+    </ol>
+    <p>We will delete the data, then confirm by email.</p>
   </div>
 
-  <h2>What is deleted</h2>
-  <p>
-    Your profile, trips, plans, saved and completed places, guide conversations, preferences,
-    stored location context, account record, and sign-in tokens.
-  </p>
-  <p>
-    <strong>One exception.</strong> A booking that was paid for or confirmed with a supplier is
-    kept as an anonymous ledger line (amount, date, supplier reference) for tax and consumer-protection
-    reasons. Traveller names and every link to you are removed.
-  </p>
+  <h2>Data that is deleted</h2>
+  <p>When deletion completes, we erase:</p>
+  <ul>
+    <li>Account record (name, email, hashed password) and sign-in tokens</li>
+    <li>Profile and preferences (interests, pace, budget, accessibility needs)</li>
+    <li>Trips, plans, saved and completed places, journal notes</li>
+    <li>Stored location context</li>
+    <li>Guide / assistant conversations</li>
+    <li>Behavioural events (opens, saves, ignores)</li>
+    <li>Push notification device tokens</li>
+    <li>Subscription entitlement records we hold for your account</li>
+  </ul>
+
+  <h2>Data that is kept, and for how long</h2>
+  <table>
+    <tr>
+      <th>Kept</th>
+      <td>Paid or confirmed booking ledger only: amount, date, and the supplier’s reference. Traveller names and every link to you are removed — it is an anonymous line, not your account.</td>
+    </tr>
+    <tr>
+      <th>Why</th>
+      <td>Tax and consumer-protection obligations (and supplier / payment disputes).</td>
+    </tr>
+    <tr>
+      <th>Retention</th>
+      <td>Typically up to six years, then deleted. Bookings that never reached payment are deleted outright with your account.</td>
+    </tr>
+  </table>
   <p>
     Deleting your {{ config('app.name') }} account does <strong>not</strong> cancel a Google Play
     or App Store subscription. Manage that in your store account.
@@ -88,8 +107,8 @@
 
   <h2>Related</h2>
   <ul>
-    <li><a href="{{ $privacyUrl }}">Privacy Policy</a></li>
-    <li><a href="{{ $termsUrl }}">Terms of Use</a></li>
+    <li><a href="{{ $privacyUrl }}">{{ config('app.name') }} Privacy Policy</a></li>
+    <li><a href="{{ $termsUrl }}">{{ config('app.name') }} Terms of Use</a></li>
   </ul>
 
   <hr>
