@@ -709,6 +709,12 @@ return [
         'terms_updated' => env('EXPERIENCE_TERMS_UPDATED', '18 October 2026'),
         'terms_url' => env('TERMS_URL'),
 
+        /*
+         * Public URL for Play Data safety / store account-deletion requests.
+         * In-app deletion remains primary; this is the listing and email path.
+         */
+        'delete_account_url' => env('DELETE_ACCOUNT_URL'),
+
         /* What the terms say the month costs. The store is what actually
            charges, and shows its own localised price before confirming. */
         'subscription_price' => env('BILLING_PRICE_LABEL', '£1.99'),
