@@ -525,12 +525,24 @@ destinations_json="$(curl --fail --silent --show-error --max-time 30 "${API_ORIG
 node -e 'JSON.parse(process.argv[1])' "$destinations_json"
 printf "Verified JSON: %s/api/destinations\n" "${API_ORIGIN%/}"
 
-printf "%bPublishing privacy policy and App Link association files on the web host...%b\n" "$YELLOW" "$NC"
-mkdir -p "$SCRIPT_DIR/mobile/dist/.well-known"
+printf "%bPublishing privacy, terms, and App Link association files on the web host...%b\n" "$YELLOW" "$NC"
+mkdir -p "$SCRIPT_DIR/mobile/dist/.well-known" "$SCRIPT_DIR/mobile/dist/legal"
 rsync --archive --compress \
     -e "$API_RSYNC_SHELL" \
     "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/privacy.html" \
     "$SCRIPT_DIR/mobile/dist/privacy"
+rsync --archive --compress \
+    -e "$API_RSYNC_SHELL" \
+    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/privacy.html" \
+    "$SCRIPT_DIR/mobile/dist/legal/privacy"
+rsync --archive --compress \
+    -e "$API_RSYNC_SHELL" \
+    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/terms.html" \
+    "$SCRIPT_DIR/mobile/dist/legal/terms"
+rsync --archive --compress \
+    -e "$API_RSYNC_SHELL" \
+    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/delete-account.html" \
+    "$SCRIPT_DIR/mobile/dist/legal/delete-account"
 
 publish_well_known_json() {
     local name="$1"
@@ -587,6 +599,18 @@ publish_well_known_json \
     "false" \
     "Set APP_LINKS_IOS_TEAM_ID to the Apple Developer Team ID."
 
+# Google Search Console verification + crawl hints for the Expo web host.
+# Kept outside mobile/dist generation so expo export --clear cannot wipe them.
+if [[ ! -d "$SCRIPT_DIR/web/seo" ]]; then
+    printf "%bMissing web/seo directory (Google verification, robots, sitemap).%b\n" "$RED" "$NC" >&2
+    exit 1
+fi
+cp -f -- \
+    "$SCRIPT_DIR/web/seo/googlebf5873417f9d70f5.html" \
+    "$SCRIPT_DIR/web/seo/robots.txt" \
+    "$SCRIPT_DIR/web/seo/sitemap.xml" \
+    "$SCRIPT_DIR/mobile/dist/"
+
 # Extensionless AASA files are served without a MIME type on LiteSpeed unless
 # ForceType is set — Apple rejects anything that is not application/json.
 cat > "$SCRIPT_DIR/mobile/dist/.well-known/.htaccess" <<'EOF'
@@ -599,7 +623,21 @@ EOF
 # Expo web is a single-page app: deep links like /onboarding/purpose have no
 # file on disk. Without this fallback LiteSpeed 404s the route before the
 # client router can take over — which is how fresh onboarding dies on web.
+# Extensionless /privacy and /legal/{privacy,terms,delete-account} must still
+# advertise text/html so App Store / Play crawlers accept the listing URLs.
 cat > "$SCRIPT_DIR/mobile/dist/.htaccess" <<'EOF'
+<IfModule mod_mime.c>
+  <Files "privacy">
+    ForceType text/html
+  </Files>
+  <Files "terms">
+    ForceType text/html
+  </Files>
+  <Files "delete-account">
+    ForceType text/html
+  </Files>
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -638,6 +676,12 @@ check_200() {
 
 check_200 "${WEB_ORIGIN%/}/" "web HTML"
 check_200 "$PRIVACY_URL" "privacy policy"
+check_200 "${WEB_ORIGIN%/}/legal/terms" "terms of use"
+check_200 "${WEB_ORIGIN%/}/legal/privacy" "legal privacy page"
+check_200 "${WEB_ORIGIN%/}/legal/delete-account" "account deletion page"
+check_200 "${WEB_ORIGIN%/}/googlebf5873417f9d70f5.html" "Google Search Console verification"
+check_200 "${WEB_ORIGIN%/}/robots.txt" "robots.txt"
+check_200 "${WEB_ORIGIN%/}/sitemap.xml" "sitemap.xml"
 
 # Fetch once more after all deployment work so API failure cannot be masked by
 # the earlier artifact-generation request.

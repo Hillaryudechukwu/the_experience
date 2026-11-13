@@ -20,6 +20,18 @@ class LegalPagesTest extends TestCase
     {
         $this->get('/legal/privacy')->assertOk();
         $this->get('/legal/terms')->assertOk();
+        $this->get('/legal/delete-account')->assertOk();
+    }
+
+    public function test_the_delete_account_page_explains_in_app_and_email_paths(): void
+    {
+        $page = $this->get('/legal/delete-account')->assertOk();
+
+        $page->assertSee('How to request deletion', false);
+        $page->assertSee('Data that is deleted', false);
+        $page->assertSee('Data that is kept, and for how long', false);
+        $page->assertSee('Typically up to six years', false);
+        $page->assertSee('not</strong> cancel', false);
     }
 
     public function test_the_terms_state_what_the_stores_require(): void
@@ -68,7 +80,7 @@ class LegalPagesTest extends TestCase
         $this->artisan('experience:export-legal', ['--path' => $directory])
             ->assertSuccessful();
 
-        foreach (['privacy.html', 'terms.html'] as $name) {
+        foreach (['privacy.html', 'terms.html', 'delete-account.html'] as $name) {
             $file = base_path($directory . '/' . $name);
             $this->assertFileExists($file);
             $this->assertStringContainsString('<!doctype html>', File::get($file));

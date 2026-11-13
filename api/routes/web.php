@@ -17,6 +17,7 @@ Route::get('/legal/privacy', function () {
         'updated' => config('experience.legal.privacy_updated', 'September 2026'),
         'contact' => config('experience.legal.privacy_contact') ?: 'privacy@example.com',
         'termsUrl' => config('experience.legal.terms_url') ?: route('legal.terms'),
+        'deleteAccountUrl' => route('legal.delete-account'),
     ]);
 })->name('legal.privacy');
 
@@ -33,6 +34,20 @@ Route::get('/legal/terms', function () {
         'privacyUrl' => config('experience.legal.privacy_url') ?: route('legal.privacy'),
     ]);
 })->name('legal.terms');
+
+/*
+ * Google Play Data safety (and Apple's account-deletion rules) require a URL
+ * outside the app where someone can ask for erasure. The in-app control is the
+ * primary path; this page is the store-listing link and the fallback when the
+ * app is not installed.
+ */
+Route::get('/legal/delete-account', function () {
+    return view('legal.delete-account', [
+        'contact' => config('experience.legal.privacy_contact') ?: 'privacy@example.com',
+        'privacyUrl' => config('experience.legal.privacy_url') ?: route('legal.privacy'),
+        'termsUrl' => config('experience.legal.terms_url') ?: route('legal.terms'),
+    ]);
+})->name('legal.delete-account');
 
 /*
  * ── Deep-link association (Android App Links, iOS Universal Links) ────────

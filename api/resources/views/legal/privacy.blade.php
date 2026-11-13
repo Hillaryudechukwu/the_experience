@@ -98,7 +98,7 @@
   <ul>
     <li><strong>Export</strong> — get a copy of everything held about you.</li>
     <li><strong>Forget where I have been</strong> — delete stored location context without deleting anything else.</li>
-    <li><strong>Delete account</strong> — erase your account and everything attached to it.</li>
+    <li><strong>Delete account</strong> — erase your account and everything attached to it. Steps and the email fallback are on the <a href="{{ $deleteAccountUrl ?? route('legal.delete-account') }}">delete your account</a> page.</li>
   </ul>
 
   <h3>What deletion does, precisely</h3>

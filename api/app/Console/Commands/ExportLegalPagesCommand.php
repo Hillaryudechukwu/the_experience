@@ -34,17 +34,27 @@ class ExportLegalPagesCommand extends Command
 
         $contact = config('experience.legal.privacy_contact') ?: 'privacy@example.com';
 
+        $privacyUrl = config('experience.legal.privacy_url') ?: route('legal.privacy');
+        $termsUrl = config('experience.legal.terms_url') ?: route('legal.terms');
+        $deleteAccountUrl = config('experience.legal.delete_account_url') ?: route('legal.delete-account');
+
         $pages = [
             'privacy.html' => view('legal.privacy', [
                 'updated' => config('experience.legal.privacy_updated'),
                 'contact' => $contact,
-                'termsUrl' => config('experience.legal.terms_url') ?: route('legal.terms'),
+                'termsUrl' => $termsUrl,
+                'deleteAccountUrl' => $deleteAccountUrl,
             ]),
             'terms.html' => view('legal.terms', [
                 'updated' => config('experience.legal.terms_updated'),
                 'contact' => $contact,
                 'price' => config('experience.legal.subscription_price'),
-                'privacyUrl' => config('experience.legal.privacy_url') ?: route('legal.privacy'),
+                'privacyUrl' => $privacyUrl,
+            ]),
+            'delete-account.html' => view('legal.delete-account', [
+                'contact' => $contact,
+                'privacyUrl' => $privacyUrl,
+                'termsUrl' => $termsUrl,
             ]),
         ];
 
@@ -55,9 +65,13 @@ class ExportLegalPagesCommand extends Command
         }
 
         $this->line('');
-        $this->line('Publish both, then give both URLs to the store listings. A subscription needs the terms link as well as the policy.');
+        $this->line('Publish privacy, terms, and delete-account, then give the URLs to the store listings.');
 
-        foreach (['PRIVACY_POLICY_URL' => 'privacy_url', 'TERMS_URL' => 'terms_url'] as $variable => $key) {
+        foreach ([
+            'PRIVACY_POLICY_URL' => 'privacy_url',
+            'TERMS_URL' => 'terms_url',
+            'DELETE_ACCOUNT_URL' => 'delete_account_url',
+        ] as $variable => $key) {
             $configured = config('experience.legal.' . $key);
 
             if (blank($configured)) {
