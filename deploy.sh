@@ -599,6 +599,18 @@ publish_well_known_json \
     "false" \
     "Set APP_LINKS_IOS_TEAM_ID to the Apple Developer Team ID."
 
+# Google Search Console verification + crawl hints for the Expo web host.
+# Kept outside mobile/dist generation so expo export --clear cannot wipe them.
+if [[ ! -d "$SCRIPT_DIR/web/seo" ]]; then
+    printf "%bMissing web/seo directory (Google verification, robots, sitemap).%b\n" "$RED" "$NC" >&2
+    exit 1
+fi
+cp -f -- \
+    "$SCRIPT_DIR/web/seo/googlebf5873417f9d70f5.html" \
+    "$SCRIPT_DIR/web/seo/robots.txt" \
+    "$SCRIPT_DIR/web/seo/sitemap.xml" \
+    "$SCRIPT_DIR/mobile/dist/"
+
 # Extensionless AASA files are served without a MIME type on LiteSpeed unless
 # ForceType is set — Apple rejects anything that is not application/json.
 cat > "$SCRIPT_DIR/mobile/dist/.well-known/.htaccess" <<'EOF'
@@ -667,6 +679,9 @@ check_200 "$PRIVACY_URL" "privacy policy"
 check_200 "${WEB_ORIGIN%/}/legal/terms" "terms of use"
 check_200 "${WEB_ORIGIN%/}/legal/privacy" "legal privacy page"
 check_200 "${WEB_ORIGIN%/}/legal/delete-account" "account deletion page"
+check_200 "${WEB_ORIGIN%/}/googlebf5873417f9d70f5.html" "Google Search Console verification"
+check_200 "${WEB_ORIGIN%/}/robots.txt" "robots.txt"
+check_200 "${WEB_ORIGIN%/}/sitemap.xml" "sitemap.xml"
 
 # Fetch once more after all deployment work so API failure cannot be masked by
 # the earlier artifact-generation request.
