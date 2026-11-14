@@ -172,10 +172,18 @@ class SubscriptionEntitlementTest extends TestCase
         ], ['X-Guest-Token' => $token])->assertOk();
 
         $destinationId = $this->getJson('/api/destinations?q=london')->json('data.0.id');
-        $this->postJson('/api/journeys', [
+        $journeyId = $this->postJson('/api/journeys', [
             'destination_id' => $destinationId,
             'reason' => 'holiday',
-        ], ['X-Guest-Token' => $token])->assertCreated();
+        ], ['X-Guest-Token' => $token])->assertCreated()->json('data.id');
+
+        /* Trips are the product. Free setup must not require creating one —
+           otherwise onboarding dies on a 402 before the paywall. */
+        $this->postJson('/api/trips', [
+            'journey_id' => $journeyId,
+        ], ['X-Guest-Token' => $token])
+            ->assertStatus(402)
+            ->assertJsonPath('code', 'subscription_required');
 
         $this->deleteJson('/api/auth/account', [], ['X-Guest-Token' => $token])->assertOk();
     }

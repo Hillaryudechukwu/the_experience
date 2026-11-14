@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useCreateJourney, useCreateTrip, useUpdateProfile } from '../../src/api/hooks';
+import { useCreateJourney, useUpdateProfile } from '../../src/api/hooks';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Gutter, Note, Row, Screen, SectionHeader, T } from '../../src/components/primitives';
 import { DateRangeCalendar } from '../../src/components/DateRangeCalendar';
-import { isoDate, stayBounds, stayDayCount, stayRangeLabel } from '../../src/lib/format';
+import { isoDate, stayBounds, stayRangeLabel } from '../../src/lib/format';
 import { useOnboardingDraft } from '../../src/store/draft';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
@@ -41,9 +41,8 @@ export default function TravelStyle() {
 
   const updateProfile = useUpdateProfile();
   const createJourney = useCreateJourney();
-  const createTrip = useCreateTrip();
 
-  const busy = updateProfile.isPending || createJourney.isPending || createTrip.isPending;
+  const busy = updateProfile.isPending || createJourney.isPending;
 
   const finish = async () => {
     setError(null);
@@ -59,10 +58,11 @@ export default function TravelStyle() {
       });
 
       if (session.destinationId && draft.reason) {
-        /* Skipping this screen is still allowed, and still has to produce a
-           trip. Without dates we fall back to the old behaviour — three days
-           from today — rather than creating a journey with no dates at all,
-           which the planner would read the same way anyway. */
+        /* Setup is free; the trip is not. Journeys stay open without a month
+           so onboarding can finish under BILLING_ENFORCED. POST /trips is
+           behind the paywall — ready / Plan create one only after can_use.
+           Without dates we fall back to three days from today rather than a
+           journey with no dates at all. */
         const fallback = stayBounds(3, new Date(), session.destinationTimezone ?? undefined);
 
         /* Both halves or neither. Falling back independently paired a chosen
@@ -86,8 +86,6 @@ export default function TravelStyle() {
         });
 
         await session.setJourney(journey.id);
-        const trip = await createTrip.mutateAsync(journey.id);
-        await session.setTrip(trip.id);
       }
 
       await session.completeOnboarding();
@@ -98,20 +96,12 @@ export default function TravelStyle() {
     }
   };
 
-  /* One day or several, read from the dates themselves now that we have them
-     rather than from a preset that no longer exists. */
-  const plannedDays = stayDayCount(draft.startsOn, draft.endsOn);
-
   /* An arrival with no departure is not an answer. The edit screen refuses to
      save one for the same reason; here the CTA sits directly under the
      calendar, so without this a stray tap books a one-day trip. */
   const rangeIncomplete = !!draft.startsOn && !draft.endsOn;
 
-  const finishLabel = busy
-    ? (plannedDays ?? 3) > 1
-      ? 'Building your itinerary…'
-      : 'Building your day…'
-    : 'Show me what is worth doing';
+  const finishLabel = busy ? 'Saving your setup…' : 'Show me what is worth doing';
 
   return (
     <Screen>

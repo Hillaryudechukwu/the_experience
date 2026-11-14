@@ -22,6 +22,10 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.experience.synteric.co.uk/api",
         "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy",
+        "EXPO_PUBLIC_TERMS_URL": "https://experience.synteric.co.uk/legal/terms",
+        "EXPO_PUBLIC_SUBSCRIPTION_PRICE": "£1.99",
+        "EXPO_PUBLIC_APPLE_PRODUCT_ID": "wayoa.monthly",
+        "EXPO_PUBLIC_GOOGLE_PRODUCT_ID": "wayoa_monthly",
         "EXPO_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1057354438819-p9kta7utpv59qvkqhsnd74mrns7u6n31.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1057354438819-8c1h7ukdcve8fu987u14pvs7b7sbble9.apps.googleusercontent.com",
@@ -36,6 +40,10 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.experience.synteric.co.uk/api",
         "EXPO_PUBLIC_PRIVACY_URL": "https://experience.synteric.co.uk/privacy",
+        "EXPO_PUBLIC_TERMS_URL": "https://experience.synteric.co.uk/legal/terms",
+        "EXPO_PUBLIC_SUBSCRIPTION_PRICE": "£1.99",
+        "EXPO_PUBLIC_APPLE_PRODUCT_ID": "wayoa.monthly",
+        "EXPO_PUBLIC_GOOGLE_PRODUCT_ID": "wayoa_monthly",
         "EXPO_PUBLIC_GOOGLE_AUTH_ENABLED": "true",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1057354438819-p9kta7utpv59qvkqhsnd74mrns7u6n31.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "1057354438819-8c1h7ukdcve8fu987u14pvs7b7sbble9.apps.googleusercontent.com",
