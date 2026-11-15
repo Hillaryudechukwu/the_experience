@@ -132,6 +132,8 @@ class AuthenticateWithIdentityToken
         return User::create([
             'name' => is_string($name) && trim($name) !== '' ? trim($name) : 'Traveller',
             'email' => Str::lower($email),
+            /* Provider already confirmed the mailbox. */
+            'email_verified_at' => now(),
         ]);
     }
 }

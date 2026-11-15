@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { ApiError } from '../../src/api/client';
 import { useRegister } from '../../src/api/hooks';
+import { PasswordField } from '../../src/components/PasswordField';
 import { SocialSignIn } from '../../src/components/SocialSignIn';
 import { WayoaLogo } from '../../src/components/WayoaLogo';
 import { Button, Gutter, Note, Screen, T } from '../../src/components/primitives';
@@ -37,10 +38,7 @@ export default function Register() {
 
     try {
       await register.mutateAsync({ name: trimmedName, email: trimmedEmail, password });
-      /* Navigate first — on native, presenting an alert before replace can leave
-         the stack looking unchanged if the alert is dismissed oddly. */
-      router.replace('/(tabs)/you');
-      showAlert('Account created', 'Your guest saves, plans and bookings are now on this account.');
+      router.replace('/account/verify-email');
     } catch (cause) {
       const message =
         cause instanceof ApiError
@@ -80,24 +78,17 @@ export default function Register() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Field
+        <PasswordField
           label="Password"
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
           textContentType="newPassword"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
         />
 
         <Note>Use at least 8 characters. We never see your password in plain text after you submit.</Note>
 
-        {error ? (
-          <Note tone="warning">
-            {error}
-          </Note>
-        ) : null}
+        {error ? <Note tone="warning">{error}</Note> : null}
 
         <Button label={register.isPending ? 'Creating…' : 'Create account'} onPress={submit} disabled={register.isPending} />
         <SocialSignIn
@@ -117,7 +108,6 @@ function Field({
   label,
   value,
   onChange,
-  secureTextEntry,
   autoComplete,
   textContentType,
   keyboardType,
@@ -127,7 +117,6 @@ function Field({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  secureTextEntry?: boolean;
   autoComplete?: 'name' | 'email' | 'new-password' | 'password';
   textContentType?: 'name' | 'emailAddress' | 'newPassword' | 'password';
   keyboardType?: 'email-address' | 'default';
@@ -145,13 +134,11 @@ function Field({
         accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
-        secureTextEntry={secureTextEntry}
         autoComplete={autoComplete}
         textContentType={textContentType}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoCorrect={autoCorrect}
-        /* Stop iOS from uppercasing the first password character. */
         spellCheck={false}
         importantForAutofill="yes"
         placeholderTextColor={colors.text.tertiary}
@@ -164,7 +151,6 @@ function Field({
           color: colors.text.primary,
           backgroundColor: colors.background.elevated,
           minHeight: 48,
-          /* Prevents iOS zoom-on-focus that can leave the submit control off-screen. */
           fontSize: Platform.OS === 'web' ? 16 : 17,
         }}
       />

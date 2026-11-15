@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Linking, Pressable, TextInput, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useDeleteAccount, useProfile } from '../../src/api/hooks';
 import { SocialSignIn, type IdentityProof } from '../../src/components/SocialSignIn';
 import { Icon } from '../../src/components/Icon';
+import { PasswordField } from '../../src/components/PasswordField';
 import { Button, Card, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { confirmAction, showAlert } from '../../src/lib/alert';
 import { PRIVACY_POLICY_URL, STORE_NAME, SUBSCRIPTION_SETTINGS_URL, TERMS_URL } from '../../src/lib/legal';
 import { useSession } from '../../src/store/session';
-import { radius, space, TOUCH_TARGET, useTheme } from '../../src/theme';
+import { space, useTheme } from '../../src/theme';
 import { useBackTo } from '../../src/lib/navigation';
 
 /**
@@ -159,33 +160,14 @@ export default function DeleteAccount() {
 
         {/* ── Proof of identity ────────────────────────────────────────── */}
         {!isGuest && !providerOnly ? (
-          <View style={{ gap: space.xs }}>
-            <T variant="label" color={colors.text.tertiary}>
-              Confirm your password
-            </T>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="current-password"
-              textContentType="password"
-              placeholder="Your password"
-              placeholderTextColor={colors.text.tertiary}
-              accessibilityLabel="Your password"
-              style={{
-                minHeight: TOUCH_TARGET,
-                borderWidth: 1,
-                borderColor: colors.border.strong,
-                borderRadius: radius.control,
-                paddingHorizontal: space.md,
-                color: colors.text.primary,
-                backgroundColor: colors.background.elevated,
-                fontSize: 16,
-              }}
-            />
-          </View>
+          <PasswordField
+            label="Confirm your password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+            textContentType="password"
+            placeholder="Your password"
+          />
         ) : null}
 
         {providerOnly ? (

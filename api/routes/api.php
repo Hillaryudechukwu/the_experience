@@ -62,6 +62,14 @@ Route::middleware(['guest.actor', 'throttle:api'])->group(function () {
     Route::post('auth/google', [AuthController::class, 'google']);
     Route::post('auth/apple', [AuthController::class, 'apple']);
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    Route::post('auth/password/forgot', [AuthController::class, 'forgotPassword'])
+        ->middleware('throttle:5,1');
+    Route::post('auth/password/reset', [AuthController::class, 'resetPassword'])
+        ->middleware('throttle:10,1');
+    Route::post('auth/email/verification-notification', [AuthController::class, 'sendVerificationEmail'])
+        ->middleware(['auth:sanctum', 'throttle:6,1']);
+    Route::post('auth/email/verify', [AuthController::class, 'verifyEmail'])
+        ->middleware('throttle:10,1');
     /* Guests included: the erasure is the same, they simply have no password
        to re-enter and no user row at the end of it. */
     Route::delete('auth/account', [AuthController::class, 'destroyAccount']);

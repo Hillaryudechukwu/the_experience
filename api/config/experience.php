@@ -739,6 +739,14 @@ return [
      * is set, the endpoint reports itself unconfigured rather than serving an
      * association that cannot verify.
      */
+    /*
+     * Public web origin for email deep links (reset password, verify email).
+     * Prefer APP_ORIGIN; otherwise https://{APP_LINKS_HOST}; else the live host.
+     */
+    'app_origin' => rtrim((string) (env('APP_ORIGIN')
+        ?: (env('APP_LINKS_HOST') ? 'https://'.preg_replace('#^https?://#', '', (string) env('APP_LINKS_HOST')) : null)
+        ?: 'https://experience.synteric.co.uk'), '/'),
+
     'app_links' => [
         'host' => env('APP_LINKS_HOST'),
         'android_package' => env('APP_LINKS_ANDROID_PACKAGE', 'uk.co.synteric.experience'),
@@ -756,7 +764,11 @@ return [
          * inside the app instead. /experience/{id} is the one shareable route
          * today; the privacy policy deliberately stays in the browser.
          */
-        'paths' => ['/experience/*'],
+        'paths' => [
+            '/experience/*',
+            '/account/reset-password',
+            '/account/verify-email',
+        ],
     ],
 
 ];

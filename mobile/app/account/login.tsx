@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { ApiError } from '../../src/api/client';
 import { useLogin } from '../../src/api/hooks';
+import { PasswordField } from '../../src/components/PasswordField';
 import { SocialSignIn } from '../../src/components/SocialSignIn';
 import { WayoaLogo } from '../../src/components/WayoaLogo';
 import { Button, Gutter, Note, Screen, T } from '../../src/components/primitives';
@@ -67,20 +68,22 @@ export default function Login() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Field
+        <PasswordField
           label="Password"
           value={password}
           onChange={setPassword}
           autoComplete="password"
           textContentType="password"
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
         />
 
         {error ? <Note tone="warning">{error}</Note> : null}
 
         <Button label={login.isPending ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={login.isPending} />
+        <Button
+          label="Forgot password?"
+          tone="tertiary"
+          onPress={() => router.push('/account/forgot-password')}
+        />
         <SocialSignIn onSignedIn={() => router.replace('/(tabs)/you')} />
         <Button label="Create an account" tone="tertiary" onPress={() => router.replace('/account/register')} />
         <Button label="Back" tone="secondary" onPress={goBack} />
@@ -93,7 +96,6 @@ function Field({
   label,
   value,
   onChange,
-  secureTextEntry,
   autoComplete,
   textContentType,
   keyboardType,
@@ -103,7 +105,6 @@ function Field({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  secureTextEntry?: boolean;
   autoComplete?: 'email' | 'password';
   textContentType?: 'emailAddress' | 'password';
   keyboardType?: 'email-address' | 'default';
@@ -121,7 +122,6 @@ function Field({
         accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
-        secureTextEntry={secureTextEntry}
         autoComplete={autoComplete}
         textContentType={textContentType}
         keyboardType={keyboardType}

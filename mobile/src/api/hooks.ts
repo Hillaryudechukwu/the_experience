@@ -889,7 +889,13 @@ export function useCancelBooking() {
   });
 }
 
-export type AuthUser = { id: number; name: string; email: string; providers?: string[] };
+export type AuthUser = {
+  id: number;
+  name: string;
+  email: string;
+  email_verified?: boolean;
+  providers?: string[];
+};
 
 export function useRegister() {
   const client = useQueryClient();
@@ -921,6 +927,42 @@ export function useLogin() {
     onSuccess: async () => {
       await restoreOwnedJourney();
       client.invalidateQueries();
+    },
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) =>
+      http.post<{ status: string; message: string }>('/auth/password/forgot', { email }),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (body: {
+      email: string;
+      token: string;
+      password: string;
+      password_confirmation: string;
+    }) => http.post<{ status: string; message: string }>('/auth/password/reset', body),
+  });
+}
+
+export function useSendVerificationEmail() {
+  return useMutation({
+    mutationFn: () => http.post<{ status: string }>('/auth/email/verification-notification'),
+  });
+}
+
+export function useVerifyEmail() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: { id: number; hash: string }) =>
+      http.post<{ status: string; user: AuthUser }>('/auth/email/verify', body),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['profile'] });
     },
   });
 }
