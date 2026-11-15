@@ -19,6 +19,8 @@ type Props = {
   pending: boolean;
   isRefetching: boolean;
   onEntitled: () => void;
+  /** The store's localized price, once products load. */
+  onStorePrice?: (label: string) => void;
 };
 
 /**
@@ -27,7 +29,7 @@ type Props = {
  * The phone starts the purchase; Laravel decides access after refresh.
  * Web must not mount this — there is no merchant of record in the browser.
  */
-export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, onEntitled }: Props) {
+export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, onEntitled, onStorePrice }: Props) {
   const refreshApple = useRefreshAppleSubscription();
   const refreshGoogle = useRefreshGoogleSubscription();
   const [busy, setBusy] = useState(false);
@@ -109,6 +111,11 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
   }, [connected, fetchProducts]);
 
   const subscription = subscriptions.find((item) => item.id === productId);
+  const storePrice = subscription?.displayPrice || null;
+
+  useEffect(() => {
+    if (storePrice) onStorePrice?.(storePrice);
+  }, [storePrice, onStorePrice]);
 
   const subscribe = async () => {
     if (!connected) {
@@ -204,7 +211,7 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
   return (
     <>
       <Button
-        label={pending || busy ? 'Waiting for the store…' : `Subscribe — ${priceLabel} a month`}
+        label={pending || busy ? 'Waiting for the store…' : `Subscribe — ${storePrice ?? priceLabel} a month`}
         size="large"
         disabled={disabled}
         onPress={subscribe}

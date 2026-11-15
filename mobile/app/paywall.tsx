@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -8,11 +8,10 @@ import { Icon } from '../src/components/Icon';
 import { NativeSubscriptionActions } from '../src/components/NativeSubscriptionActions';
 import { Button, Card, Gutter, Loading, Note, Row, Screen, T } from '../src/components/primitives';
 import { showAlert } from '../src/lib/alert';
-import { isNativeStorePlatform } from '../src/lib/billing';
+import { FALLBACK_PRICE_LABEL, isNativeStorePlatform } from '../src/lib/billing';
 import { PRIVACY_POLICY_URL, STORE_NAME, TERMS_URL } from '../src/lib/legal';
+import { useSession } from '../src/store/session';
 import { radius, space, useTheme } from '../src/theme';
-
-const PRICE = process.env.EXPO_PUBLIC_SUBSCRIPTION_PRICE ?? '£1.99';
 
 /**
  * The paywall (Subscription JEM §11 P4).
@@ -35,6 +34,19 @@ export default function Paywall() {
   const signedIn = profile ? profile.is_guest === false : false;
   const pending = entitlement?.state === 'pending';
 
+  /* The store's localized price once it loads; the fixed label only until
+     then, and on web where there is no store to ask. */
+  const [storePrice, setStorePrice] = useState<string | null>(null);
+  const price = storePrice ?? FALLBACK_PRICE_LABEL;
+
+  /* Onboarding leaves a journey but no trip — the trip is the paid part.
+     Ready is the screen that creates it and builds the plan, so a month
+     bought straight after setup goes there rather than to an empty Home. */
+  const enterApp = useCallback(() => {
+    const { journeyId, tripId } = useSession.getState();
+    router.replace(journeyId && !tripId ? '/onboarding/ready' : '/(tabs)');
+  }, [router]);
+
   /* Already paid while this screen was open — a restore landing, or a
      notification arriving. Do not make them tap anything.
 
@@ -44,8 +56,8 @@ export default function Paywall() {
   const entitled = entitlement?.can_use ?? false;
 
   useEffect(() => {
-    if (entitled) router.replace('/(tabs)');
-  }, [entitled, router]);
+    if (entitled) enterApp();
+  }, [entitled, enterApp]);
 
   const openUrl = async (url: string, failure: string) => {
     try {
@@ -67,7 +79,7 @@ export default function Paywall() {
     <Screen>
       <Gutter style={{ paddingTop: space.xxl, gap: space.sm }}>
         <Icon name="sparkle" size={28} color={colors.action.primary} strokeWidth={1.8} />
-        <T variant="displayL">{BRAND.name} is {PRICE} a month</T>
+        <T variant="displayL">{BRAND.name} is {price} a month</T>
         <T variant="bodyL" color={colors.text.secondary}>
           Setting up your trip is free. Finding what is worth doing, asking the guide, building the
           plan and booking it need a month.
@@ -78,7 +90,7 @@ export default function Paywall() {
         <Card tone="warm">
           <View style={{ padding: space.md, gap: space.sm }}>
             {[
-              `${PRICE} for one month`,
+              `${price} for one month`,
               'Renews until you pause or cancel',
               'The month you have paid for always runs to its end',
             ].map((line) => (
@@ -113,12 +125,13 @@ export default function Paywall() {
           </Note>
         ) : signedIn && isNativeStorePlatform() ? (
           <NativeSubscriptionActions
-            priceLabel={PRICE}
+            priceLabel={price}
             pending={pending}
             isRefetching={isRefetching}
+            onStorePrice={setStorePrice}
             onEntitled={() => {
               void refetch();
-              router.replace('/(tabs)');
+              enterApp();
             }}
           />
         ) : (
