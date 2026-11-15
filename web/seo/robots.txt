@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://experience.synteric.co.uk/sitemap.xml

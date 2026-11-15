@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Terms of Use — {{ config('app.name') }}</title>
   <meta name="description" content="{{ config('experience.brand.description') }}">
+  <link rel="canonical" href="{{ config('experience.legal.terms_url') ?: route('legal.terms') }}">
   <style>
     :root { color-scheme: light dark; --ink: #0D1B2A; --muted: #4A5468; --rule: #E4E8EF; --bg: #FFFFFF; --accent: #2856F6; }
     @media (prefers-color-scheme: dark) {

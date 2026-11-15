@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy Policy — {{ config('app.name') }}</title>
   <meta name="description" content="{{ config('experience.brand.description') }}">
+  {{-- The same page is published at /privacy and /legal/privacy; this says which one counts. --}}
+  <link rel="canonical" href="{{ config('experience.legal.privacy_url') ?: route('legal.privacy') }}">
   <style>
     :root { color-scheme: light dark; --ink: #0D1B2A; --muted: #4A5468; --rule: #E4E8EF; --bg: #FFFFFF; --accent: #2856F6; }
     @media (prefers-color-scheme: dark) {
@@ -98,7 +100,7 @@
   <ul>
     <li><strong>Export</strong> — get a copy of everything held about you.</li>
     <li><strong>Forget where I have been</strong> — delete stored location context without deleting anything else.</li>
-    <li><strong>Delete account</strong> — erase your account and everything attached to it.</li>
+    <li><strong>Delete account</strong> — erase your account and everything attached to it. Steps and the email fallback are on the <a href="{{ $deleteAccountUrl ?? route('legal.delete-account') }}">delete your account</a> page.</li>
   </ul>
 
   <h3>What deletion does, precisely</h3>

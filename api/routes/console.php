@@ -37,6 +37,10 @@ Schedule::command('destinations:retry-enrichment')
     ->dailyAt('03:00')
     ->withoutOverlapping(60);
 
+Schedule::command('bookings:prune-anonymised')
+    ->dailyAt('04:00')
+    ->withoutOverlapping(30);
+
 /* Gap-fill licensed photos for seeded and activated cities that still have
    null imagery. Only looks up records that need a picture; Wikimedia first. */
 Schedule::command('experience:backfill-imagery all --limit=40')
