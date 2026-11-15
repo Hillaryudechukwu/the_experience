@@ -21,6 +21,7 @@ export const ROUTES = [
   '/anchors',
   '/paywall',
   '/subscription',
+  '/subscription/confirmed',
   '/understanding',
   '/account/delete',
   '/account/login',
