@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domains\Billing\Models\Subscription;
+use App\Domains\Billing\Models\SubscriptionEvent;
 use App\Domains\Bookings\BookingState;
 use App\Domains\Bookings\Models\Booking;
 use App\Domains\Bookings\Models\BookingTraveller;
@@ -154,6 +156,106 @@ class AccountDeletionTest extends TestCase
         ])->assertOk()->assertJsonPath('retained_bookings', 0);
 
         $this->assertDatabaseCount('bookings', 0);
+    }
+
+    /**
+     * The subscription goes with the user, but its store notifications are
+     * only nulled off it. Their bodies carry the purchase token, so those go;
+     * what dedupes a redelivery stays.
+     */
+    public function test_store_notifications_lose_their_payload_but_keep_their_dedupe_keys(): void
+    {
+        $token = $this->register();
+        $user = User::firstWhere('email', 'traveller@example.com');
+
+        $subscription = Subscription::query()->create([
+            'user_id' => $user->id,
+            'store' => 'google',
+            'product_id' => 'wayoa_monthly',
+            'original_transaction_id' => 'GPA.1234-5678',
+            'state' => 'active',
+        ]);
+
+        $event = SubscriptionEvent::query()->create([
+            'subscription_id' => $subscription->id,
+            'store' => 'google',
+            'notification_id' => 'msg-1',
+            'type' => 'SUBSCRIPTION_RENEWED',
+            'payload_hash' => str_repeat('a', 64),
+            'payload' => ['purchaseToken' => 'token-that-leads-to-a-person'],
+            'received_at' => now(),
+        ]);
+
+        /* Someone else's notification is not this deletion's business. */
+        $other = SubscriptionEvent::query()->create([
+            'subscription_id' => null,
+            'store' => 'google',
+            'notification_id' => 'msg-2',
+            'type' => 'SUBSCRIPTION_RENEWED',
+            'payload_hash' => str_repeat('b', 64),
+            'payload' => ['purchaseToken' => 'unclaimed'],
+            'received_at' => now(),
+        ]);
+
+        $this->deleteJson('/api/auth/account', ['password' => 'correct-horse'], [
+            'Authorization' => "Bearer {$token}",
+        ])->assertOk();
+
+        $this->assertDatabaseCount('subscriptions', 0);
+
+        $event->refresh();
+        $this->assertSame([], $event->payload);
+        $this->assertNull($event->subscription_id);
+        $this->assertSame('msg-1', $event->notification_id);
+        $this->assertSame(str_repeat('a', 64), $event->payload_hash);
+
+        $this->assertSame(['purchaseToken' => 'unclaimed'], $other->refresh()->payload);
+    }
+
+    /** The ledger line outlives the account, but not the retention period. */
+    public function test_anonymised_bookings_are_pruned_once_retention_runs_out(): void
+    {
+        $token = $this->register();
+        $user = User::firstWhere('email', 'traveller@example.com');
+
+        $make = fn (string $reference, $createdAt) => tap(Booking::create([
+            'reference' => $reference,
+            'user_id' => $user->id,
+            'state' => BookingState::Confirmed->value,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+            'total_minor' => 4500,
+            'currency' => 'GBP',
+            'idempotency_key' => $reference,
+            'confirmed_at' => $createdAt,
+        ]), function (Booking $booking) use ($createdAt) {
+            $booking->forceFill(['created_at' => $createdAt])->saveQuietly();
+        });
+
+        $expired = $make('EXP-OLD-1', now()->subYears(6)->subDay());
+        $recent = $make('EXP-NEW-1', now()->subYears(5));
+
+        $this->deleteJson('/api/auth/account', ['password' => 'correct-horse'], [
+            'Authorization' => "Bearer {$token}",
+        ])->assertOk()->assertJsonPath('retained_bookings', 2);
+
+        /* Old, but never anonymised: not the command's to decide about. */
+        $untouched = Booking::create([
+            'reference' => 'EXP-ORPHAN-1',
+            'state' => BookingState::Confirmed->value,
+            'provider' => 'sandbox',
+            'fulfilment' => 'native',
+            'total_minor' => 100,
+            'currency' => 'GBP',
+            'idempotency_key' => 'orphan-1',
+        ]);
+        $untouched->forceFill(['created_at' => now()->subYears(10)])->saveQuietly();
+
+        $this->artisan('bookings:prune-anonymised')->assertSuccessful();
+
+        $this->assertDatabaseMissing('bookings', ['id' => $expired->id]);
+        $this->assertDatabaseHas('bookings', ['id' => $recent->id]);
+        $this->assertDatabaseHas('bookings', ['id' => $untouched->id]);
     }
 
     private function register(): string

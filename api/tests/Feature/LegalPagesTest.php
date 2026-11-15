@@ -30,7 +30,7 @@ class LegalPagesTest extends TestCase
         $page->assertSee('How to request deletion', false);
         $page->assertSee('Data that is deleted', false);
         $page->assertSee('Data that is kept, and for how long', false);
-        $page->assertSee('Typically up to six years', false);
+        $page->assertSee('Six years from the booking, then deleted automatically', false);
         $page->assertSee('not</strong> cancel', false);
     }
 
@@ -82,6 +82,47 @@ class LegalPagesTest extends TestCase
         $this->get('/legal/privacy')
             ->assertOk()
             ->assertSee('https://example.test/legal/delete-account', false);
+    }
+
+    /** The store-listed page has to point at the published pages, not the fallbacks. */
+    public function test_the_delete_account_page_uses_the_configured_links_and_contact(): void
+    {
+        config([
+            'experience.legal.privacy_url' => 'https://example.test/privacy',
+            'experience.legal.terms_url' => 'https://example.test/legal/terms',
+            'experience.legal.delete_account_url' => 'https://example.test/legal/delete-account',
+            'experience.legal.privacy_contact' => 'erase@example.test',
+        ]);
+
+        $this->get('/legal/delete-account')
+            ->assertOk()
+            ->assertSee('href="https://example.test/privacy"', false)
+            ->assertSee('href="https://example.test/legal/terms"', false)
+            ->assertSee('<link rel="canonical" href="https://example.test/legal/delete-account">', false)
+            ->assertSee('mailto:erase@example.test', false);
+
+        $directory = 'storage/app/testing-legal-config';
+
+        try {
+            $this->artisan('experience:export-legal', ['--path' => $directory])->assertSuccessful();
+
+            $exported = File::get(base_path($directory . '/delete-account.html'));
+            $this->assertStringContainsString('href="https://example.test/privacy"', $exported);
+            $this->assertStringContainsString('href="https://example.test/legal/terms"', $exported);
+            $this->assertStringContainsString('mailto:erase@example.test', $exported);
+        } finally {
+            File::deleteDirectory(base_path($directory));
+        }
+    }
+
+    /** /privacy and /legal/privacy are one page; the canonical says which URL counts. */
+    public function test_privacy_names_its_canonical_url(): void
+    {
+        config(['experience.legal.privacy_url' => 'https://example.test/privacy']);
+
+        $this->get('/legal/privacy')
+            ->assertOk()
+            ->assertSee('<link rel="canonical" href="https://example.test/privacy">', false);
     }
 
     public function test_the_export_writes_both_pages(): void

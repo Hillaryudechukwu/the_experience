@@ -644,6 +644,11 @@ return [
     'privacy' => [
         'store_location_history' => false,
         'context_snapshot_retention_days' => 30,
+
+        /* How long a paid booking survives account deletion as an anonymous
+           ledger line, counted from when it was made. The deletion page and
+           the privacy policy both say six. */
+        'anonymised_booking_retention_years' => 6,
     ],
 
     'destination_activation' => [
