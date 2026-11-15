@@ -208,6 +208,11 @@ async function storedSession(page: Page) {
 test('onboarding finish creates a journey and never a trip', async ({ page }) => {
   const writes = await finishOnboarding(page, { journeyId: null, tripId: null, onboarded: false });
 
+  /* The unpaid CTA is the rest of the free path: it must reach the paywall
+     without creating the trip on the way. */
+  await page.getByRole('button', { name: 'See what a month unlocks' }).click();
+  await expect(page).toHaveURL(/\/paywall/);
+
   expect(writes.filter((w) => w === 'POST /trips')).toEqual([]);
   expect(writes).toContain('POST /journeys');
   expect(writes).toContain('PATCH /traveller/profile');

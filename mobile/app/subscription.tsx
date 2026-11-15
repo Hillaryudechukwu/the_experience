@@ -7,11 +7,10 @@ import { BRAND } from '../src/brand';
 import { Icon } from '../src/components/Icon';
 import { Button, Card, Gutter, Loading, Note, Row, Screen, T } from '../src/components/primitives';
 import { showAlert } from '../src/lib/alert';
+import { FALLBACK_PRICE_LABEL } from '../src/lib/billing';
 import { PRIVACY_POLICY_URL, STORE_NAME, SUBSCRIPTION_SETTINGS_URL, TERMS_URL } from '../src/lib/legal';
 import { useBackTo } from '../src/lib/navigation';
 import { space, useTheme } from '../src/theme';
-
-const PRICE = process.env.EXPO_PUBLIC_SUBSCRIPTION_PRICE ?? '£1.99';
 
 /** "3 November 2026" — the day the month runs out, in the reader's own locale. */
 function longDate(iso: string): string {
@@ -102,7 +101,7 @@ export default function Subscription() {
         <Card tone="warm">
           <View style={{ padding: space.md, gap: space.xs }}>
             <T variant="h3">
-              {PRICE} a month
+              {FALLBACK_PRICE_LABEL} a month
             </T>
             {paidUntil ? (
               <T variant="bodyL">

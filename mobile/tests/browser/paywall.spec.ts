@@ -3,9 +3,11 @@ import { expect, test } from '@playwright/test';
 const SESSION_KEY = 'experience.session';
 const GUEST_TOKEN_KEY = 'experience.guest_token';
 
-async function seedUnpaidOnboarded(page: import('@playwright/test').Page) {
+type Seed = { canUse: boolean; tripId: string | null };
+
+async function seedOnboarded(page: import('@playwright/test').Page, seed: Seed) {
   await page.addInitScript(
-    ([sessionKey, guestKey]) => {
+    ([sessionKey, guestKey, tripId]) => {
       window.localStorage.setItem(
         sessionKey,
         JSON.stringify({
@@ -14,7 +16,7 @@ async function seedUnpaidOnboarded(page: import('@playwright/test').Page) {
           destinationName: 'London',
           destinationTimezone: 'Europe/London',
           journeyId: 'journey-1',
-          tripId: null,
+          tripId,
           locationPrecision: 'city',
           locationSource: 'destination',
           onboarded: true,
@@ -22,7 +24,7 @@ async function seedUnpaidOnboarded(page: import('@playwright/test').Page) {
       );
       window.localStorage.setItem(guestKey, 'browser-paywall-test');
     },
-    [SESSION_KEY, GUEST_TOKEN_KEY] as const,
+    [SESSION_KEY, GUEST_TOKEN_KEY, seed.tripId] as const,
   );
 
   await page.route('**/api/**', async (route) => {
@@ -37,8 +39,8 @@ async function seedUnpaidOnboarded(page: import('@playwright/test').Page) {
       await route.fulfill({
         json: {
           data: {
-            can_use: false,
-            state: 'inactive',
+            can_use: seed.canUse,
+            state: seed.canUse ? 'active' : 'inactive',
             paid_until: null,
             auto_renew: false,
             pause_resumes_at: null,
@@ -65,6 +67,10 @@ async function seedUnpaidOnboarded(page: import('@playwright/test').Page) {
 
     await route.fulfill({ json: { data: null } });
   });
+}
+
+function seedUnpaidOnboarded(page: import('@playwright/test').Page) {
+  return seedOnboarded(page, { canUse: false, tripId: null });
 }
 
 test('root sends an unpaid onboarded traveller to the paywall', async ({ page }) => {
@@ -103,9 +109,24 @@ test('paywall shows price, period, legal links and delete before any purchase', 
 
   await page.getByRole('button', { name: 'Terms of use' }).click();
   await page.getByRole('button', { name: 'Privacy policy' }).click();
-  await expect.poll(() => opened.length).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => opened.length).toBe(2);
+  expect(opened[0]).toMatch(/\/legal\/terms$/);
+  expect(opened[1]).toMatch(/\/privacy$/);
 
   await page.getByRole('button', { name: 'Delete your account' }).click();
   await expect(page).toHaveURL(/\/account\/delete/);
   await expect(page.getByText(/Deleting this account does not cancel a subscription/i)).toBeVisible();
+});
+
+/* Onboarding leaves a journey without a trip; ready is what builds it. */
+test('a month bought straight after setup opens ready, not an empty Home', async ({ page }) => {
+  await seedOnboarded(page, { canUse: true, tripId: null });
+  await page.goto('/paywall');
+  await expect(page).toHaveURL(/\/onboarding\/ready/);
+});
+
+test('a month bought with a trip already in place opens Home', async ({ page }) => {
+  await seedOnboarded(page, { canUse: true, tripId: 'trip-1' });
+  await page.goto('/paywall');
+  await page.waitForURL((url) => !/\/paywall|\/onboarding/.test(url.pathname));
 });
