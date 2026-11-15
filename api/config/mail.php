@@ -130,7 +130,10 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', env('CONTACT_EMAIL', 'hello@example.com')),
+        /* `?:` rather than env() defaults: .env.example ships MAIL_FROM_ADDRESS=
+           empty, and an empty value is still a value to env(), which left mail
+           with no From header at all. */
+        'address' => env('MAIL_FROM_ADDRESS') ?: env('CONTACT_EMAIL') ?: 'hello@example.com',
         'name' => env('MAIL_FROM_NAME', 'WAYOA'),
     ],
 

@@ -7,8 +7,10 @@ namespace App\Domains\Billing\Services;
 use App\Domains\Billing\Mail\SubscriptionConfirmedMail;
 use App\Domains\Billing\Models\Subscription;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * One confirmation email per paid period that opens access.
@@ -44,7 +46,26 @@ class SubscriptionConfirmationNotifier
          * the job row is written inside this transaction, so a push that fails
          * rolls the mark back and the next refresh tries again, rather than a
          * period marked as emailed that never was.
+         *
+         * A receipt that cannot go out is reported, not thrown: the month is
+         * already claimed, and failing the refresh would tell the traveller
+         * their purchase did not work when it did.
          */
+        try {
+            return $this->markAndQueue($subscription, $paidUntil, $user, $storeLabel);
+        } catch (Throwable $failure) {
+            report($failure);
+
+            return false;
+        }
+    }
+
+    private function markAndQueue(
+        Subscription $subscription,
+        CarbonImmutable $paidUntil,
+        User $user,
+        string $storeLabel,
+    ): bool {
         return DB::transaction(function () use ($subscription, $paidUntil, $user, $storeLabel): bool {
             $claimed = Subscription::query()
                 ->whereKey($subscription->id)

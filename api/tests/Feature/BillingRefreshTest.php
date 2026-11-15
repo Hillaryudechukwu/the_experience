@@ -131,13 +131,11 @@ class BillingRefreshTest extends TestCase
 
         Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('queue is down'));
 
-        $this->withoutExceptionHandling();
-        try {
-            $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here']);
-            $this->fail('The queue failure should surface.');
-        } catch (\RuntimeException) {
-            // expected
-        }
+        /* The month is claimed either way; a lost receipt is not a failed purchase. */
+        $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here'])
+            ->assertOk()
+            ->assertJsonPath('data.can_use', true)
+            ->assertJsonPath('confirmation_emailed', false);
 
         $this->assertNull(Subscription::query()->firstWhere('original_transaction_id', 'apple-txn-retry')->confirmation_mailed_for);
 
