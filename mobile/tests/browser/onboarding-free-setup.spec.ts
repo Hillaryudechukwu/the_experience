@@ -56,14 +56,19 @@ async function pickCalendarDay(page: Page, iso: string) {
  * Setup is free under the paywall: finishing onboarding may create a journey
  * but must not POST /trips (that route is subscribed).
  */
-test('onboarding finish creates a journey and never a trip', async ({ page }) => {
+type Prior = { journeyId: string | null; tripId: string | null; onboarded: boolean };
+
+async function finishOnboarding(page: Page, prior: Prior): Promise<string[]> {
   const writes: string[] = [];
   /* Three days out keeps the range after minDate (today) whenever CI runs. */
   const startsOn = addCalendarDays(londonToday(), 3);
   const endsOn = addCalendarDays(startsOn, 2);
 
   await page.addInitScript(
-    ([sessionKey, guestKey]) => {
+    ([sessionKey, guestKey, seed]) => {
+      /* Only on the first load: a reload must not undo what finish() saved. */
+      if (window.sessionStorage.getItem('seeded')) return;
+      window.sessionStorage.setItem('seeded', '1');
       window.localStorage.setItem(
         sessionKey,
         JSON.stringify({
@@ -71,16 +76,16 @@ test('onboarding finish creates a journey and never a trip', async ({ page }) =>
           destinationId: '11111111-1111-4111-8111-111111111111',
           destinationName: 'London',
           destinationTimezone: 'Europe/London',
-          journeyId: null,
-          tripId: null,
+          journeyId: seed.journeyId,
+          tripId: seed.tripId,
           locationPrecision: 'city',
           locationSource: 'destination',
-          onboarded: false,
+          onboarded: seed.onboarded,
         }),
       );
       window.localStorage.setItem(guestKey, 'browser-onboarding-free-setup');
     },
-    [SESSION_KEY, GUEST_TOKEN_KEY] as const,
+    [SESSION_KEY, GUEST_TOKEN_KEY, prior] as const,
   );
 
   await page.route('**/api/**', async (route) => {
@@ -193,7 +198,31 @@ test('onboarding finish creates a journey and never a trip', async ({ page }) =>
   await expect(page).toHaveURL(/\/onboarding\/ready/, { timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'See what a month unlocks' })).toBeVisible();
 
+  return writes;
+}
+
+async function storedSession(page: Page) {
+  return page.evaluate((key) => JSON.parse(window.localStorage.getItem(key) ?? '{}'), SESSION_KEY);
+}
+
+test('onboarding finish creates a journey and never a trip', async ({ page }) => {
+  const writes = await finishOnboarding(page, { journeyId: null, tripId: null, onboarded: false });
+
   expect(writes.filter((w) => w === 'POST /trips')).toEqual([]);
   expect(writes).toContain('POST /journeys');
   expect(writes).toContain('PATCH /traveller/profile');
+});
+
+/**
+ * Starting a new journey in the same city keeps the destination, so nothing
+ * else clears the old trip. Left selected, ready / Plan would build the old
+ * journey's itinerary under the new dates.
+ */
+test('a new journey in the same city drops the previous trip', async ({ page }) => {
+  const writes = await finishOnboarding(page, { journeyId: 'journey-old', tripId: 'trip-old', onboarded: true });
+
+  expect(writes.filter((w) => w === 'POST /trips')).toEqual([]);
+  const session = await storedSession(page);
+  expect(session.journeyId).toBe('journey-1');
+  expect(session.tripId).toBeNull();
 });

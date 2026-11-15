@@ -85,7 +85,11 @@ export default function TravelStyle() {
           ...(draft.mission.trim() ? { mission_text: draft.mission.trim() } : {}),
         });
 
+        /* A trip belongs to one journey. Keeping the previous one's id here
+           would let ready / Plan build the old journey's itinerary under the
+           new dates — re-onboarding in the same city does not clear it. */
         await session.setJourney(journey.id);
+        await session.setTrip(null);
       }
 
       await session.completeOnboarding();
