@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useEntitlement } from '../../src/api/hooks';
 import { BRAND } from '../../src/brand';
@@ -30,8 +30,13 @@ function longDate(iso: string): string {
 export default function SubscriptionConfirmed() {
   const colors = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ price?: string; emailed?: string }>();
   const { data: entitlement } = useEntitlement();
-  const price = FALLBACK_PRICE_LABEL;
+  /* The store's localized price, handed over by the paywall that showed it. */
+  const price = params.price || FALLBACK_PRICE_LABEL;
+  /* Only promise a receipt the API says it queued — a restore of a month
+     already confirmed sends none. */
+  const emailed = params.emailed === '1';
   const paidUntil = entitlement?.paid_until ? longDate(entitlement.paid_until) : null;
 
   const continueIntoApp = useCallback(() => {
@@ -46,7 +51,8 @@ export default function SubscriptionConfirmed() {
         <T variant="displayL">Your month is active</T>
         <T variant="bodyL" color={colors.text.secondary}>
           {BRAND.name} is open on this account
-          {paidUntil ? ` until ${paidUntil}` : ''}. A confirmation is on its way to your email.
+          {paidUntil ? ` until ${paidUntil}` : ''}.
+          {emailed ? ' A confirmation is on its way to your email.' : ''}
         </T>
       </Gutter>
 

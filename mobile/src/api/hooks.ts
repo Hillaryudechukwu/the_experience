@@ -227,14 +227,24 @@ export function useEntitlement() {
 }
 
 /** Posts a StoreKit 2 JWS (iOS purchaseToken) so Laravel can claim the month. */
+/** A claimed month, and whether the API queued a confirmation email for it. */
+export type RefreshResult = { entitlement: Entitlement; confirmationEmailed: boolean };
+
+type RefreshResponse = { data: Entitlement; confirmation_emailed?: boolean };
+
+const refreshResult = (response: RefreshResponse): RefreshResult => ({
+  entitlement: response.data,
+  confirmationEmailed: response.confirmation_emailed === true,
+});
+
 export function useRefreshAppleSubscription() {
   const client = useQueryClient();
 
   return useMutation({
     mutationFn: (signed_transaction: string) =>
-      wrapped(http.post<{ data: Entitlement }>('/billing/apple/refresh', { signed_transaction })),
-    onSuccess: (data) => {
-      client.setQueryData(keys.entitlement(), data);
+      http.post<RefreshResponse>('/billing/apple/refresh', { signed_transaction }).then(refreshResult),
+    onSuccess: (result) => {
+      client.setQueryData(keys.entitlement(), result.entitlement);
     },
   });
 }
@@ -245,9 +255,9 @@ export function useRefreshGoogleSubscription() {
 
   return useMutation({
     mutationFn: (body: { purchase_token: string; product_id?: string }) =>
-      wrapped(http.post<{ data: Entitlement }>('/billing/google/refresh', body)),
-    onSuccess: (data) => {
-      client.setQueryData(keys.entitlement(), data);
+      http.post<RefreshResponse>('/billing/google/refresh', body).then(refreshResult),
+    onSuccess: (result) => {
+      client.setQueryData(keys.entitlement(), result.entitlement);
     },
   });
 }
@@ -959,10 +969,10 @@ export function useVerifyEmail() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: { id: number; hash: string }) =>
+    mutationFn: (body: { id: number; expires: number; signature: string }) =>
       http.post<{ status: string; user: AuthUser }>('/auth/email/verify', body),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['profile'] });
+      client.invalidateQueries({ queryKey: keys.profile() });
     },
   });
 }

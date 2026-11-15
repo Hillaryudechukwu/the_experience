@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domains\Identity\Actions\AdoptGuestSession;
 use App\Domains\Identity\Actions\AuthenticateWithIdentityToken;
 use App\Domains\Identity\Actions\DeleteTravellerAccount;
+use App\Domains\Identity\Services\AuthMailLinks;
 use App\Domains\Shared\ValueObjects\Actor;
 use App\Domains\TravellerProfile\Services\TravellerProfileService;
 use App\Models\User;
@@ -19,6 +20,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class AuthController extends ApiController
 {
@@ -59,7 +61,13 @@ class AuthController extends ApiController
             $profile->update(['display_name' => $data['name']]);
         }
 
-        $user->sendEmailVerificationNotification();
+        /* The account exists by now. A mail that cannot be queued is not a
+           reason to answer 500 for it — the verify screen can send another. */
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (Throwable $failure) {
+            report($failure);
+        }
 
         return response()->json([
             'token' => $user->createToken('mobile', ['traveller'])->plainTextToken,
@@ -191,18 +199,19 @@ class AuthController extends ApiController
         return response()->json(['status' => 'sent']);
     }
 
-    public function verifyEmail(Request $request): JsonResponse
+    public function verifyEmail(Request $request, AuthMailLinks $links): JsonResponse
     {
         $data = $request->validate([
             'id' => ['required', 'integer'],
-            'hash' => ['required', 'string'],
+            'expires' => ['required', 'integer'],
+            'signature' => ['required', 'string'],
         ]);
 
         $user = User::query()->whereKey($data['id'])->first();
 
-        if ($user === null || ! hash_equals(sha1($user->getEmailForVerification()), $data['hash'])) {
+        if ($user === null || ! $links->verificationSignatureIsValid($user, (int) $data['expires'], $data['signature'])) {
             throw ValidationException::withMessages([
-                'hash' => 'That confirmation link is invalid.',
+                'signature' => 'That confirmation link is invalid or has expired. Send a new one.',
             ]);
         }
 

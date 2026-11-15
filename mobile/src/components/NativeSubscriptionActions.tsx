@@ -18,7 +18,8 @@ type Props = {
   priceLabel: string;
   pending: boolean;
   isRefetching: boolean;
-  onEntitled: () => void;
+  /** `confirmationEmailed`: whether the API queued a receipt for this month. */
+  onEntitled: (confirmationEmailed: boolean) => void;
   /** The store's localized price, once products load. */
   onStorePrice?: (label: string) => void;
 };
@@ -51,7 +52,7 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
       }
 
       try {
-        const entitlement =
+        const { entitlement, confirmationEmailed } =
           Platform.OS === 'ios'
             ? await refreshApple.mutateAsync(token)
             : await refreshGoogle.mutateAsync({
@@ -59,7 +60,7 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
                 product_id: purchase.productId || GOOGLE_PRODUCT_ID,
               });
         if (entitlement.can_use) {
-          onEntitled();
+          onEntitled(confirmationEmailed);
           return 'entitled';
         }
         showAlert('Still confirming', 'The charge is recorded; open the app again in a moment.');

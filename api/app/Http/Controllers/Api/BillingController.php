@@ -214,7 +214,7 @@ class BillingController extends ApiController
             ], Response::HTTP_CONFLICT);
         }
 
-        $this->confirmations->notifyIfNewlyEntitled($subscription);
+        $emailed = $this->confirmations->notifyIfNewlyEntitled($subscription);
 
         Log::info('Billing refresh applied.', [
             'store' => $notification->store,
@@ -222,7 +222,11 @@ class BillingController extends ApiController
             'result' => 'applied',
         ]);
 
-        return response()->json(['data' => $this->entitlements->present($this->actor($request))]);
+        return response()->json([
+            'data' => $this->entitlements->present($this->actor($request)),
+            /* So the app only says a receipt is coming when one is. */
+            'confirmation_emailed' => $emailed,
+        ]);
     }
 
     private function requireSignedInUserId(Request $request): int

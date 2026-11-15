@@ -14,8 +14,12 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Receipt for a month that just opened (purchase or restore that entitled).
  *
- * Queued after commit so a rolled-back claim never emails, and so the refresh
- * response is not held open for Brevo.
+ * Queued, so the refresh response is not held open for Brevo. Not
+ * afterCommit: the notifier queues it inside the transaction that marks the
+ * period as confirmed, so the mark and the job commit or roll back together.
+ *
+ * No price: the store charged in the traveller's own currency, and a fixed
+ * label here would disagree with the receipt the store already sent.
  */
 class SubscriptionConfirmedMail extends Mailable implements ShouldQueue
 {
@@ -23,12 +27,9 @@ class SubscriptionConfirmedMail extends Mailable implements ShouldQueue
 
     public function __construct(
         public string $travellerName,
-        public string $priceLabel,
         public string $storeLabel,
         public string $paidUntilLabel,
-    ) {
-        $this->afterCommit();
-    }
+    ) {}
 
     public function envelope(): Envelope
     {
@@ -49,7 +50,7 @@ class SubscriptionConfirmedMail extends Mailable implements ShouldQueue
             '<p style="margin:0 0 12px;font-size:22px;font-weight:600">Your '.$name.' month is active</p>',
             '<p style="margin:0 0 16px">'.$greeting.'</p>',
             '<p style="margin:0 0 16px">Thanks — '.$name.' is open on this account until <strong>'.e($this->paidUntilLabel).'</strong>.</p>',
-            '<p style="margin:0 0 16px">'.$name.' is '.e($this->priceLabel).' a month, billed by '.e($this->storeLabel).'. Renews until you pause or cancel in your '.e($this->storeLabel).' account. The month you have paid for always runs to its end.</p>',
+            '<p style="margin:0 0 16px">Billed monthly by '.e($this->storeLabel).'. Renews until you pause or cancel in your '.e($this->storeLabel).' account. The month you have paid for always runs to its end.</p>',
             '<p style="margin:0;color:#555">Manage or cancel in '.e($this->storeLabel).'. Deleting your '.$name.' account does not cancel the store subscription.</p>',
             '</div>',
         ]);

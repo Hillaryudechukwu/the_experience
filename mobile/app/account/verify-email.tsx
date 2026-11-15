@@ -16,25 +16,30 @@ function firstParam(value: string | string[] | undefined): string {
 export default function VerifyEmail() {
   const colors = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string | string[]; hash?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    id?: string | string[];
+    expires?: string | string[];
+    signature?: string | string[];
+  }>();
   const verify = useVerifyEmail();
   const resend = useSendVerificationEmail();
 
   const id = useMemo(() => Number(firstParam(params.id)), [params.id]);
-  const hash = useMemo(() => firstParam(params.hash), [params.hash]);
+  const expires = useMemo(() => Number(firstParam(params.expires)), [params.expires]);
+  const signature = useMemo(() => firstParam(params.signature), [params.signature]);
 
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const [resent, setResent] = useState(false);
 
   useEffect(() => {
-    if (!Number.isFinite(id) || id < 1 || hash === '') return;
+    if (!Number.isFinite(id) || id < 1 || !Number.isFinite(expires) || signature === '') return;
 
     let cancelled = false;
 
     void (async () => {
       try {
-        await verify.mutateAsync({ id, hash });
+        await verify.mutateAsync({ id, expires, signature });
         if (!cancelled) setVerified(true);
       } catch (cause) {
         if (cancelled) return;
@@ -53,7 +58,7 @@ export default function VerifyEmail() {
     };
     // Only when the deep-link params change — not when the mutation object identity does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hash, id]);
+  }, [expires, id, signature]);
 
   const sendAgain = async () => {
     setError(null);

@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Domains\Identity\Mail\ResetPasswordMail;
 use App\Domains\Identity\Mail\VerifyEmailMail;
+use App\Domains\Identity\Services\AuthMailLinks;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -44,15 +45,62 @@ class AuthPasswordAndEmailTest extends TestCase
             'email' => 'ada@example.com',
         ]);
 
-        $this->postJson('/api/auth/email/verify', [
-            'id' => $user->id,
-            'hash' => sha1($user->email),
-        ])
+        $this->postJson('/api/auth/email/verify', $this->linkParams($user))
             ->assertOk()
             ->assertJsonPath('status', 'verified')
             ->assertJsonPath('user.email_verified', true);
 
         $this->assertNotNull($user->fresh()->email_verified_at);
+    }
+
+    /** The id comes back from register and the address is the attacker's to type. */
+    public function test_a_link_built_from_public_facts_does_not_verify(): void
+    {
+        $user = User::factory()->unverified()->create(['email' => 'victim@example.com']);
+
+        $this->postJson('/api/auth/email/verify', [
+            'id' => $user->id,
+            'expires' => now()->addHour()->getTimestamp(),
+            'signature' => sha1('victim@example.com'),
+        ])->assertUnprocessable();
+
+        $this->assertNull($user->fresh()->email_verified_at);
+    }
+
+    public function test_an_expired_link_does_not_verify(): void
+    {
+        $user = User::factory()->unverified()->create(['email' => 'ada@example.com']);
+        $params = $this->linkParams($user);
+
+        $this->travel(61)->minutes();
+
+        $this->postJson('/api/auth/email/verify', $params)->assertUnprocessable();
+        $this->assertNull($user->fresh()->email_verified_at);
+    }
+
+    public function test_a_link_stops_working_once_the_email_changes(): void
+    {
+        $user = User::factory()->unverified()->create(['email' => 'ada@example.com']);
+        $params = $this->linkParams($user);
+
+        $user->forceFill(['email' => 'other@example.com'])->save();
+
+        $this->postJson('/api/auth/email/verify', $params)->assertUnprocessable();
+        $this->assertNull($user->fresh()->email_verified_at);
+    }
+
+    /** A mail that cannot be queued must not turn a created account into a 500. */
+    public function test_register_still_succeeds_when_the_verification_mail_cannot_be_queued(): void
+    {
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('queue is down'));
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Ada',
+            'email' => 'ada@example.com',
+            'password' => 'password123',
+        ])->assertCreated()->assertJsonStructure(['token']);
+
+        $this->assertDatabaseHas('users', ['email' => 'ada@example.com']);
     }
 
     public function test_forgot_password_queues_a_reset_mail_without_revealing_whether_the_email_exists(): void
@@ -105,6 +153,18 @@ class AuthPasswordAndEmailTest extends TestCase
             'email' => 'ada@example.com',
             'password' => 'new-password-9',
         ])->assertOk();
+    }
+
+    /** @return array{id: int, expires: int, signature: string} */
+    private function linkParams(User $user): array
+    {
+        parse_str((string) parse_url(app(AuthMailLinks::class)->verifyEmailUrl($user), PHP_URL_QUERY), $params);
+
+        return [
+            'id' => (int) $params['id'],
+            'expires' => (int) $params['expires'],
+            'signature' => (string) $params['signature'],
+        ];
     }
 
     public function test_signed_in_traveller_can_resend_verification(): void

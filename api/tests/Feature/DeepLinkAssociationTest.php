@@ -73,6 +73,12 @@ class DeepLinkAssociationTest extends TestCase
      */
     public function test_only_routes_the_app_can_render_are_claimed(): void
     {
-        $this->assertSame(['/experience/*'], config('experience.app_links.paths'));
+        /* The two account links come from email and open
+           app/account/reset-password.tsx and app/account/verify-email.tsx. */
+        $this->assertSame([
+            '/experience/*',
+            '/account/reset-password',
+            '/account/verify-email',
+        ], config('experience.app_links.paths'));
     }
 }

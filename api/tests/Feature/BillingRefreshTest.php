@@ -60,7 +60,8 @@ class BillingRefreshTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.can_use', true)
             ->assertJsonPath('data.state', 'active')
-            ->assertJsonPath('data.store', 'apple');
+            ->assertJsonPath('data.store', 'apple')
+            ->assertJsonPath('confirmation_emailed', true);
 
         $this->assertDatabaseHas('subscriptions', [
             'user_id' => $user->id,
@@ -99,13 +100,55 @@ class BillingRefreshTest extends TestCase
 
         $this->postJson('/api/billing/apple/refresh', [
             'signed_transaction' => 'signed.jws.here',
-        ])->assertOk();
+        ])->assertOk()->assertJsonPath('confirmation_emailed', true);
 
         $this->postJson('/api/billing/apple/refresh', [
             'signed_transaction' => 'signed.jws.here',
-        ])->assertOk();
+        ])->assertOk()->assertJsonPath('confirmation_emailed', false);
 
         Mail::assertQueued(SubscriptionConfirmedMail::class, 1);
+        /* Bookkeeping stays on the subscription, out of the store's log. */
+        $this->assertDatabaseMissing('subscription_events', ['type' => 'confirmation_mail']);
+    }
+
+    /** A mark with no queued mail behind it would never be retried. */
+    public function test_a_confirmation_that_cannot_be_queued_is_tried_again_next_refresh(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $expires = CarbonImmutable::now()->addMonth();
+
+        $this->mock(AppleTransactionVerifier::class, function ($mock) use ($expires) {
+            $mock->shouldReceive('verify')->andReturn([
+                'originalTransactionId' => 'apple-txn-retry',
+                'transactionId' => 'apple-txn-retry-a',
+                'productId' => 'wayoa.monthly',
+                'expiresDate' => $expires->getTimestampMs(),
+                'environment' => 'Sandbox',
+            ]);
+        });
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('queue is down'));
+
+        $this->withoutExceptionHandling();
+        try {
+            $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here']);
+            $this->fail('The queue failure should surface.');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        $this->assertNull(Subscription::query()->firstWhere('original_transaction_id', 'apple-txn-retry')->confirmation_mailed_for);
+
+        /* Back to a working mailer: drop the throwing mock the facade bound. */
+        $this->app->forgetInstance('mail.manager');
+        Mail::clearResolvedInstance('mail.manager');
+        Mail::fake();
+
+        $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here'])
+            ->assertOk()
+            ->assertJsonPath('confirmation_emailed', true);
     }
 
     public function test_apple_refresh_returns_409_when_another_live_account_owns_the_transaction(): void

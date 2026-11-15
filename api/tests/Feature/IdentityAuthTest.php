@@ -45,7 +45,7 @@ class IdentityAuthTest extends TestCase
 
     public function test_a_verified_email_links_to_the_password_account(): void
     {
-        $existing = User::factory()->create(['email' => 'ada@example.com']);
+        $existing = User::factory()->unverified()->create(['email' => 'ada@example.com']);
         $this->mockVerifier(new VerifiedIdentity('google', 'sub-2', 'Ada@Example.com', true, 'Ada'));
 
         $this->postJson('/api/auth/google', ['id_token' => 'valid'])
@@ -54,6 +54,19 @@ class IdentityAuthTest extends TestCase
 
         $this->assertSame(1, User::count());
         $this->assertSame(1, SocialIdentity::count());
+        /* The provider just confirmed the address the password account uses. */
+        $this->assertNotNull($existing->fresh()->email_verified_at);
+    }
+
+    public function test_a_provider_sign_up_counts_as_a_verified_email(): void
+    {
+        $this->mockVerifier(new VerifiedIdentity('google', 'sub-v', 'ada@example.com', true, 'Ada'));
+
+        $this->postJson('/api/auth/google', ['id_token' => 'valid'])
+            ->assertCreated()
+            ->assertJsonPath('user.email_verified', true);
+
+        $this->assertNotNull(User::firstWhere('email', 'ada@example.com')->email_verified_at);
     }
 
     public function test_an_unverified_email_creates_nobody(): void
