@@ -49,7 +49,9 @@ export type IconName =
   | 'bookings'
   | 'person'
   | 'sparkle'
-  | 'info';
+  | 'info'
+  | 'eye'
+  | 'eye-off';
 
 export function Icon({
   name,
@@ -306,6 +308,20 @@ function paths(name: IconName, p: Record<string, unknown>, stroke: string) {
           <Circle cx="12" cy="12" r="8.6" {...p} />
           <Path d="M12 11v5.2" {...p} />
           <Circle cx="12" cy="7.9" r="0.95" fill={stroke} stroke="none" />
+        </>
+      );
+    case 'eye':
+      return (
+        <>
+          <Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" {...p} />
+          <Circle cx="12" cy="12" r="2.8" {...p} />
+        </>
+      );
+    case 'eye-off':
+      return (
+        <>
+          <Path d="M3 4.5 20.5 20M9.9 9.9A2.8 2.8 0 0 0 14 14M7.1 7.3C4.6 8.9 2.5 12 2.5 12S6 18.5 12 18.5c1.7 0 3.2-.5 4.5-1.2M12 5.5c.9 0 1.8.1 2.6.4" {...p} />
+          <Path d="M14.1 9.6A2.8 2.8 0 0 1 15 12" {...p} />
         </>
       );
     default:

@@ -130,3 +130,26 @@ test('a month bought with a trip already in place opens Home', async ({ page }) 
   await page.goto('/paywall');
   await page.waitForURL((url) => !/\/paywall|\/onboarding/.test(url.pathname));
 });
+
+test('subscription confirmation celebrates the month and continues into the app', async ({ page }) => {
+  await seedOnboarded(page, { canUse: true, tripId: null });
+  await page.goto('/subscription/confirmed?price=%241.99&emailed=1');
+
+  await expect(page.getByText('Your month is active')).toBeVisible();
+  await expect(page.getByText(/confirmation is on its way to your email/i)).toBeVisible();
+  /* The store's price from the paywall, not the fixed fallback. */
+  await expect(page.getByText('$1.99 for one month')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/ready/);
+});
+
+/* A restore of a month already confirmed sends no receipt, so none is promised. */
+test('subscription confirmation promises no email when none was queued', async ({ page }) => {
+  await seedOnboarded(page, { canUse: true, tripId: null });
+  await page.goto('/subscription/confirmed?emailed=0');
+
+  await expect(page.getByText('Your month is active')).toBeVisible();
+  await expect(page.getByText(/confirmation is on its way/i)).toHaveCount(0);
+  await expect(page.getByText('£1.99 for one month')).toBeVisible();
+});

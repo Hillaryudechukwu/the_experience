@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Domains\Billing\Mail\SubscriptionConfirmedMail;
 use App\Domains\Billing\Models\Subscription;
 use App\Domains\Billing\Services\AppleTransactionVerifier;
 use App\Domains\Billing\Services\GooglePlaySubscriptionReader;
@@ -12,6 +13,7 @@ use App\Domains\Billing\SubscriptionState;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Mockery;
 use Tests\TestCase;
@@ -31,7 +33,9 @@ class BillingRefreshTest extends TestCase
 
     public function test_apple_refresh_claims_a_verified_transaction_for_the_signed_in_user(): void
     {
-        $user = User::factory()->create();
+        Mail::fake();
+
+        $user = User::factory()->create(['name' => 'Ada']);
         Sanctum::actingAs($user);
 
         $expires = CarbonImmutable::now()->addMonth();
@@ -56,7 +60,8 @@ class BillingRefreshTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.can_use', true)
             ->assertJsonPath('data.state', 'active')
-            ->assertJsonPath('data.store', 'apple');
+            ->assertJsonPath('data.store', 'apple')
+            ->assertJsonPath('confirmation_emailed', true);
 
         $this->assertDatabaseHas('subscriptions', [
             'user_id' => $user->id,
@@ -64,6 +69,84 @@ class BillingRefreshTest extends TestCase
             'original_transaction_id' => 'apple-txn-1',
             'state' => SubscriptionState::Active->value,
         ]);
+
+        Mail::assertQueued(SubscriptionConfirmedMail::class, function (SubscriptionConfirmedMail $mail) use ($user) {
+            return $mail->hasTo($user->email)
+                && $mail->travellerName === 'Ada'
+                && $mail->storeLabel === 'App Store';
+        });
+    }
+
+    public function test_a_second_apple_refresh_of_the_same_period_does_not_email_again(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $expires = CarbonImmutable::now()->addMonth();
+
+        $this->mock(AppleTransactionVerifier::class, function ($mock) use ($expires) {
+            $mock->shouldReceive('verify')
+                ->twice()
+                ->andReturn([
+                    'originalTransactionId' => 'apple-txn-once',
+                    'transactionId' => 'apple-txn-once-a',
+                    'productId' => 'wayoa.monthly',
+                    'expiresDate' => $expires->getTimestampMs(),
+                    'environment' => 'Sandbox',
+                ]);
+        });
+
+        $this->postJson('/api/billing/apple/refresh', [
+            'signed_transaction' => 'signed.jws.here',
+        ])->assertOk()->assertJsonPath('confirmation_emailed', true);
+
+        $this->postJson('/api/billing/apple/refresh', [
+            'signed_transaction' => 'signed.jws.here',
+        ])->assertOk()->assertJsonPath('confirmation_emailed', false);
+
+        Mail::assertQueued(SubscriptionConfirmedMail::class, 1);
+        /* Bookkeeping stays on the subscription, out of the store's log. */
+        $this->assertDatabaseMissing('subscription_events', ['type' => 'confirmation_mail']);
+    }
+
+    /** A mark with no queued mail behind it would never be retried. */
+    public function test_a_confirmation_that_cannot_be_queued_is_tried_again_next_refresh(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $expires = CarbonImmutable::now()->addMonth();
+
+        $this->mock(AppleTransactionVerifier::class, function ($mock) use ($expires) {
+            $mock->shouldReceive('verify')->andReturn([
+                'originalTransactionId' => 'apple-txn-retry',
+                'transactionId' => 'apple-txn-retry-a',
+                'productId' => 'wayoa.monthly',
+                'expiresDate' => $expires->getTimestampMs(),
+                'environment' => 'Sandbox',
+            ]);
+        });
+
+        Mail::shouldReceive('to')->once()->andThrow(new \RuntimeException('queue is down'));
+
+        /* The month is claimed either way; a lost receipt is not a failed purchase. */
+        $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here'])
+            ->assertOk()
+            ->assertJsonPath('data.can_use', true)
+            ->assertJsonPath('confirmation_emailed', false);
+
+        $this->assertNull(Subscription::query()->firstWhere('original_transaction_id', 'apple-txn-retry')->confirmation_mailed_for);
+
+        /* Back to a working mailer: drop the throwing mock the facade bound. */
+        $this->app->forgetInstance('mail.manager');
+        Mail::clearResolvedInstance('mail.manager');
+        Mail::fake();
+
+        $this->postJson('/api/billing/apple/refresh', ['signed_transaction' => 'signed.jws.here'])
+            ->assertOk()
+            ->assertJsonPath('confirmation_emailed', true);
     }
 
     public function test_apple_refresh_returns_409_when_another_live_account_owns_the_transaction(): void

@@ -32,6 +32,7 @@ class Subscription extends Model
         return [
             'state' => SubscriptionState::class,
             'paid_until' => 'immutable_datetime',
+            'confirmation_mailed_for' => 'immutable_datetime',
             'pause_resumes_at' => 'immutable_datetime',
             'auto_renew' => 'boolean',
         ];

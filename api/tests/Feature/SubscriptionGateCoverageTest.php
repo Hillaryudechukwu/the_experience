@@ -66,7 +66,11 @@ class SubscriptionGateCoverageTest extends TestCase
      */
     private const MUST_STAY_OPEN = [
         'api/auth/account',
+        'api/auth/email/verification-notification',
+        'api/auth/email/verify',
         'api/auth/login',
+        'api/auth/password/forgot',
+        'api/auth/password/reset',
         'api/auth/register',
         'api/billing/entitlement',
         'api/health',

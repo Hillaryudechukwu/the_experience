@@ -71,6 +71,9 @@ class AuthenticateWithIdentityToken
             if ($user === null) {
                 $user = $this->createUser($email, $name ?? $verified->name);
                 $created = true;
+            } elseif (! $user->hasVerifiedEmail()) {
+                /* The provider just vouched for this address. */
+                $user->markEmailAsVerified();
             }
             $user->socialIdentities()->create([
                 'provider' => $provider,
@@ -129,9 +132,16 @@ class AuthenticateWithIdentityToken
 
     private function createUser(string $email, ?string $name): User
     {
-        return User::create([
+        $user = new User([
             'name' => is_string($name) && trim($name) !== '' ? trim($name) : 'Traveller',
             'email' => Str::lower($email),
         ]);
+
+        /* The provider already confirmed the mailbox. Not fillable, so it is
+           set directly rather than through create(). */
+        $user->email_verified_at = now();
+        $user->save();
+
+        return $user;
     }
 }

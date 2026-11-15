@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -47,6 +47,22 @@ export default function Paywall() {
     router.replace(journeyId && !tripId ? '/onboarding/ready' : '/(tabs)');
   }, [router]);
 
+  /* Fresh purchase / restore: celebrate before entering the product. */
+  const showConfirmation = useCallback(
+    (confirmationEmailed: boolean) => {
+      /* The price the store showed, so the confirmation agrees with the charge. */
+      router.replace({
+        pathname: '/subscription/confirmed',
+        params: { price, emailed: confirmationEmailed ? '1' : '0' },
+      });
+    },
+    [router, price],
+  );
+
+  /* Skip the auto-enter when Subscribe / Restore already routed to the
+     confirmation screen — otherwise refetch would race and skip it. */
+  const confirmingPurchase = useRef(false);
+
   /* Already paid while this screen was open — a restore landing, or a
      notification arriving. Do not make them tap anything.
 
@@ -56,7 +72,7 @@ export default function Paywall() {
   const entitled = entitlement?.can_use ?? false;
 
   useEffect(() => {
-    if (entitled) enterApp();
+    if (entitled && !confirmingPurchase.current) enterApp();
   }, [entitled, enterApp]);
 
   const openUrl = async (url: string, failure: string) => {
@@ -129,9 +145,10 @@ export default function Paywall() {
             pending={pending}
             isRefetching={isRefetching}
             onStorePrice={setStorePrice}
-            onEntitled={() => {
+            onEntitled={(confirmationEmailed) => {
+              confirmingPurchase.current = true;
               void refetch();
-              enterApp();
+              showConfirmation(confirmationEmailed);
             }}
           />
         ) : (

@@ -8,6 +8,7 @@ use App\Domains\Billing\Exceptions\SubscriptionInUseException;
 use App\Domains\Billing\Services\AppleTransactionVerifier;
 use App\Domains\Billing\Services\EntitlementService;
 use App\Domains\Billing\Services\GooglePlaySubscriptionReader;
+use App\Domains\Billing\Services\SubscriptionConfirmationNotifier;
 use App\Domains\Billing\Services\SubscriptionWriter;
 use App\Domains\Billing\StoreNotification;
 use App\Domains\Billing\SubscriptionState;
@@ -22,6 +23,7 @@ class BillingController extends ApiController
     public function __construct(
         private readonly EntitlementService $entitlements,
         private readonly SubscriptionWriter $writer,
+        private readonly SubscriptionConfirmationNotifier $confirmations,
         private readonly AppleTransactionVerifier $appleTransactions,
         private readonly GooglePlaySubscriptionReader $playSubscriptions,
     ) {}
@@ -204,7 +206,7 @@ class BillingController extends ApiController
     private function claimAndPresent(Request $request, int $userId, StoreNotification $notification): JsonResponse
     {
         try {
-            $this->writer->claim($userId, $notification);
+            $subscription = $this->writer->claim($userId, $notification);
         } catch (SubscriptionInUseException) {
             return response()->json([
                 'code' => 'subscription_in_use',
@@ -212,13 +214,19 @@ class BillingController extends ApiController
             ], Response::HTTP_CONFLICT);
         }
 
+        $emailed = $this->confirmations->notifyIfNewlyEntitled($subscription);
+
         Log::info('Billing refresh applied.', [
             'store' => $notification->store,
             'user_id' => $userId,
             'result' => 'applied',
         ]);
 
-        return response()->json(['data' => $this->entitlements->present($this->actor($request))]);
+        return response()->json([
+            'data' => $this->entitlements->present($this->actor($request)),
+            /* So the app only says a receipt is coming when one is. */
+            'confirmation_emailed' => $emailed,
+        ]);
     }
 
     private function requireSignedInUserId(Request $request): int
