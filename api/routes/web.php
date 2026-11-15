@@ -17,7 +17,7 @@ Route::get('/legal/privacy', function () {
         'updated' => config('experience.legal.privacy_updated', 'September 2026'),
         'contact' => config('experience.legal.privacy_contact') ?: 'privacy@example.com',
         'termsUrl' => config('experience.legal.terms_url') ?: route('legal.terms'),
-        'deleteAccountUrl' => route('legal.delete-account'),
+        'deleteAccountUrl' => config('experience.legal.delete_account_url') ?: route('legal.delete-account'),
     ]);
 })->name('legal.privacy');
 

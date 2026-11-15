@@ -73,6 +73,17 @@ class LegalPagesTest extends TestCase
         $this->get('/legal/privacy')->assertSee('Terms of Use', false);
     }
 
+    public function test_privacy_uses_the_configured_delete_account_url(): void
+    {
+        config([
+            'experience.legal.delete_account_url' => 'https://example.test/legal/delete-account',
+        ]);
+
+        $this->get('/legal/privacy')
+            ->assertOk()
+            ->assertSee('https://example.test/legal/delete-account', false);
+    }
+
     public function test_the_export_writes_both_pages(): void
     {
         $directory = 'storage/app/testing-legal';
