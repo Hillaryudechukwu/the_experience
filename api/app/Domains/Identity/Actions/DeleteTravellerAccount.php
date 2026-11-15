@@ -6,6 +6,8 @@ namespace App\Domains\Identity\Actions;
 
 use App\Domains\AI\Models\AssistantConversation;
 use App\Domains\Analytics\Models\BehaviouralEvent;
+use App\Domains\Billing\Models\Subscription;
+use App\Domains\Billing\Models\SubscriptionEvent;
 use App\Domains\Bookings\BookingState;
 use App\Domains\Bookings\Models\Booking;
 use App\Domains\Bookings\Models\BookingTraveller;
@@ -99,6 +101,7 @@ class DeleteTravellerAccount
                 'journeys' => Journey::ownedBy($actor)->delete(),
                 'traveller_profiles' => TravellerProfile::ownedBy($actor)->delete(),
                 'guest_sessions' => $this->deleteGuestSessions($actor),
+                'subscription_event_payloads' => $this->scrubSubscriptionEvents($actor),
                 'users' => $this->deleteUser($actor),
             ];
 
@@ -177,6 +180,24 @@ class DeleteTravellerAccount
         }
 
         return $query->delete();
+    }
+
+    /**
+     * The subscription rows cascade with the user, but their store
+     * notifications are only nulled off them, and each still holds the raw
+     * payload — a purchase token or transaction id that leads back to the
+     * person's store account. The body goes; the store, the notification id
+     * and the hash stay, because those are what make a redelivery a no-op.
+     */
+    private function scrubSubscriptionEvents(Actor $actor): int
+    {
+        if ($actor->userId === null) {
+            return 0;
+        }
+
+        return SubscriptionEvent::query()
+            ->whereIn('subscription_id', Subscription::query()->where('user_id', $actor->userId)->select('id'))
+            ->update(['payload' => '{}']);
     }
 
     /** Every token first: a deleted user with a live token is a loose end. */

@@ -457,6 +457,10 @@ set_env APP_NAME "WAYOA"
 set_env APP_URL "$api_origin"
 set_env CORS_ALLOWED_ORIGINS "$web_origin"
 set_env PRIVACY_POLICY_URL "$privacy_url"
+# The paths the web host publishes below. Unset, the exported pages would link
+# to the API host's copies instead of the URLs given to the store listings.
+set_env TERMS_URL "${web_origin%/}/legal/terms"
+set_env DELETE_ACCOUNT_URL "${web_origin%/}/legal/delete-account"
 set_env APP_LINKS_HOST "${web_origin#*://}"
 set_env_if_provided APP_LINKS_IOS_TEAM_ID "$ios_team_id"
 set_env_if_provided GOOGLE_CLIENT_IDS "$google_client_ids"
@@ -527,22 +531,18 @@ printf "Verified JSON: %s/api/destinations\n" "${API_ORIGIN%/}"
 
 printf "%bPublishing privacy, terms, and App Link association files on the web host...%b\n" "$YELLOW" "$NC"
 mkdir -p "$SCRIPT_DIR/mobile/dist/.well-known" "$SCRIPT_DIR/mobile/dist/legal"
+# One connection for all the exported pages, fetched outside dist so the
+# staging copy is never published; then each goes to its extensionless path.
+legal_src="$(mktemp -d)"
 rsync --archive --compress \
     -e "$API_RSYNC_SHELL" \
-    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/privacy.html" \
-    "$SCRIPT_DIR/mobile/dist/privacy"
-rsync --archive --compress \
-    -e "$API_RSYNC_SHELL" \
-    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/privacy.html" \
-    "$SCRIPT_DIR/mobile/dist/legal/privacy"
-rsync --archive --compress \
-    -e "$API_RSYNC_SHELL" \
-    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/terms.html" \
-    "$SCRIPT_DIR/mobile/dist/legal/terms"
-rsync --archive --compress \
-    -e "$API_RSYNC_SHELL" \
-    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/delete-account.html" \
-    "$SCRIPT_DIR/mobile/dist/legal/delete-account"
+    "$SERVER_USER@$API_SERVER_HOST:$API_APP_PATH/storage/app/legal/" \
+    "$legal_src/"
+cp -f -- "$legal_src/privacy.html" "$SCRIPT_DIR/mobile/dist/privacy"
+cp -f -- "$legal_src/privacy.html" "$SCRIPT_DIR/mobile/dist/legal/privacy"
+cp -f -- "$legal_src/terms.html" "$SCRIPT_DIR/mobile/dist/legal/terms"
+cp -f -- "$legal_src/delete-account.html" "$SCRIPT_DIR/mobile/dist/legal/delete-account"
+rm -rf -- "$legal_src"
 
 publish_well_known_json() {
     local name="$1"
@@ -674,11 +674,28 @@ check_200() {
     printf "Verified %s: %s\n" "$label" "$url"
 }
 
+# The legal pages have no extension, so the ForceType rules are all that make
+# them HTML. A 200 served as octet-stream downloads instead of rendering, and
+# the store listings reject it — so the type is checked, not just the status.
+check_html() {
+    local url="$1"
+    local label="$2"
+    local result status content_type
+    result="$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code} %{content_type}' "$url")"
+    status="${result%% *}"
+    content_type="${result#* }"
+    if [[ "$status" != "200" || "$content_type" != text/html* ]]; then
+        printf "%b%s returned HTTP %s (%s) instead of 200 text/html: %s%b\n" "$RED" "$label" "$status" "$content_type" "$url" "$NC" >&2
+        exit 1
+    fi
+    printf "Verified %s: %s\n" "$label" "$url"
+}
+
 check_200 "${WEB_ORIGIN%/}/" "web HTML"
-check_200 "$PRIVACY_URL" "privacy policy"
-check_200 "${WEB_ORIGIN%/}/legal/terms" "terms of use"
-check_200 "${WEB_ORIGIN%/}/legal/privacy" "legal privacy page"
-check_200 "${WEB_ORIGIN%/}/legal/delete-account" "account deletion page"
+check_html "$PRIVACY_URL" "privacy policy"
+check_html "${WEB_ORIGIN%/}/legal/terms" "terms of use"
+check_html "${WEB_ORIGIN%/}/legal/privacy" "legal privacy page"
+check_html "${WEB_ORIGIN%/}/legal/delete-account" "account deletion page"
 check_200 "${WEB_ORIGIN%/}/googlebf5873417f9d70f5.html" "Google Search Console verification"
 check_200 "${WEB_ORIGIN%/}/robots.txt" "robots.txt"
 check_200 "${WEB_ORIGIN%/}/sitemap.xml" "sitemap.xml"

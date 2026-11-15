@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Delete your {{ config('app.name') }} account and data</title>
   <meta name="description" content="How to request deletion of your {{ config('app.name') }} account and associated data.">
+  <link rel="canonical" href="{{ config('experience.legal.delete_account_url') ?: route('legal.delete-account') }}">
   <style>
     :root { color-scheme: light dark; --ink: #0D1B2A; --muted: #4A5468; --rule: #E4E8EF; --bg: #FFFFFF; --accent: #2856F6; }
     @media (prefers-color-scheme: dark) {
@@ -54,8 +55,9 @@
   <p><strong>In the app (fastest)</strong></p>
   <ol>
     <li>Open the {{ config('app.name') }} app on your phone.</li>
-    <li>Go to <strong>You</strong>, or open the subscription / paywall screen.</li>
-    <li>Tap <strong>Delete your account</strong> and confirm.</li>
+    <li>Go to <strong>You</strong> and tap <strong>Delete my account</strong> — or, on the
+      subscription or paywall screen, tap <strong>Delete your account</strong>.</li>
+    <li>Confirm on the screen that opens.</li>
   </ol>
   <p>
     Guests can erase their data the same way. Email sign-in asks for your password. Google or
@@ -82,7 +84,8 @@
     <li>Guide / assistant conversations</li>
     <li>Behavioural events (opens, saves, ignores)</li>
     <li>Push notification device tokens</li>
-    <li>Subscription entitlement records we hold for your account</li>
+    <li>Subscription entitlement records we hold for your account, and the contents of the
+      App Store / Google Play billing notifications about it</li>
   </ul>
 
   <h2>Data that is kept, and for how long</h2>
@@ -97,9 +100,14 @@
     </tr>
     <tr>
       <th>Retention</th>
-      <td>Typically up to six years, then deleted. Bookings that never reached payment are deleted outright with your account.</td>
+      <td>Six years from the booking, then deleted automatically. Bookings that never reached payment are deleted outright with your account.</td>
     </tr>
   </table>
+  <p>
+    We also keep a bare log line for each billing notification the stores sent us — the store’s
+    own notification id and its type, with everything else removed — so that a notification the
+    store sends again is recognised rather than applied twice. Nothing on it identifies you.
+  </p>
   <p>
     Deleting your {{ config('app.name') }} account does <strong>not</strong> cancel a Google Play
     or App Store subscription. Manage that in your store account.
