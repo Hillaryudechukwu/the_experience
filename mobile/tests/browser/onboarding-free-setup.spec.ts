@@ -1,7 +1,56 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const SESSION_KEY = 'experience.session';
 const GUEST_TOKEN_KEY = 'experience.guest_token';
+const DESTINATION_TZ = 'Europe/London';
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/** Match DateRangeCalendar / isoDate: YYYY-MM-DD in the destination zone. */
+function londonToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: DESTINATION_TZ });
+}
+
+function addCalendarDays(iso: string, days: number): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  return date.toLocaleDateString('en-CA');
+}
+
+function dayButtonName(iso: string): string {
+  const [, month, day] = iso.split('-').map(Number);
+  return `${day} ${MONTHS[month - 1]}`;
+}
+
+function monthYearLabel(iso: string): string {
+  const [year, month] = iso.split('-').map(Number);
+  return `${MONTHS[month - 1]} ${year}`;
+}
+
+/** Calendar opens on minDate's month; advance if the pick spills into the next. */
+async function pickCalendarDay(page: Page, iso: string) {
+  const target = monthYearLabel(iso);
+  for (let i = 0; i < 3; i++) {
+    if (await page.getByText(target, { exact: true }).isVisible()) break;
+    await page.getByRole('button', { name: 'Next month' }).click();
+  }
+  await expect(page.getByText(target, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: dayButtonName(iso) }).click();
+}
 
 /**
  * Setup is free under the paywall: finishing onboarding may create a journey
@@ -9,6 +58,9 @@ const GUEST_TOKEN_KEY = 'experience.guest_token';
  */
 test('onboarding finish creates a journey and never a trip', async ({ page }) => {
   const writes: string[] = [];
+  /* Three days out keeps the range after minDate (today) whenever CI runs. */
+  const startsOn = addCalendarDays(londonToday(), 3);
+  const endsOn = addCalendarDays(startsOn, 2);
 
   await page.addInitScript(
     ([sessionKey, guestKey]) => {
@@ -85,8 +137,8 @@ test('onboarding finish creates a journey and never a trip', async ({ page }) =>
             id: 'journey-1',
             destination_id: '11111111-1111-4111-8111-111111111111',
             reason: 'holiday',
-            starts_on: '2026-11-20',
-            ends_on: '2026-11-22',
+            starts_on: startsOn,
+            ends_on: endsOn,
             anchors: [],
           },
         },
@@ -109,8 +161,8 @@ test('onboarding finish creates a journey and never a trip', async ({ page }) =>
             id: 'journey-1',
             destination_id: '11111111-1111-4111-8111-111111111111',
             reason: 'holiday',
-            starts_on: '2026-11-20',
-            ends_on: '2026-11-22',
+            starts_on: startsOn,
+            ends_on: endsOn,
             anchors: [],
           },
         },
@@ -134,8 +186,8 @@ test('onboarding finish creates a journey and never a trip', async ({ page }) =>
   await expect(page).toHaveURL(/\/onboarding\/style/);
   await page.getByRole('button', { name: 'Balanced 3 things a day' }).click();
   await page.getByRole('button', { name: 'Moderate', exact: true }).click();
-  await page.getByRole('button', { name: '20 November' }).click();
-  await page.getByRole('button', { name: '22 November' }).click();
+  await pickCalendarDay(page, startsOn);
+  await pickCalendarDay(page, endsOn);
   await page.getByRole('button', { name: 'Show me what is worth doing' }).click();
 
   await expect(page).toHaveURL(/\/onboarding\/ready/, { timeout: 15_000 });
