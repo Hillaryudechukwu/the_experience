@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Linking, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
 
 import { recordEvents, useActivateDestination, useExploreCity } from '../src/api/hooks';
 import type { ExperienceCard, ExploreRange, LiveEvent } from '../src/api/types';
@@ -22,6 +21,11 @@ import {
   Skeleton,
   T,
 } from '../src/components/primitives';
+import {
+  checkOrRequestLocationPermission,
+  getDeviceCoords,
+  isPermissionDeniedError,
+} from '../src/lib/deviceLocation';
 import { clock, conditionLabel, dayLabel } from '../src/lib/format';
 import { useBackTo } from '../src/lib/navigation';
 import { useSession } from '../src/store/session';
@@ -65,12 +69,9 @@ export default function ExploreCity() {
   const locate = useCallback(
     async (prompt: boolean) => {
       try {
-        const permission = prompt
-          ? await Location.requestForegroundPermissionsAsync()
-          : await Location.getForegroundPermissionsAsync();
-
-        if (permission.status !== 'granted') {
-          setLocating(prompt ? 'denied' : 'ask');
+        const permission = await checkOrRequestLocationPermission(prompt);
+        if (permission !== 'granted') {
+          setLocating(permission === 'unavailable' ? 'failed' : permission);
           return;
         }
 
@@ -86,12 +87,10 @@ export default function ExploreCity() {
             ? current.coords
             : null;
 
-        const coords: { lat: number; lng: number } =
-          recent ??
-          (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then((fix) => ({
-            lat: fix.coords.latitude,
-            lng: fix.coords.longitude,
-          })));
+        /* getCurrentPositionAsync can hang on iOS/Android; the helper times
+           out and falls back so this screen cannot stick on locating. On web
+           this call is also what surfaces the browser prompt. */
+        const coords = recent ?? (await getDeviceCoords());
 
         /* Keep the session current too, unless location is switched off in
            settings: then this one look is all the traveller agreed to. */
@@ -105,8 +104,8 @@ export default function ExploreCity() {
             : { ...coords, precision },
         );
         setLocating('ready');
-      } catch {
-        setLocating('failed');
+      } catch (error) {
+        setLocating(isPermissionDeniedError(error) ? 'denied' : 'failed');
       }
     },
     [precision],
@@ -153,14 +152,25 @@ export default function ExploreCity() {
           ) : locating === 'denied' ? (
             <EmptyState
               title="Location is off"
-              body="Without it we cannot tell which city you are in. Discover still works for the city you chose, and you can allow location in your phone's settings at any time."
-              action={<Button label="Back to Discover" tone="secondary" onPress={() => router.replace('/(tabs)')} />}
+              body={
+                Platform.OS === 'web'
+                  ? 'Without it we cannot tell which city you are in. Allow location for this site in your browser, then try again. Discover still works for the city you chose.'
+                  : "Without it we cannot tell which city you are in. Allow location for WAYOA in your phone's settings, then come back. Discover still works for the city you chose."
+              }
+              action={
+                <View style={{ gap: space.sm }}>
+                  {Platform.OS !== 'web' ? (
+                    <Button label="Open settings" onPress={() => void Linking.openSettings()} />
+                  ) : null}
+                  <Button label="Back to Discover" tone="secondary" onPress={() => router.replace('/(tabs)')} />
+                </View>
+              }
             />
           ) : (
             <LoadFailure
               title="Could not read your location"
               body="Your phone did not give us a position. Step outside or try again in a moment."
-              onRetry={() => void locate(false)}
+              onRetry={() => void locate(true)}
             />
           )}
         </Gutter>

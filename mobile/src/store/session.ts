@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { create } from 'zustand';
 
+import { getDeviceCoords } from '../lib/deviceLocation';
+
 export type Coords = { lat: number; lng: number } | null;
 export type LocationSource = 'destination' | 'device';
 
@@ -241,14 +243,7 @@ export const useSession = create<SessionState>((set, get) => {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== 'granted') return;
 
-        const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        await get().setCoords({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
+        await get().setCoords(await getDeviceCoords());
       } catch {
         /* Keep whatever we had. The fallback already works. */
       }

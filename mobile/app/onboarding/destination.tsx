@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, TextInput, View } from 'react-native';
-import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 
 import { useActivateDestination, useDestinationImport, useDestinations, useRetryDestinationImport } from '../../src/api/hooks';
 import { http } from '../../src/api/client';
 import type { UncoveredPlace } from '../../src/api/types';
-import { useDebounced } from '../../src/lib/useDebounced';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Card, CardPress, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { BRAND } from '../../src/brand';
+import {
+  checkOrRequestLocationPermission,
+  getDeviceCoords,
+  isPermissionDeniedError,
+} from '../../src/lib/deviceLocation';
+import { useDebounced } from '../../src/lib/useDebounced';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -132,18 +136,28 @@ export default function Destination() {
     setLocating(true);
     setLocationNote(null);
 
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+    const declined = async () => {
+      setLocationNote('No problem — pick a city below and everything works the same.');
+      await setLocationPrecision('off');
+    };
 
-      if (status !== 'granted') {
-        setLocationNote('No problem — pick a city below and everything works the same.');
-        await setLocationPrecision('off');
+    try {
+      const permission = await checkOrRequestLocationPermission(true);
+
+      if (permission === 'unavailable') {
+        /* Services off or no answer from the OS: not a refusal, so keep the setting. */
+        setLocationNote('Could not read your location. Choose a city below instead.');
 
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+      if (permission !== 'granted') {
+        await declined();
+
+        return;
+      }
+
+      const coords = await getDeviceCoords();
       await setCoords(coords, 'precise');
 
       const nearest = covered
@@ -158,8 +172,13 @@ export default function Destination() {
       } else {
         setLocationNote('Location found. We do not cover a nearby city yet, so choose one below.');
       }
-    } catch {
-      setLocationNote('Could not read your location. Choose a city below instead.');
+    } catch (error) {
+      /* On web the browser prompt only appears inside getDeviceCoords, so Block lands here. */
+      if (isPermissionDeniedError(error)) {
+        await declined();
+      } else {
+        setLocationNote('Could not read your location. Choose a city below instead.');
+      }
     } finally {
       setLocating(false);
     }
