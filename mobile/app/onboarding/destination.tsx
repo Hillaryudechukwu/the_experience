@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, TextInput, View } from 'react-native';
-import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 
 import { useActivateDestination, useDestinationImport, useDestinations, useRetryDestinationImport } from '../../src/api/hooks';
@@ -10,7 +9,7 @@ import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Card, CardPress, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { BRAND } from '../../src/brand';
-import { getDeviceCoords } from '../../src/lib/deviceLocation';
+import { checkOrRequestLocationPermission, getDeviceCoords } from '../../src/lib/deviceLocation';
 import { useDebounced } from '../../src/lib/useDebounced';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
@@ -134,9 +133,9 @@ export default function Destination() {
     setLocationNote(null);
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const permission = await checkOrRequestLocationPermission(true);
 
-      if (status !== 'granted') {
+      if (permission !== 'granted') {
         setLocationNote('No problem — pick a city below and everything works the same.');
         await setLocationPrecision('off');
 

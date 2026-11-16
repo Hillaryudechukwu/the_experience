@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Linking, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
 
 import { recordEvents, useActivateDestination, useExploreCity } from '../src/api/hooks';
 import type { ExperienceCard, ExploreRange, LiveEvent } from '../src/api/types';
@@ -22,7 +21,11 @@ import {
   Skeleton,
   T,
 } from '../src/components/primitives';
-import { getDeviceCoords } from '../src/lib/deviceLocation';
+import {
+  checkOrRequestLocationPermission,
+  getDeviceCoords,
+  isPermissionDeniedError,
+} from '../src/lib/deviceLocation';
 import { clock, conditionLabel, dayLabel } from '../src/lib/format';
 import { useBackTo } from '../src/lib/navigation';
 import { useSession } from '../src/store/session';
@@ -66,24 +69,9 @@ export default function ExploreCity() {
   const locate = useCallback(
     async (prompt: boolean) => {
       try {
-        const servicesOn = await Location.hasServicesEnabledAsync();
-        if (!servicesOn) {
-          setLocating('denied');
-          return;
-        }
-
-        const permission = prompt
-          ? await Location.requestForegroundPermissionsAsync()
-          : await Location.getForegroundPermissionsAsync();
-
-        if (permission.status !== 'granted') {
-          /* iOS will not show the system dialog again after a decline.
-             Sending them to "Use my location" only to fail silently feels broken. */
-          if (prompt || permission.canAskAgain === false) {
-            setLocating('denied');
-          } else {
-            setLocating('ask');
-          }
+        const permission = await checkOrRequestLocationPermission(prompt);
+        if (permission !== 'granted') {
+          setLocating(permission);
           return;
         }
 
@@ -99,9 +87,9 @@ export default function ExploreCity() {
             ? current.coords
             : null;
 
-        /* getCurrentPositionAsync can hang on iOS; the helper times out and
-           falls back to a recent last-known fix so this screen cannot stick
-           on "Finding where you are…". */
+        /* getCurrentPositionAsync can hang on iOS/Android; the helper times
+           out and falls back so this screen cannot stick on locating. On web
+           this call is also what surfaces the browser prompt. */
         const coords = recent ?? (await getDeviceCoords());
 
         /* Keep the session current too, unless location is switched off in
@@ -116,8 +104,8 @@ export default function ExploreCity() {
             : { ...coords, precision },
         );
         setLocating('ready');
-      } catch {
-        setLocating('failed');
+      } catch (error) {
+        setLocating(isPermissionDeniedError(error) ? 'denied' : 'failed');
       }
     },
     [precision],
@@ -164,10 +152,16 @@ export default function ExploreCity() {
           ) : locating === 'denied' ? (
             <EmptyState
               title="Location is off"
-              body="Without it we cannot tell which city you are in. Allow location for WAYOA in your phone's settings, then come back. Discover still works for the city you chose."
+              body={
+                Platform.OS === 'web'
+                  ? 'Without it we cannot tell which city you are in. Allow location for this site in your browser, then try again. Discover still works for the city you chose.'
+                  : "Without it we cannot tell which city you are in. Allow location for WAYOA in your phone's settings, then come back. Discover still works for the city you chose."
+              }
               action={
                 <View style={{ gap: space.sm }}>
-                  <Button label="Open settings" onPress={() => void Linking.openSettings()} />
+                  {Platform.OS !== 'web' ? (
+                    <Button label="Open settings" onPress={() => void Linking.openSettings()} />
+                  ) : null}
                   <Button label="Back to Discover" tone="secondary" onPress={() => router.replace('/(tabs)')} />
                 </View>
               }
