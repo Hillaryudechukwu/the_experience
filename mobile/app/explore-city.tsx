@@ -71,7 +71,7 @@ export default function ExploreCity() {
       try {
         const permission = await checkOrRequestLocationPermission(prompt);
         if (permission !== 'granted') {
-          setLocating(permission);
+          setLocating(permission === 'unavailable' ? 'failed' : permission);
           return;
         }
 

@@ -4,10 +4,16 @@ import { Platform } from 'react-native';
 /** Long enough for a cold GPS fix; short enough that Explore cannot hang forever. */
 const FIX_TIMEOUT_MS = 8_000;
 const PERMISSION_CHECK_MS = 4_000;
+/** System and browser prompts sit until the traveller answers; only bound them loosely. */
+const PROMPT_TIMEOUT_MS = 120_000;
 
 export type DeviceCoords = { lat: number; lng: number };
 
-export type LocationPermissionOutcome = 'granted' | 'ask' | 'denied';
+/**
+ * `unavailable` is not a refusal: location services are off or the OS did not
+ * answer. Callers must not record it as the traveller saying no.
+ */
+export type LocationPermissionOutcome = 'granted' | 'ask' | 'denied' | 'unavailable';
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -48,10 +54,10 @@ function isPermissionDeniedError(error: unknown): boolean {
 export async function checkOrRequestLocationPermission(prompt: boolean): Promise<LocationPermissionOutcome> {
   try {
     const servicesOn = await withTimeout(Location.hasServicesEnabledAsync(), PERMISSION_CHECK_MS);
-    if (!servicesOn) return 'denied';
+    if (!servicesOn) return 'unavailable';
   } catch {
     /* If we cannot even ask the OS, still offer the in-app button. */
-    return prompt ? 'denied' : 'ask';
+    return prompt ? 'unavailable' : 'ask';
   }
 
   if (Platform.OS === 'web') {
@@ -61,15 +67,14 @@ export async function checkOrRequestLocationPermission(prompt: boolean): Promise
   try {
     const permission = await withTimeout(
       prompt ? Location.requestForegroundPermissionsAsync() : Location.getForegroundPermissionsAsync(),
-      /* System dialogs can sit until the traveller answers; only bound the silent check. */
-      prompt ? 120_000 : PERMISSION_CHECK_MS,
+      prompt ? PROMPT_TIMEOUT_MS : PERMISSION_CHECK_MS,
     );
 
     if (permission.status === 'granted') return 'granted';
     if (prompt || permission.canAskAgain === false) return 'denied';
     return 'ask';
   } catch {
-    return prompt ? 'denied' : 'ask';
+    return prompt ? 'unavailable' : 'ask';
   }
 }
 
@@ -96,13 +101,16 @@ async function webPermission(prompt: boolean): Promise<LocationPermissionOutcome
  *
  * `getCurrentPositionAsync` is known to hang on iOS and Android. Race a
  * timeout, prefer a recent last-known fix, then retry once at low accuracy.
- * On web, this call is also what surfaces the browser location prompt.
+ * On web, this call is also what surfaces the browser location prompt, so
+ * until the site is granted the first read waits for the traveller's answer
+ * rather than the GPS timeout.
  */
 export async function getDeviceCoords(): Promise<DeviceCoords> {
   const balanced = { accuracy: Location.Accuracy.Balanced };
+  const firstTimeout = (await mayShowBrowserPrompt()) ? PROMPT_TIMEOUT_MS : FIX_TIMEOUT_MS;
 
   try {
-    return fromFix(await withTimeout(Location.getCurrentPositionAsync(balanced), FIX_TIMEOUT_MS));
+    return fromFix(await withTimeout(Location.getCurrentPositionAsync(balanced), firstTimeout));
   } catch (error) {
     if (isPermissionDeniedError(error)) throw error;
 
@@ -112,17 +120,21 @@ export async function getDeviceCoords(): Promise<DeviceCoords> {
     });
     if (last) return fromFix(last);
 
-    try {
-      return fromFix(
-        await withTimeout(
-          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
-          FIX_TIMEOUT_MS,
-        ),
-      );
-    } catch (retryError) {
-      if (isPermissionDeniedError(retryError)) throw retryError;
-      throw retryError;
-    }
+    return fromFix(
+      await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }), FIX_TIMEOUT_MS),
+    );
+  }
+}
+
+async function mayShowBrowserPrompt(): Promise<boolean> {
+  if (Platform.OS !== 'web') return false;
+
+  try {
+    const permission = await withTimeout(Location.getForegroundPermissionsAsync(), PERMISSION_CHECK_MS);
+    return permission.status !== 'granted';
+  } catch {
+    /* No Permissions API: we cannot tell, so assume a prompt may be showing. */
+    return true;
   }
 }
 
