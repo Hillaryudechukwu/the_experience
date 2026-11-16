@@ -6,11 +6,12 @@ import { useRouter } from 'expo-router';
 import { useActivateDestination, useDestinationImport, useDestinations, useRetryDestinationImport } from '../../src/api/hooks';
 import { http } from '../../src/api/client';
 import type { UncoveredPlace } from '../../src/api/types';
-import { useDebounced } from '../../src/lib/useDebounced';
 import { Icon } from '../../src/components/Icon';
 import { OnboardingChrome, OnboardingIntro } from '../../src/components/OnboardingChrome';
 import { Button, Card, CardPress, Chip, Gutter, Note, Row, Screen, T } from '../../src/components/primitives';
 import { BRAND } from '../../src/brand';
+import { getDeviceCoords } from '../../src/lib/deviceLocation';
+import { useDebounced } from '../../src/lib/useDebounced';
 import { useSession } from '../../src/store/session';
 import { radius, space, useTheme } from '../../src/theme';
 
@@ -142,8 +143,7 @@ export default function Destination() {
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+      const coords = await getDeviceCoords();
       await setCoords(coords, 'precise');
 
       const nearest = covered

@@ -22,6 +22,7 @@ import {
   Skeleton,
   T,
 } from '../src/components/primitives';
+import { getDeviceCoords } from '../src/lib/deviceLocation';
 import { clock, conditionLabel, dayLabel } from '../src/lib/format';
 import { useBackTo } from '../src/lib/navigation';
 import { useSession } from '../src/store/session';
@@ -65,12 +66,24 @@ export default function ExploreCity() {
   const locate = useCallback(
     async (prompt: boolean) => {
       try {
+        const servicesOn = await Location.hasServicesEnabledAsync();
+        if (!servicesOn) {
+          setLocating('denied');
+          return;
+        }
+
         const permission = prompt
           ? await Location.requestForegroundPermissionsAsync()
           : await Location.getForegroundPermissionsAsync();
 
         if (permission.status !== 'granted') {
-          setLocating(prompt ? 'denied' : 'ask');
+          /* iOS will not show the system dialog again after a decline.
+             Sending them to "Use my location" only to fail silently feels broken. */
+          if (prompt || permission.canAskAgain === false) {
+            setLocating('denied');
+          } else {
+            setLocating('ask');
+          }
           return;
         }
 
@@ -86,12 +99,10 @@ export default function ExploreCity() {
             ? current.coords
             : null;
 
-        const coords: { lat: number; lng: number } =
-          recent ??
-          (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then((fix) => ({
-            lat: fix.coords.latitude,
-            lng: fix.coords.longitude,
-          })));
+        /* getCurrentPositionAsync can hang on iOS; the helper times out and
+           falls back to a recent last-known fix so this screen cannot stick
+           on "Finding where you are…". */
+        const coords = recent ?? (await getDeviceCoords());
 
         /* Keep the session current too, unless location is switched off in
            settings: then this one look is all the traveller agreed to. */
@@ -153,14 +164,19 @@ export default function ExploreCity() {
           ) : locating === 'denied' ? (
             <EmptyState
               title="Location is off"
-              body="Without it we cannot tell which city you are in. Discover still works for the city you chose, and you can allow location in your phone's settings at any time."
-              action={<Button label="Back to Discover" tone="secondary" onPress={() => router.replace('/(tabs)')} />}
+              body="Without it we cannot tell which city you are in. Allow location for WAYOA in your phone's settings, then come back. Discover still works for the city you chose."
+              action={
+                <View style={{ gap: space.sm }}>
+                  <Button label="Open settings" onPress={() => void Linking.openSettings()} />
+                  <Button label="Back to Discover" tone="secondary" onPress={() => router.replace('/(tabs)')} />
+                </View>
+              }
             />
           ) : (
             <LoadFailure
               title="Could not read your location"
               body="Your phone did not give us a position. Step outside or try again in a moment."
-              onRetry={() => void locate(false)}
+              onRetry={() => void locate(true)}
             />
           )}
         </Gutter>
