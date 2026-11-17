@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 /*
- * Expo SDK 57 has six unresolved upstream advisories in its production
+ * Expo SDK 57 has four unresolved upstream advisories in its production
  * dependency graph. They are accepted until the review date recorded in
  * docs/SECURITY_ACCEPTANCES.md. Pinning the exact advisory URLs makes this a
  * baseline, not an instruction to ignore every future high finding.
@@ -14,8 +14,8 @@ const reviewBy = '2027-01-31';
 const accepted = new Set([
   'https://github.com/advisories/GHSA-vcc3-ghjq-m6fr',
   'https://github.com/advisories/GHSA-qr28-fpjm-wq7f',
-  'https://github.com/advisories/GHSA-3g3m-2fjr-6pw4',
   'https://github.com/advisories/GHSA-g3hv-75wg-m249',
+  'https://github.com/advisories/GHSA-fc5q-39xc-vjpf',
 ]);
 
 const audit = spawnSync('npm', ['audit', '--omit=dev', '--json'], {
