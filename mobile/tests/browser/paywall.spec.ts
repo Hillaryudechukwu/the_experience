@@ -153,10 +153,64 @@ test('paywall sign out still opens login when the server refuses it', async ({ p
   await page.goto('/paywall');
   await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
 
-  /* The confirm, then the hook's failure alert. */
-  page.on('dialog', (dialog) => dialog.accept());
+  const dialogs: string[] = [];
+  page.on('dialog', (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.accept();
+  });
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/account\/login/);
+  /* The device is signed out by then, so no "Could not sign out". */
+  expect(dialogs).toEqual([expect.stringMatching(/^Sign out\?/)]);
+});
+
+test('You tab sign out shows a guest even when the server refuses it', async ({ page }) => {
+  await seedOnboarded(page, { canUse: true, tripId: 'trip-1' });
+
+  let signedOut = false;
+  await page.route('**/api/auth/logout', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    signedOut = true;
+    await route.fulfill({ status: 500, json: { message: 'Server error' } });
+  });
+  await page.route('**/api/traveller/profile', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        data: signedOut
+          ? { id: 'profile-2', display_name: null, is_guest: true, has_password: false, account: null, interests: [] }
+          : {
+              id: 'profile-1',
+              display_name: 'Sandbox Tester',
+              is_guest: false,
+              has_password: true,
+              account: { name: 'Sandbox Tester', email: 'sandbox@wayoa.test', initials: 'ST' },
+              interests: [],
+            },
+      },
+    });
+  });
+
+  await page.goto('/you');
+  const signOut = page.getByText('Sign out', { exact: true });
+  await expect(signOut).toBeVisible();
+
+  const dialogs: string[] = [];
+  page.on('dialog', (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.accept();
+  });
+  await signOut.click();
+
+  await expect(page.getByText(/Browsing as a guest/)).toBeVisible();
+  await expect(page.getByText('Sign out', { exact: true })).toHaveCount(0);
+  expect(dialogs).toEqual([expect.stringMatching(/^Sign out\?/)]);
 });
 
 /* Onboarding leaves a journey without a trip; ready is what builds it. */

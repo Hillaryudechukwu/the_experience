@@ -44,12 +44,11 @@ export default function Paywall() {
       onConfirm: async () => {
         try {
           await logout.mutateAsync();
+          /* A guest cannot Restore or Subscribe — login is the only way on. */
+          router.replace('/account/login');
         } catch {
           /* hook alerts */
         }
-        /* This device is a guest now whether or not the server heard us, and
-           a guest cannot Restore or Subscribe — login is the only way on. */
-        router.replace('/account/login');
       },
     });
   };
