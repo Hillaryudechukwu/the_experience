@@ -106,6 +106,8 @@ test('paywall shows price, period, legal links and delete before any purchase', 
   await expect(page.getByText('Renews until you pause or cancel')).toBeVisible();
   await expect(page.getByText('The month you have paid for always runs to its end')).toBeVisible();
   await expect(page.getByText(/Subscribe in the WAYOA app on iPhone or Android/i)).toBeVisible();
+  await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Terms of use' }).click();
   await page.getByRole('button', { name: 'Privacy policy' }).click();
@@ -116,6 +118,99 @@ test('paywall shows price, period, legal links and delete before any purchase', 
   await page.getByRole('button', { name: 'Delete your account' }).click();
   await expect(page).toHaveURL(/\/account\/delete/);
   await expect(page.getByText(/Deleting this account does not cancel a subscription/i)).toBeVisible();
+});
+
+test('paywall sign out clears the account and opens login', async ({ page }) => {
+  await seedUnpaidOnboarded(page);
+
+  await page.route('**/api/auth/logout', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({ json: { status: 'ok' } });
+  });
+
+  await page.goto('/paywall');
+  await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/account\/login/);
+});
+
+test('paywall sign out still opens login when the server refuses it', async ({ page }) => {
+  await seedUnpaidOnboarded(page);
+
+  await page.route('**/api/auth/logout', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({ status: 500, json: { message: 'Server error' } });
+  });
+
+  await page.goto('/paywall');
+  await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
+
+  const dialogs: string[] = [];
+  page.on('dialog', (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.accept();
+  });
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/account\/login/);
+  /* The device is signed out by then, so no "Could not sign out". */
+  expect(dialogs).toEqual([expect.stringMatching(/^Sign out\?/)]);
+});
+
+test('You tab sign out shows a guest even when the server refuses it', async ({ page }) => {
+  await seedOnboarded(page, { canUse: true, tripId: 'trip-1' });
+
+  let signedOut = false;
+  await page.route('**/api/auth/logout', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    signedOut = true;
+    await route.fulfill({ status: 500, json: { message: 'Server error' } });
+  });
+  await page.route('**/api/traveller/profile', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        data: signedOut
+          ? { id: 'profile-2', display_name: null, is_guest: true, has_password: false, account: null, interests: [] }
+          : {
+              id: 'profile-1',
+              display_name: 'Sandbox Tester',
+              is_guest: false,
+              has_password: true,
+              account: { name: 'Sandbox Tester', email: 'sandbox@wayoa.test', initials: 'ST' },
+              interests: [],
+            },
+      },
+    });
+  });
+
+  await page.goto('/you');
+  const signOut = page.getByText('Sign out', { exact: true });
+  await expect(signOut).toBeVisible();
+
+  const dialogs: string[] = [];
+  page.on('dialog', (dialog) => {
+    dialogs.push(dialog.message());
+    void dialog.accept();
+  });
+  await signOut.click();
+
+  await expect(page.getByText(/Browsing as a guest/)).toBeVisible();
+  await expect(page.getByText('Sign out', { exact: true })).toHaveCount(0);
+  expect(dialogs).toEqual([expect.stringMatching(/^Sign out\?/)]);
 });
 
 /* Onboarding leaves a journey without a trip; ready is what builds it. */

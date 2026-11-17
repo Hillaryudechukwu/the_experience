@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useEntitlement, useProfile } from '../src/api/hooks';
+import { useEntitlement, useLogout, useProfile } from '../src/api/hooks';
 import { BRAND } from '../src/brand';
 import { Icon } from '../src/components/Icon';
 import { NativeSubscriptionActions } from '../src/components/NativeSubscriptionActions';
 import { Button, Card, Gutter, Loading, Note, Row, Screen, T } from '../src/components/primitives';
-import { showAlert } from '../src/lib/alert';
+import { confirmAction, showAlert } from '../src/lib/alert';
 import { FALLBACK_PRICE_LABEL, isNativeStorePlatform } from '../src/lib/billing';
 import { PRIVACY_POLICY_URL, STORE_NAME, TERMS_URL } from '../src/lib/legal';
 import { useSession } from '../src/store/session';
@@ -28,11 +28,30 @@ export default function Paywall() {
   const router = useRouter();
   const { data: entitlement, isLoading, refetch, isRefetching } = useEntitlement();
   const { data: profile } = useProfile();
+  const logout = useLogout();
 
   /* A guest cannot own a receipt, which is the whole reason the purchase
      waits for an account rather than offering itself to anyone. */
   const signedIn = profile ? profile.is_guest === false : false;
+  const accountEmail = profile?.account?.email?.trim() || null;
   const pending = entitlement?.state === 'pending';
+
+  const signOut = () => {
+    confirmAction('Sign out?', 'Sign in with another account to use a different month on this phone.', {
+      confirmLabel: 'Sign out',
+      cancelLabel: 'Stay signed in',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await logout.mutateAsync();
+          /* A guest cannot Restore or Subscribe — login is the only way on. */
+          router.replace('/account/login');
+        } catch {
+          /* hook alerts */
+        }
+      },
+    });
+  };
 
   /* The store's localized price once it loads; the fixed label only until
      then, and on web where there is no store to ask. */
@@ -202,9 +221,31 @@ export default function Paywall() {
         </Row>
       </Gutter>
 
+      {/* Show which WAYOA account owns Restore / Subscribe. Without this,
+         a second phone looks "stuck" on the paywall when it is simply signed
+         into the wrong account — and there is no You tab to Sign out from. */}
+      {signedIn ? (
+        <Gutter style={{ marginTop: space.xl, gap: space.xs }}>
+          <T variant="caption" color={colors.text.tertiary}>
+            {accountEmail ? `Signed in as ${accountEmail}` : 'Signed in'}
+          </T>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            onPress={signOut}
+            disabled={logout.isPending}
+            style={{ paddingVertical: space.xs, alignSelf: 'flex-start' }}
+          >
+            <T variant="small" color={colors.action.primary}>
+              {logout.isPending ? 'Signing out…' : 'Sign out'}
+            </T>
+          </Pressable>
+        </Gutter>
+      ) : null}
+
       {/* The way out stays open. A paywall that traps someone with no way to
           delete their account is a rejection on both stores. */}
-      <Gutter style={{ marginTop: space.xl, marginBottom: space.xxl }}>
+      <Gutter style={{ marginTop: signedIn ? space.md : space.xl, marginBottom: space.xxl }}>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/account/delete')}

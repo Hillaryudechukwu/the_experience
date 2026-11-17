@@ -1001,20 +1001,28 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: async () => {
+      /*
+       * Signing out is forgetting the token on this device. A refused or
+       * dropped request only leaves the server's copy to expire, so it is not
+       * a failure to report — "Could not sign out" would be untrue by then.
+       */
       try {
         await http.post('/auth/logout');
-      } finally {
-        await clearIdentity();
-        /*
-         * The journey stays on the account. This device is about to be a new
-         * guest, and the id in the session is the account's — the next read
-         * is the 404 "No query results for model Journey".
-         */
-        await useSession.getState().setJourney(null);
-        await useSession.getState().setTrip(null);
+      } catch {
+        /* the token is about to be forgotten either way */
       }
+      await clearIdentity();
+      /*
+       * The journey stays on the account. This device is about to be a new
+       * guest, and the id in the session is the account's — the next read
+       * is the 404 "No query results for model Journey".
+       */
+      await useSession.getState().setJourney(null);
+      await useSession.getState().setTrip(null);
     },
-    onSuccess: () => {
+    /* Clearing local storage can still fail part-way, after the token in
+       memory is gone, so the cache goes either way. */
+    onSettled: () => {
       client.clear();
     },
     onError: reportFailure('sign out'),
