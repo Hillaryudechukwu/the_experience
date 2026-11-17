@@ -106,6 +106,8 @@ test('paywall shows price, period, legal links and delete before any purchase', 
   await expect(page.getByText('Renews until you pause or cancel')).toBeVisible();
   await expect(page.getByText('The month you have paid for always runs to its end')).toBeVisible();
   await expect(page.getByText(/Subscribe in the WAYOA app on iPhone or Android/i)).toBeVisible();
+  await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Terms of use' }).click();
   await page.getByRole('button', { name: 'Privacy policy' }).click();
@@ -116,6 +118,25 @@ test('paywall shows price, period, legal links and delete before any purchase', 
   await page.getByRole('button', { name: 'Delete your account' }).click();
   await expect(page).toHaveURL(/\/account\/delete/);
   await expect(page.getByText(/Deleting this account does not cancel a subscription/i)).toBeVisible();
+});
+
+test('paywall sign out clears the account and opens login', async ({ page }) => {
+  await seedUnpaidOnboarded(page);
+
+  await page.route('**/api/auth/logout', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({ json: { status: 'ok' } });
+  });
+
+  await page.goto('/paywall');
+  await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/account\/login/);
 });
 
 /* Onboarding leaves a journey without a trip; ready is what builds it. */
