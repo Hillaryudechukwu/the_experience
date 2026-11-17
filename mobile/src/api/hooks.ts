@@ -1014,7 +1014,9 @@ export function useLogout() {
         await useSession.getState().setTrip(null);
       }
     },
-    onSuccess: () => {
+    /* The identity is cleared even when the request fails, so the cache has
+       to go either way — otherwise screens keep showing the old account. */
+    onSettled: () => {
       client.clear();
     },
     onError: reportFailure('sign out'),

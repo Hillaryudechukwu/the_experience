@@ -139,6 +139,26 @@ test('paywall sign out clears the account and opens login', async ({ page }) => 
   await expect(page).toHaveURL(/\/account\/login/);
 });
 
+test('paywall sign out still opens login when the server refuses it', async ({ page }) => {
+  await seedUnpaidOnboarded(page);
+
+  await page.route('**/api/auth/logout', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({ status: 500, json: { message: 'Server error' } });
+  });
+
+  await page.goto('/paywall');
+  await expect(page.getByText('Signed in as sandbox@wayoa.test')).toBeVisible();
+
+  /* The confirm, then the hook's failure alert. */
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/account\/login/);
+});
+
 /* Onboarding leaves a journey without a trip; ready is what builds it. */
 test('a month bought straight after setup opens ready, not an empty Home', async ({ page }) => {
   await seedOnboarded(page, { canUse: true, tripId: null });
