@@ -233,7 +233,7 @@ class GooglePlaySubscriptionReader
         }
 
         $email = (string) ($decoded['client_email'] ?? '');
-        $key = (string) ($decoded['private_key'] ?? '');
+        $key = $this->normalizePrivateKey((string) ($decoded['private_key'] ?? ''));
 
         if ($email === '' || $key === '') {
             return null;
@@ -243,6 +243,24 @@ class GooglePlaySubscriptionReader
             'client_email' => $email,
             'private_key' => $key,
         ];
+    }
+
+    /**
+     * .env often stores the SA JSON on one line; if the private_key field was
+     * double-escaped, openssl sees literal "\n" and refuses the key. Real PEM
+     * newlines are required for the Play token exchange.
+     */
+    private function normalizePrivateKey(string $key): string
+    {
+        if ($key === '') {
+            return '';
+        }
+
+        if (str_contains($key, "\\n") && ! str_contains($key, "\n")) {
+            $key = str_replace('\\n', "\n", $key);
+        }
+
+        return str_replace("\r\n", "\n", $key);
     }
 
     /** @param  array<string, mixed>  $claims */

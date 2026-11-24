@@ -61,4 +61,43 @@ class GooglePlaySubscriptionReaderTest extends TestCase
         );
         $this->assertTrue($detail['autoRenewing']);
     }
+
+    public function test_reads_when_private_key_newlines_were_double_escaped_in_env(): void
+    {
+        $key = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+        openssl_pkey_export($key, $pem);
+
+        /* Mimic a .env value where PEM newlines survived json_decode as "\n". */
+        config([
+            'experience.billing.google.package_name' => 'uk.co.synteric.experience',
+            'experience.billing.google.service_account_json' => json_encode([
+                'client_email' => 'play@example.iam.gserviceaccount.com',
+                'private_key' => str_replace("\n", '\\n', $pem),
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'ya29.test',
+                'expires_in' => 3600,
+            ]),
+            'https://androidpublisher.googleapis.com/*' => Http::response([
+                'subscriptionState' => 'SUBSCRIPTION_STATE_ACTIVE',
+                'lineItems' => [[
+                    'productId' => 'wayoa_monthly',
+                    'expiryTime' => '2026-12-01T00:00:00Z',
+                    'autoRenewingPlan' => new \stdClass,
+                ]],
+            ]),
+        ]);
+
+        $detail = app(GooglePlaySubscriptionReader::class)->read('purchase-token');
+
+        $this->assertNotNull($detail);
+        $this->assertSame('wayoa_monthly', $detail['productId']);
+        Http::assertSent(fn ($request) => $request->url() === 'https://oauth2.googleapis.com/token');
+    }
 }
