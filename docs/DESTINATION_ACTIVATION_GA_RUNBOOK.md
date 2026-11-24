@@ -82,7 +82,20 @@ Then admin or traveller retry. Exit gate: no queued/running import older than
 | Daily provider spend within ceiling | provider consoles + activation limits |
 | Rollout % in release notes | checklist post-deploy |
 
+## Cloud spend alerts
+
+Watch spend in Google Cloud Billing (Places) and Anthropic. For email when
+remaining budget is ≤10%:
+
+1. Cloud Console → Billing → Budgets & alerts → threshold **90%** (and optionally 80%).
+2. Connect the budget to a Pub/Sub topic; push subscription to  
+   `https://api.experience.synteric.co.uk/api/ops/google/budget-alerts`  
+   with OIDC auth (audience = that URL, service account email in env).
+3. Host env: `OPS_ALERT_EMAILS`, `GOOGLE_BUDGET_PUBSUB_AUDIENCE`,  
+   `GOOGLE_BUDGET_PUBSUB_SERVICE_ACCOUNT` (or reuse `GOOGLE_PUBSUB_*`).
+4. Admin readout: `GET /api/admin/budget-alerts` (Sanctum `admin` ability).
+
 ## Status
 
-Controlled proof is GO and a Google Cloud budget alert is in place. Production
-rollout is **5%** as of 2026-10-15. Observe 30 minutes before 25%.
+Controlled proof is GO. Production rollout is **25%** as of 2026-11-22.
+Observe spend and imports before 100%.

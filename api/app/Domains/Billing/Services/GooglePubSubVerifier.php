@@ -21,9 +21,13 @@ class GooglePubSubVerifier
 {
     private const CERTS = 'https://www.googleapis.com/oauth2/v3/certs';
 
-    public function verify(Request $request): bool
+    /**
+     * @param  ?string  $audience  Defaults to the Play RTDN push audience.
+     * @param  ?string  $serviceAccount  Defaults to the Play RTDN push account.
+     */
+    public function verify(Request $request, ?string $audience = null, ?string $serviceAccount = null): bool
     {
-        $audience = (string) config('experience.billing.google.pubsub_audience');
+        $audience ??= (string) config('experience.billing.google.pubsub_audience');
 
         if (trim($audience) === '') {
             Log::warning('Google notification refused: no Pub/Sub audience configured.');
@@ -64,15 +68,15 @@ class GooglePubSubVerifier
          * Google sign a token for it. Requiring the service account that our
          * subscription actually uses pins the token to a sender.
          */
-        $account = (string) config('experience.billing.google.pubsub_service_account');
+        $serviceAccount ??= (string) config('experience.billing.google.pubsub_service_account');
 
-        if (trim($account) === '') {
+        if (trim($serviceAccount) === '') {
             Log::warning('Google notification refused: no Pub/Sub service account configured.');
 
             return false;
         }
 
-        if (! hash_equals($account, (string) ($claims['email'] ?? '')) || ($claims['email_verified'] ?? false) !== true) {
+        if (! hash_equals($serviceAccount, (string) ($claims['email'] ?? '')) || ($claims['email_verified'] ?? false) !== true) {
             return false;
         }
 

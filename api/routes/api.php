@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\OpsNotificationController;
 use App\Http\Controllers\Api\BillingNotificationController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DestinationController;
@@ -45,6 +46,8 @@ Route::post('billing/apple/notifications', [BillingNotificationController::class
     ->middleware('throttle:120,1');
 Route::post('billing/google/notifications', [BillingNotificationController::class, 'google'])
     ->middleware('throttle:120,1');
+Route::post('ops/google/budget-alerts', [OpsNotificationController::class, 'googleBudget'])
+    ->middleware('throttle:60,1');
 
 /*
  * Image requests come from the image loader, which sends no guest token or
@@ -178,6 +181,7 @@ Route::middleware(['guest.actor', 'auth:sanctum', 'ability:admin'])->prefix('adm
     Route::get('merge-candidates', [AdminController::class, 'mergeCandidates']);
     Route::patch('external-entities/{entity}', [AdminController::class, 'remapProviderEntity']);
     Route::get('recommendation-sets/{set}', [AdminController::class, 'explainRecommendationSet']);
+    Route::get('budget-alerts', [OpsNotificationController::class, 'budgetAlertStatus']);
 });
 
 /* Liveness plus provider capability, so the app can degrade knowingly. */

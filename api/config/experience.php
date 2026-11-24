@@ -641,6 +641,25 @@ return [
         'max_attempts' => 5,
     ],
 
+    /*
+     * Operator alerts for cloud spend. Cloud Budget Pub/Sub pushes hit
+     * /api/ops/google/budget-alerts; we email when remaining budget is at
+     * or below budget_remaining_alert_fraction (default 10%).
+     */
+    'ops' => [
+        'alert_emails' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('OPS_ALERT_EMAILS', env('CONTACT_EMAIL', ''))),
+        ))),
+        'budget_remaining_alert_fraction' => (float) env('OPS_BUDGET_REMAINING_ALERT_FRACTION', 0.10),
+        'google_budget' => [
+            /* Fall back to the Play RTDN push identity when a dedicated
+               budget subscription is not configured. */
+            'pubsub_audience' => env('GOOGLE_BUDGET_PUBSUB_AUDIENCE', env('GOOGLE_PUBSUB_AUDIENCE')),
+            'pubsub_service_account' => env('GOOGLE_BUDGET_PUBSUB_SERVICE_ACCOUNT', env('GOOGLE_PUBSUB_SERVICE_ACCOUNT')),
+        ],
+    ],
+
     'privacy' => [
         'store_location_history' => false,
         'context_snapshot_retention_days' => 30,
