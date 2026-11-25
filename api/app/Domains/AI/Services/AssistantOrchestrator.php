@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domains\AI\Services;
 
 use App\Domains\AI\Models\AssistantConversation;
+use App\Domains\AI\Support\AnthropicHeaders;
 use App\Domains\AI\Tools\AssistantToolbox;
 use App\Domains\Discovery\Services\LiveIntentStore;
 use App\Domains\Shared\ValueObjects\Actor;
@@ -151,10 +152,7 @@ class AssistantOrchestrator
 
         for ($round = 0; $round < $rounds; $round++) {
             $response = $this->http
-                ->withHeaders([
-                    'x-api-key' => (string) config('experience.assistant.api_key'),
-                    'anthropic-version' => '2023-06-01',
-                ])
+                ->withHeaders(AnthropicHeaders::forMessagesApi())
                 ->timeout(30)
                 ->post('https://api.anthropic.com/v1/messages', [
                     'model' => config('experience.assistant.model'),

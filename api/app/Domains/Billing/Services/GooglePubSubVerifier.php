@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domains\Billing\Services;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Log;
 class GooglePubSubVerifier
 {
     private const CERTS = 'https://www.googleapis.com/oauth2/v3/certs';
+
+    private const CACHE_KEY = 'billing.google.pubsub.jwks';
 
     /**
      * @param  ?string  $audience  Defaults to the Play RTDN push audience.
@@ -93,7 +96,7 @@ class GooglePubSubVerifier
     /**
      * The token's claims, once its signature has been checked against
      * Google's published keys. A failure to reach those keys is a refusal,
-     * not a shortcut.
+     * not a shortcut — unless a still-fresh cache can cover the gap.
      */
     private function claims(string $token): ?array
     {
@@ -103,29 +106,100 @@ class GooglePubSubVerifier
             return null;
         }
 
-        try {
-            $keys = Http::timeout(5)->get(self::CERTS)->json('keys');
-        } catch (\Throwable $exception) {
-            Log::warning('Google notification refused: could not read signing keys.', [
-                'reason' => $exception->getMessage(),
-            ]);
-
-            return null;
-        }
-
-        if (! is_array($keys)) {
-            return null;
-        }
-
         $header = $this->segment($parts[0]);
         $kid = (string) ($header['kid'] ?? '');
+        $keys = $this->signingKeys();
         $key = collect($keys)->firstWhere('kid', $kid);
+
+        /* Unknown kid usually means Google rotated. Force one refresh before
+           refusing — same idea as identity JWKS verification. */
+        if (! is_array($key)) {
+            $keys = $this->signingKeys(fresh: true);
+            $key = collect($keys)->firstWhere('kid', $kid);
+        }
 
         if (! is_array($key) || ! $this->signatureHolds($parts, $key, (string) ($header['alg'] ?? ''))) {
             return null;
         }
 
         return $this->segment($parts[1]);
+    }
+
+    /**
+     * Google's JWKS, preferring cache. Brief outbound timeouts on shared
+     * hosting used to drop every RTDN push; a short cache + one retry keeps
+     * verification working across those blips.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function signingKeys(bool $fresh = false): array
+    {
+        if (! $fresh) {
+            $cached = Cache::get(self::CACHE_KEY);
+            if (is_array($cached) && $cached !== []) {
+                return $cached;
+            }
+        }
+
+        $fetched = $this->fetchSigningKeys();
+
+        if ($fetched !== []) {
+            return $fetched;
+        }
+
+        $stale = Cache::get(self::CACHE_KEY);
+        if (is_array($stale) && $stale !== []) {
+            Log::warning('Google notification JWKS fetch failed; using cached keys.');
+
+            return $stale;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function fetchSigningKeys(): array
+    {
+        $lastError = null;
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                $response = Http::timeout(10)
+                    ->connectTimeout(5)
+                    ->acceptJson()
+                    ->get(self::CERTS);
+
+                if ($response->failed()) {
+                    $lastError = 'HTTP '.$response->status();
+                    continue;
+                }
+
+                $keys = $response->json('keys');
+                if (! is_array($keys) || $keys === []) {
+                    $lastError = 'empty keys';
+                    continue;
+                }
+
+                $ttl = 3600;
+                if (preg_match('/max-age=(\d+)/', (string) $response->header('Cache-Control'), $match) === 1) {
+                    $ttl = max(3600, min(86400, (int) $match[1]));
+                }
+
+                Cache::put(self::CACHE_KEY, $keys, $ttl);
+
+                return $keys;
+            } catch (\Throwable $exception) {
+                $lastError = $exception->getMessage();
+            }
+        }
+
+        Log::warning('Google notification refused: could not read signing keys.', [
+            'reason' => $lastError,
+        ]);
+
+        return [];
     }
 
     private function signatureHolds(array $parts, array $key, string $algorithm): bool
