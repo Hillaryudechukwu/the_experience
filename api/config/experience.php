@@ -570,6 +570,8 @@ return [
     'assistant' => [
         'driver' => env('EXPERIENCE_ASSISTANT_DRIVER', 'rules'),
         'api_key' => env('ANTHROPIC_API_KEY'),
+        /* Required when ANTHROPIC_API_KEY is workspace-scoped (not org-wide). */
+        'workspace_id' => env('ANTHROPIC_WORKSPACE_ID'),
         'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5'),
         'max_output_tokens' => 1024,
         'max_tool_rounds' => 4,

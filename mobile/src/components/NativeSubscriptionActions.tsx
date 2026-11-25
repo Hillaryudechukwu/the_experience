@@ -73,6 +73,24 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
           );
           return 'refused';
         }
+        /* 422 incomplete_receipt from Play: our server could not read the
+           period yet (Play lag or a pending payment). Keep the store purchase
+           open so Restore can retry without sounding like an account mismatch.
+           Other 422 codes (expired, revoked, invalid_purchase, Apple's codes)
+           are final and fall through to the generic alert with the server's
+           message. */
+        if (
+          Platform.OS === 'android'
+          && error instanceof ApiError
+          && error.status === 422
+          && (error.body as { code?: unknown } | null)?.code === 'incomplete_receipt'
+        ) {
+          showAlert(
+            'Still confirming with Play',
+            error.message || 'Play has not confirmed this purchase yet; tap Restore a subscription in a moment.',
+          );
+          return 'refused';
+        }
         showAlert(
           'Could not confirm',
           error instanceof Error ? error.message : 'The store charge could not be verified yet.',
@@ -189,15 +207,21 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
       }
 
       let linked = false;
+      let sawRefusal = false;
       for (const purchase of candidates) {
         const result = await verifyOnServer(purchase);
-        if (result === 'refused') continue;
+        if (result === 'refused') {
+          sawRefusal = true;
+          continue;
+        }
         await finishTransaction({ purchase, isConsumable: false });
         linked = true;
         if (result === 'entitled') break;
       }
 
-      if (!linked) {
+      /* verifyOnServer already explained a refusal (409 / 422 / network).
+         Only show the generic mismatch copy when nothing was even attempted. */
+      if (!linked && !sawRefusal) {
         showAlert('Could not restore', 'A store purchase was found but could not be linked to this account.');
       }
     } catch (error) {

@@ -32,16 +32,35 @@ class GooglePlaySubscriptionReader
 
     private const SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
 
+    /** Play is down or slow; the same token may read fine shortly. */
+    public const FAILURE_TRANSIENT = 'transient';
+
+    /** Our credentials, package or permissions are wrong; retrying won't help. */
+    public const FAILURE_UNCONFIGURED = 'unconfigured';
+
+    /** Play doesn't know the token (refunded, revoked, or never valid). */
+    public const FAILURE_INVALID_TOKEN = 'invalid_token';
+
+    private const FAILURE_PRIORITY = [
+        self::FAILURE_TRANSIENT => 3,
+        self::FAILURE_UNCONFIGURED => 2,
+        self::FAILURE_INVALID_TOKEN => 1,
+    ];
+
+    private ?string $lastFailure = null;
+
     /**
      * @return SubscriptionDetail|null
      */
     public function read(string $purchaseToken, ?string $productId = null): ?array
     {
+        $this->lastFailure = null;
         $package = (string) config('experience.billing.google.package_name');
         $credentials = $this->credentials();
 
         if ($package === '' || $credentials === null) {
             Log::warning('Play subscription read skipped: package name or service account missing.');
+            $this->lastFailure = self::FAILURE_UNCONFIGURED;
 
             return null;
         }
@@ -49,6 +68,8 @@ class GooglePlaySubscriptionReader
         $accessToken = $this->accessToken($credentials);
 
         if ($accessToken === null) {
+            $this->lastFailure ??= self::FAILURE_UNCONFIGURED;
+
             return null;
         }
 
@@ -62,7 +83,24 @@ class GooglePlaySubscriptionReader
             $productId = (string) config('experience.billing.products.google');
         }
 
-        return $this->readV1($package, $productId, $purchaseToken, $accessToken);
+        $detail = $this->readV1($package, $productId, $purchaseToken, $accessToken);
+
+        if ($detail !== null) {
+            $this->lastFailure = null;
+        }
+
+        return $detail;
+    }
+
+    /**
+     * Why the last read() returned null, when it did: one of the FAILURE_*
+     * constants. Null after a successful read. When v2 and v1 both fail,
+     * the more retryable reason wins, so a Play outage is never reported
+     * as a dead token.
+     */
+    public function lastFailure(): ?string
+    {
+        return $this->lastFailure;
     }
 
     public function isConfigured(): bool
@@ -82,15 +120,27 @@ class GooglePlaySubscriptionReader
             rawurlencode($token),
         );
 
-        $response = Http::connectTimeout(3)
-            ->timeout(10)
-            ->withToken($accessToken)
-            ->acceptJson()
-            ->get($url);
+        try {
+            $response = Http::connectTimeout(3)
+                ->timeout(10)
+                ->withToken($accessToken)
+                ->acceptJson()
+                ->get($url);
+        } catch (\Throwable $exception) {
+            Log::warning('Play subscriptions v2 read could not reach Play.', [
+                'reason' => $exception->getMessage(),
+            ]);
+            $this->noteFailure(self::FAILURE_TRANSIENT);
+
+            return null;
+        }
 
         if (! $response->successful()) {
+            $this->noteFailure($this->classify($response->status()));
             Log::info('Play subscriptions v2 read failed.', [
                 'status' => $response->status(),
+                'reason' => data_get($response->json(), 'error.errors.0.reason')
+                    ?? data_get($response->json(), 'error.message'),
             ]);
 
             return null;
@@ -99,6 +149,8 @@ class GooglePlaySubscriptionReader
         $body = $response->json();
 
         if (! is_array($body)) {
+            $this->noteFailure(self::FAILURE_TRANSIENT);
+
             return null;
         }
 
@@ -129,15 +181,27 @@ class GooglePlaySubscriptionReader
             rawurlencode($token),
         );
 
-        $response = Http::connectTimeout(3)
-            ->timeout(10)
-            ->withToken($accessToken)
-            ->acceptJson()
-            ->get($url);
+        try {
+            $response = Http::connectTimeout(3)
+                ->timeout(10)
+                ->withToken($accessToken)
+                ->acceptJson()
+                ->get($url);
+        } catch (\Throwable $exception) {
+            Log::warning('Play subscriptions v1 read could not reach Play.', [
+                'reason' => $exception->getMessage(),
+            ]);
+            $this->noteFailure(self::FAILURE_TRANSIENT);
+
+            return null;
+        }
 
         if (! $response->successful()) {
+            $this->noteFailure($this->classify($response->status()));
             Log::warning('Play subscriptions v1 read failed.', [
                 'status' => $response->status(),
+                'reason' => data_get($response->json(), 'error.errors.0.reason')
+                    ?? data_get($response->json(), 'error.message'),
             ]);
 
             return null;
@@ -146,6 +210,8 @@ class GooglePlaySubscriptionReader
         $body = $response->json();
 
         if (! is_array($body)) {
+            $this->noteFailure(self::FAILURE_TRANSIENT);
+
             return null;
         }
 
@@ -185,15 +251,27 @@ class GooglePlaySubscriptionReader
             return null;
         }
 
-        $response = Http::connectTimeout(3)
-            ->timeout(10)
-            ->asForm()
-            ->post(self::TOKEN_URL, [
-                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion' => $assertion,
+        try {
+            $response = Http::connectTimeout(3)
+                ->timeout(10)
+                ->asForm()
+                ->post(self::TOKEN_URL, [
+                    'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                    'assertion' => $assertion,
+                ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Play service-account token exchange could not reach Google.', [
+                'reason' => $exception->getMessage(),
             ]);
+            $this->lastFailure = self::FAILURE_TRANSIENT;
+
+            return null;
+        }
 
         if (! $response->successful()) {
+            $this->lastFailure = $response->serverError() || $response->status() === 429
+                ? self::FAILURE_TRANSIENT
+                : self::FAILURE_UNCONFIGURED;
             Log::warning('Play service-account token exchange failed.', [
                 'status' => $response->status(),
             ]);
@@ -256,7 +334,7 @@ class GooglePlaySubscriptionReader
             return '';
         }
 
-        if (str_contains($key, "\\n") && ! str_contains($key, "\n")) {
+        if (str_contains($key, '\\n') && ! str_contains($key, "\n")) {
             $key = str_replace('\\n', "\n", $key);
         }
 
@@ -285,6 +363,23 @@ class GooglePlaySubscriptionReader
         }
 
         return $unsigned.'.'.$this->b64url($signature);
+    }
+
+    private function classify(int $status): string
+    {
+        return match (true) {
+            $status === 404, $status === 410 => self::FAILURE_INVALID_TOKEN,
+            $status === 401, $status === 403 => self::FAILURE_UNCONFIGURED,
+            default => self::FAILURE_TRANSIENT,
+        };
+    }
+
+    private function noteFailure(string $failure): void
+    {
+        if ($this->lastFailure === null
+            || self::FAILURE_PRIORITY[$failure] > self::FAILURE_PRIORITY[$this->lastFailure]) {
+            $this->lastFailure = $failure;
+        }
     }
 
     private function rfc3339ToMillis(string $time): ?int

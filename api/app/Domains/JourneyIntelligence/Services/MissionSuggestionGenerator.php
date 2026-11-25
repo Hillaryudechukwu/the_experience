@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domains\JourneyIntelligence\Services;
 
+use App\Domains\AI\Support\AnthropicHeaders;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -241,10 +242,7 @@ Example shape: ["I want…","I want…"]
 PROMPT;
 
         try {
-            $response = Http::withHeaders([
-                'x-api-key' => (string) config('experience.assistant.api_key'),
-                'anthropic-version' => '2023-06-01',
-            ])
+            $response = Http::withHeaders(AnthropicHeaders::forMessagesApi())
                 ->timeout(20)
                 ->post('https://api.anthropic.com/v1/messages', [
                     'model' => config('experience.assistant.model'),

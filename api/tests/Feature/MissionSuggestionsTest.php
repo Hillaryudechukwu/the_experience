@@ -79,6 +79,28 @@ class MissionSuggestionsTest extends TestCase
         Http::assertSent(fn ($request) => str_contains($request->url(), 'api.anthropic.com'));
     }
 
+    public function test_anthropic_sends_workspace_header_when_configured(): void
+    {
+        config([
+            'experience.assistant.api_key' => 'test-key',
+            'experience.assistant.workspace_id' => 'ws-test-123',
+        ]);
+
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'content' => [['type' => 'text', 'text' => '["I want one quiet evening in Lisbon."]']],
+            ]),
+        ]);
+
+        $this->getJson('/api/journeys/mission-suggestions?reason=holiday&destination=Lisbon')
+            ->assertOk();
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'api.anthropic.com')
+                && $request->hasHeader('anthropic-workspace-id', 'ws-test-123');
+        });
+    }
+
     public function test_anthropic_failure_falls_back_to_playbook(): void
     {
         config(['experience.assistant.api_key' => 'test-key']);
