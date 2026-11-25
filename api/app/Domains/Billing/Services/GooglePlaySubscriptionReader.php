@@ -91,6 +91,8 @@ class GooglePlaySubscriptionReader
         if (! $response->successful()) {
             Log::info('Play subscriptions v2 read failed.', [
                 'status' => $response->status(),
+                'reason' => data_get($response->json(), 'error.errors.0.reason')
+                    ?? data_get($response->json(), 'error.message'),
             ]);
 
             return null;
@@ -138,6 +140,8 @@ class GooglePlaySubscriptionReader
         if (! $response->successful()) {
             Log::warning('Play subscriptions v1 read failed.', [
                 'status' => $response->status(),
+                'reason' => data_get($response->json(), 'error.errors.0.reason')
+                    ?? data_get($response->json(), 'error.message'),
             ]);
 
             return null;

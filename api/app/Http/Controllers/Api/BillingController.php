@@ -132,13 +132,19 @@ class BillingController extends ApiController
         );
 
         if ($detail === null || ! isset($detail['expiryTimeMillis'])) {
-            return response()->json(['code' => 'incomplete_receipt'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json([
+                'code' => 'incomplete_receipt',
+                'message' => 'Play could not confirm this purchase yet. The charge stands; try Restore again in a moment.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $period = $this->googlePeriod($detail);
 
         if ($period === null) {
-            return response()->json(['code' => 'incomplete_receipt'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json([
+                'code' => 'incomplete_receipt',
+                'message' => 'Play could not confirm this purchase yet. The charge stands; try Restore again in a moment.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         [$state, $paid] = $period;

@@ -7,11 +7,12 @@ namespace App\Domains\AI\Support;
 /**
  * Shared Claude request headers. Workspace-scoped keys require
  * anthropic-workspace-id; organisation keys do not.
- *
- * @return array<string, string>
  */
 final class AnthropicHeaders
 {
+    /**
+     * @return array<string, string>
+     */
     public static function forMessagesApi(): array
     {
         $headers = [
