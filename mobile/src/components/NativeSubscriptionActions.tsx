@@ -73,13 +73,21 @@ export function NativeSubscriptionActions({ priceLabel, pending, isRefetching, o
           );
           return 'refused';
         }
-        /* 422 incomplete_receipt: Play charged, but our server could not read
-           the period yet (API lag / permissions). Keep the store purchase open
-           so Restore can retry without sounding like an account mismatch. */
-        if (error instanceof ApiError && error.status === 422) {
+        /* 422 incomplete_receipt from Play: our server could not read the
+           period yet (Play lag or a pending payment). Keep the store purchase
+           open so Restore can retry without sounding like an account mismatch.
+           Other 422 codes (expired, revoked, invalid_purchase, Apple's codes)
+           are final and fall through to the generic alert with the server's
+           message. */
+        if (
+          Platform.OS === 'android'
+          && error instanceof ApiError
+          && error.status === 422
+          && (error.body as { code?: unknown } | null)?.code === 'incomplete_receipt'
+        ) {
           showAlert(
             'Still confirming with Play',
-            error.message || 'The charge went through; tap Restore a subscription in a moment.',
+            error.message || 'Play has not confirmed this purchase yet; tap Restore a subscription in a moment.',
           );
           return 'refused';
         }

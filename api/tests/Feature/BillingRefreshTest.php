@@ -216,6 +216,7 @@ class BillingRefreshTest extends TestCase
 
         $this->mock(GooglePlaySubscriptionReader::class, function ($mock) {
             $mock->shouldReceive('read')->once()->andReturn(null);
+            $mock->shouldReceive('lastFailure')->andReturn(GooglePlaySubscriptionReader::FAILURE_TRANSIENT);
         });
 
         $this->postJson('/api/billing/google/refresh', [
@@ -223,6 +224,36 @@ class BillingRefreshTest extends TestCase
         ])
             ->assertStatus(422)
             ->assertJsonPath('code', 'incomplete_receipt');
+    }
+
+    public function test_google_refresh_reports_a_dead_token_as_final(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->mock(GooglePlaySubscriptionReader::class, function ($mock) {
+            $mock->shouldReceive('read')->once()->andReturn(null);
+            $mock->shouldReceive('lastFailure')->andReturn(GooglePlaySubscriptionReader::FAILURE_INVALID_TOKEN);
+        });
+
+        $this->postJson('/api/billing/google/refresh', ['purchase_token' => 'refunded-token'])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'invalid_purchase');
+    }
+
+    public function test_google_refresh_reports_misconfiguration_as_unavailable(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->mock(GooglePlaySubscriptionReader::class, function ($mock) {
+            $mock->shouldReceive('read')->once()->andReturn(null);
+            $mock->shouldReceive('lastFailure')->andReturn(GooglePlaySubscriptionReader::FAILURE_UNCONFIGURED);
+        });
+
+        $response = $this->postJson('/api/billing/google/refresh', ['purchase_token' => 'any-token'])
+            ->assertStatus(503)
+            ->assertJsonPath('code', 'store_unavailable');
+
+        $this->assertStringNotContainsString('charge', (string) $response->json('message'));
     }
 
     public function test_apple_refresh_refuses_a_refunded_transaction(): void

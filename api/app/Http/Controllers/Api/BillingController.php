@@ -131,19 +131,25 @@ class BillingController extends ApiController
             is_string($productId) ? $productId : null,
         );
 
-        if ($detail === null || ! isset($detail['expiryTimeMillis'])) {
+        if ($detail === null) {
+            return $this->googleReadFailure($this->playSubscriptions->lastFailure());
+        }
+
+        if (! isset($detail['expiryTimeMillis'])) {
             return response()->json([
                 'code' => 'incomplete_receipt',
-                'message' => 'Play could not confirm this purchase yet. The charge stands; try Restore again in a moment.',
+                'message' => 'Play has not finished confirming this purchase yet. Try Restore again in a moment.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $period = $this->googlePeriod($detail);
 
+        /* Pending payment or a free trial: nothing paid to open a month on.
+           Pending payments settle, so a later Restore can still succeed. */
         if ($period === null) {
             return response()->json([
                 'code' => 'incomplete_receipt',
-                'message' => 'Play could not confirm this purchase yet. The charge stands; try Restore again in a moment.',
+                'message' => 'Play has not marked this purchase as paid yet. Try Restore again once the payment clears.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -175,6 +181,29 @@ class BillingController extends ApiController
         );
 
         return $this->claimAndPresent($request, $userId, $notification);
+    }
+
+    /**
+     * Only a transient Play failure is worth retrying, so only that one
+     * gets the "try again" copy. A dead token or our own misconfiguration
+     * must not tell the user their charge is still being confirmed.
+     */
+    private function googleReadFailure(?string $failure): JsonResponse
+    {
+        return match ($failure) {
+            GooglePlaySubscriptionReader::FAILURE_INVALID_TOKEN => response()->json([
+                'code' => 'invalid_purchase',
+                'message' => 'Play no longer recognises this purchase. It may have been refunded or cancelled.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY),
+            GooglePlaySubscriptionReader::FAILURE_UNCONFIGURED => response()->json([
+                'code' => 'store_unavailable',
+                'message' => 'We cannot confirm Play purchases right now. Please contact support if this continues.',
+            ], Response::HTTP_SERVICE_UNAVAILABLE),
+            default => response()->json([
+                'code' => 'incomplete_receipt',
+                'message' => 'Play could not confirm this purchase yet. Try Restore again in a moment.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY),
+        };
     }
 
     /**
