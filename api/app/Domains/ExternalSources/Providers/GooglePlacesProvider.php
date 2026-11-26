@@ -8,6 +8,7 @@ use App\Domains\ExternalSources\Contracts\PlaceDataProvider;
 use App\Domains\ExternalSources\DTO\PlaceCandidate;
 use App\Domains\ExternalSources\Services\OutboundHttp;
 use App\Domains\Shared\ValueObjects\GeoPoint;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -260,21 +261,33 @@ class GooglePlacesProvider implements PlaceDataProvider
                 'skipHttpRedirect' => 'true',
             ]);
 
-        /* 404 is a photo that is gone. 400 is Google's answer to a resource
-           name it no longer recognises ("The photo resource in the request is
-           invalid"): names are not permanent, so the caller should fetch a
-           fresh one from the place rather than treat it as an outage. */
-        if (in_array($media->status(), [400, 404], true)) {
+        /* 404 is a photo that is gone. A 400 about the photo resource ("The
+           photo resource in the request is invalid") is a name Google no
+           longer recognises: names are not permanent, so the caller should
+           fetch a fresh one from the place. Any other 400, such as a bad or
+           rotated API key, is our fault, not the photo's, and must surface. */
+        if ($media->status() === 404 || ($media->status() === 400 && $this->isStalePhotoName($media))) {
             return null;
         }
 
         if ($media->failed()) {
-            throw new \RuntimeException("Google photo media returned {$media->status()}.");
+            $message = $media->json('error.message');
+
+            throw new \RuntimeException(
+                "Google photo media returned {$media->status()}".(is_string($message) ? ": {$message}" : '.'),
+            );
         }
 
         $url = $media->json('photoUri');
 
         return is_string($url) && $url !== '' ? $url : null;
+    }
+
+    private function isStalePhotoName(Response $media): bool
+    {
+        $message = $media->json('error.message');
+
+        return is_string($message) && str_contains(strtolower($message), 'photo resource');
     }
 
     /** @return list<string> */

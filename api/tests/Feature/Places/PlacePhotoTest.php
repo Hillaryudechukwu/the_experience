@@ -23,6 +23,12 @@ class PlacePhotoTest extends TestCase
 
     private const NAME = 'places/ChIJabc123/photos/AXphoto_456';
 
+    private const STALE_NAME_ERROR = ['error' => [
+        'code' => 400,
+        'message' => 'The photo resource in the request is invalid. Please fetch a new photo resource name.',
+        'status' => 'INVALID_ARGUMENT',
+    ]];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -61,7 +67,7 @@ class PlacePhotoTest extends TestCase
         $fresh = 'places/ChIJabc123/photos/AXfresh_789';
 
         Http::fake([
-            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(['error' => ['status' => 'INVALID_ARGUMENT']], 400),
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
             'places.googleapis.com/v1/places/ChIJabc123' => Http::response([
                 'photos' => [['name' => $fresh, 'authorAttributions' => [['displayName' => 'Ada', 'uri' => 'https://maps.google.com/ada']]]],
             ]),
@@ -100,12 +106,16 @@ class PlacePhotoTest extends TestCase
         $this->storeCataloguePhoto(self::NAME);
 
         Http::fake([
-            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response([], 400),
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
             'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => []]),
         ]);
 
         $this->get('/api/place-photos/'.self::NAME)->assertNotFound();
+        $callsAfterFirstView = count(Http::recorded());
         $this->get('/api/place-photos/'.self::NAME)->assertNotFound();
+
+        // The second view costs Google nothing: the miss is remembered for the window.
+        $this->assertCount($callsAfterFirstView, Http::recorded());
 
         // The place is only asked for a new photo once, however often the dead one is requested.
         $placeLookups = collect(Http::recorded())
@@ -113,6 +123,45 @@ class PlacePhotoTest extends TestCase
             ->count();
 
         $this->assertSame(1, $placeLookups);
+    }
+
+    /** A bad or rotated key is our outage, not a stale name: no place should be re-photographed over it. */
+    public function test_a_rejected_api_key_is_an_outage_not_a_stale_name(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+
+        Http::fake([
+            'places.googleapis.com/*' => Http::response(['error' => [
+                'code' => 400,
+                'message' => 'API key not valid. Please pass a valid API key.',
+                'status' => 'INVALID_ARGUMENT',
+            ]], 400),
+        ]);
+
+        $this->get('/api/place-photos/'.self::NAME)->assertStatus(502);
+
+        // Only the media endpoint was called; the place was never asked for a replacement.
+        Http::assertNotSent(fn ($request) => ! str_contains($request->url(), '/media'));
+        $this->assertTrue(Experience::query()->where('image_url', 'google-photo:'.self::NAME)->exists());
+    }
+
+    public function test_links_on_phones_keep_working_after_the_bulk_refresh(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+        $fresh = 'places/ChIJabc123/photos/AXfresh_789';
+
+        Http::fake([
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => [['name' => $fresh]]]),
+            'places.googleapis.com/v1/'.$fresh.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/new']),
+        ]);
+
+        $this->artisan('experience:refresh-google-photos')->assertSuccessful();
+
+        $this->assertTrue(Experience::query()->where('image_url', 'google-photo:'.$fresh)->exists());
+        $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/new');
     }
 
     /** Names we do not store must not become a free Google media proxy. */

@@ -8,6 +8,7 @@ use App\Domains\Destinations\Models\Destination;
 use App\Domains\Destinations\Models\Neighbourhood;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Replaces a Google photo name that Google no longer recognises.
@@ -20,6 +21,9 @@ use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
  */
 class RefreshGooglePhoto
 {
+    /** How long a replaced name keeps answering for feeds already on a phone. */
+    public const RENAMED_SECONDS = 7 * 86400;
+
     public function __construct(private readonly GooglePlacesProvider $google) {}
 
     /**
@@ -62,7 +66,40 @@ class RefreshGooglePhoto
             $destination->forceFill(['hero_image_url' => $photo['url'], 'hero_image_attribution' => $attribution])->save();
         }
 
+        if ($photo['url'] !== $stored) {
+            Cache::put(
+                self::renamedKey(self::nameOf($stored)),
+                self::nameOf($photo['url']),
+                self::RENAMED_SECONDS,
+            );
+        }
+
         return $photo['url'];
+    }
+
+    /**
+     * The name a replaced photo name now goes by, or the name itself.
+     *
+     * Feeds already on a phone keep linking to the old name for a while, and
+     * the catalogue no longer holds it, so the replacement is remembered here
+     * whichever path, a phone's request or the bulk command, made it.
+     */
+    public static function currentName(string $name): string
+    {
+        $renamed = Cache::get(self::renamedKey($name));
+
+        return is_string($renamed) && $renamed !== '' ? $renamed : $name;
+    }
+
+    /** Photo names run past the cache table's 255-character key column, so the key is a digest. */
+    private static function renamedKey(string $name): string
+    {
+        return 'place-photo:renamed:'.hash('sha256', $name);
+    }
+
+    private static function nameOf(string $stored): string
+    {
+        return substr($stored, strlen(GooglePlacesProvider::PHOTO_PREFIX));
     }
 
     private function placeIdOf(string $stored): ?string

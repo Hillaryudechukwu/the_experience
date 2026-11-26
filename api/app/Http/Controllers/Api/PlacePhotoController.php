@@ -28,10 +28,11 @@ class PlacePhotoController extends Controller
 {
     private const CACHE_SECONDS = 2700;
 
-    /** How long a replaced name keeps answering for feeds already on a phone. */
-    private const RENAMED_SECONDS = 7 * 86400;
-
-    /** One refresh attempt per name per window, so a dead photo costs one Google call, not one per view. */
+    /**
+     * One refresh attempt per name per window, and the same window for
+     * remembering that Google has no bytes for a name, so a dead photo costs
+     * one Google call per window rather than one per view.
+     */
     private const REFRESH_WINDOW_SECONDS = 600;
 
     public function __construct(
@@ -41,7 +42,7 @@ class PlacePhotoController extends Controller
 
     public function show(string $name): RedirectResponse
     {
-        $name = Cache::get(self::key('renamed', $name), $name);
+        $name = RefreshGooglePhoto::currentName($name);
 
         abort_unless($this->isCataloguePhoto($name), 404);
 
@@ -69,7 +70,7 @@ class PlacePhotoController extends Controller
     {
         $uri = $this->mediaUri($name);
 
-        if (is_string($uri) && $uri !== '') {
+        if ($uri !== null) {
             return $uri;
         }
 
@@ -91,11 +92,7 @@ class PlacePhotoController extends Controller
             return null;
         }
 
-        $fresh = substr($stored, strlen(GooglePlacesProvider::PHOTO_PREFIX));
-
-        Cache::put(self::key('renamed', $name), $fresh, self::RENAMED_SECONDS);
-
-        return $this->mediaUri($fresh);
+        return $this->mediaUri(substr($stored, strlen(GooglePlacesProvider::PHOTO_PREFIX)));
     }
 
     /**
@@ -107,11 +104,24 @@ class PlacePhotoController extends Controller
         return 'place-photo:'.$kind.':'.hash('sha256', $name);
     }
 
+    /**
+     * A miss is cached too, as an empty string, since Cache::remember never
+     * stores null: otherwise every view of a dead photo would call Google.
+     */
     private function mediaUri(string $name): ?string
     {
-        return Cache::remember(self::key('uri', $name), self::CACHE_SECONDS, function () use ($name): ?string {
-            return $this->google->mediaUriFor($name);
-        });
+        $key = self::key('uri', $name);
+        $cached = Cache::get($key);
+
+        if (is_string($cached)) {
+            return $cached === '' ? null : $cached;
+        }
+
+        $uri = $this->google->mediaUriFor($name);
+
+        Cache::put($key, $uri ?? '', $uri === null ? self::REFRESH_WINDOW_SECONDS : self::CACHE_SECONDS);
+
+        return $uri;
     }
 
     private function isCataloguePhoto(string $name): bool
