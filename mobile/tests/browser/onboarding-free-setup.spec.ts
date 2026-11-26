@@ -49,7 +49,7 @@ async function pickCalendarDay(page: Page, iso: string) {
     await page.getByRole('button', { name: 'Next month' }).click();
   }
   await expect(page.getByText(target, { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: dayButtonName(iso) }).click();
+  await page.getByRole('button', { name: dayButtonName(iso), exact: true }).click();
 }
 
 /**

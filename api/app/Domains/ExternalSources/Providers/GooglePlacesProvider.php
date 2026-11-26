@@ -8,8 +8,10 @@ use App\Domains\ExternalSources\Contracts\PlaceDataProvider;
 use App\Domains\ExternalSources\DTO\PlaceCandidate;
 use App\Domains\ExternalSources\Services\OutboundHttp;
 use App\Domains\Shared\ValueObjects\GeoPoint;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Google Places (New) API.
@@ -260,17 +262,66 @@ class GooglePlacesProvider implements PlaceDataProvider
                 'skipHttpRedirect' => 'true',
             ]);
 
-        if ($media->status() === 404) {
+        /* 404 is a photo that is gone. A 400 about the photo resource ("The
+           photo resource in the request is invalid") is a name Google no
+           longer recognises: names are not permanent, so the caller should
+           fetch a fresh one from the place. Any other 400, such as a bad or
+           rotated API key, is our fault, not the photo's, and must surface. */
+        if ($media->status() === 404 || ($media->status() === 400 && $this->isStalePhotoName($media))) {
             return null;
         }
 
         if ($media->failed()) {
-            throw new \RuntimeException("Google photo media returned {$media->status()}.");
+            $message = $media->json('error.message');
+
+            throw new \RuntimeException(
+                "Google photo media returned {$media->status()}".(is_string($message) ? ": {$message}" : '.'),
+            );
         }
 
         $url = $media->json('photoUri');
 
         return is_string($url) && $url !== '' ? $url : null;
+    }
+
+    /**
+     * Whether a 400 from the media endpoint means the name has gone stale.
+     *
+     * Problems on our side, a bad or restricted key or a disabled API, carry
+     * an ErrorInfo reason (API_KEY_INVALID and the like) or mention the key,
+     * and are never stale. Otherwise an INVALID_ARGUMENT, the only thing
+     * this request's one variable part can be wrong about, is the photo name.
+     * The message text is not relied on alone, since Google can reword it.
+     */
+    private function isStalePhotoName(Response $media): bool
+    {
+        $error = $media->json('error');
+
+        if (! is_array($error)) {
+            return false;
+        }
+
+        $reasons = collect(is_array($error['details'] ?? null) ? $error['details'] : [])
+            ->pluck('reason')
+            ->filter(fn ($reason) => is_string($reason) && $reason !== '');
+
+        $message = strtolower(is_string($error['message'] ?? null) ? $error['message'] : '');
+
+        if ($reasons->isNotEmpty() || str_contains($message, 'api key')) {
+            return false;
+        }
+
+        if (str_contains($message, 'photo')) {
+            return true;
+        }
+
+        if (($error['status'] ?? null) === 'INVALID_ARGUMENT') {
+            Log::warning('Treating an unfamiliar Google photo 400 as a stale name.', ['message' => $error['message'] ?? null]);
+
+            return true;
+        }
+
+        return false;
     }
 
     /** @return list<string> */
