@@ -35,7 +35,10 @@ class RefreshGooglePhoto
      * it everywhere the old one was used.
      *
      * @param  string  $stored  The column value, including the "google-photo:" prefix.
-     * @return string|null The new stored value, or null when the place has no photo to give.
+     * @return string|null The new stored value, or null when the place has no photo to give,
+     *                     or gives back the very name Google just rejected.
+     *
+     * @throws \Throwable When the photo lookup, the alias or the rewrite fails; nothing changes then.
      */
     public function refresh(string $stored): ?string
     {
@@ -47,7 +50,9 @@ class RefreshGooglePhoto
 
         $photo = $this->google->photoFor($placeId);
 
-        if ($photo === null) {
+        /* The place listing the same name its media endpoint rejects is no
+           fix: report it as such rather than as a refresh that changed nothing. */
+        if ($photo === null || $photo['url'] === $stored) {
             return null;
         }
 
@@ -58,31 +63,47 @@ class RefreshGooglePhoto
             'source_url' => $photo['creator_url'],
         ], fn ($value) => $value !== null);
 
-        /* All or nothing: a half-applied rename would leave some cards on a
-           name Google rejects while the alias below points the rest away. */
-        DB::transaction(function () use ($stored, $photo, $attribution): void {
-            foreach (Experience::query()->where('image_url', $stored)->get() as $experience) {
-                $experience->forceFill(['image_url' => $photo['url'], 'image_attribution' => $attribution])->save();
-            }
+        /* The alias goes first. Saved after the rewrite, a cache outage at
+           that moment would leave the catalogue on the new name and every
+           link on a phone pointing at one nothing maps any more. If the
+           rewrite then fails, the alias is withdrawn; one left behind is
+           harmless anyway, since the controller only follows an alias to a
+           name the catalogue holds. */
+        $alias = self::renamedKey(self::nameOf($stored));
+        Cache::put($alias, self::nameOf($photo['url']), self::RENAMED_SECONDS);
 
-            foreach (Neighbourhood::query()->where('image_url', $stored)->get() as $area) {
-                $area->forceFill(['image_url' => $photo['url'], 'image_attribution' => $attribution])->save();
-            }
+        try {
+            $this->rewrite($stored, $photo['url'], $attribution);
+        } catch (\Throwable $e) {
+            Cache::forget($alias);
 
-            foreach (Destination::query()->where('hero_image_url', $stored)->get() as $destination) {
-                $destination->forceFill(['hero_image_url' => $photo['url'], 'hero_image_attribution' => $attribution])->save();
-            }
-        });
-
-        if ($photo['url'] !== $stored) {
-            Cache::put(
-                self::renamedKey(self::nameOf($stored)),
-                self::nameOf($photo['url']),
-                self::RENAMED_SECONDS,
-            );
+            throw $e;
         }
 
         return $photo['url'];
+    }
+
+    /**
+     * All or nothing: a half-applied rename would leave some cards on a name
+     * Google rejects and the rest on the new one.
+     *
+     * @param  array<string, string>  $attribution
+     */
+    private function rewrite(string $stored, string $fresh, array $attribution): void
+    {
+        DB::transaction(function () use ($stored, $fresh, $attribution): void {
+            foreach (Experience::query()->where('image_url', $stored)->get() as $experience) {
+                $experience->forceFill(['image_url' => $fresh, 'image_attribution' => $attribution])->save();
+            }
+
+            foreach (Neighbourhood::query()->where('image_url', $stored)->get() as $area) {
+                $area->forceFill(['image_url' => $fresh, 'image_attribution' => $attribution])->save();
+            }
+
+            foreach (Destination::query()->where('hero_image_url', $stored)->get() as $destination) {
+                $destination->forceFill(['hero_image_url' => $fresh, 'hero_image_attribution' => $attribution])->save();
+            }
+        });
     }
 
     /**
@@ -94,22 +115,38 @@ class RefreshGooglePhoto
      */
     public static function currentName(string $name): string
     {
-        /* A name can be replaced more than once while old links are still
-           out there (A to B, then B to C), so follow the aliases to the end. */
-        $seen = [$name => true];
+        $chain = self::aliasChain($name);
+
+        return $chain[array_key_last($chain)];
+    }
+
+    /**
+     * Every name a photo has gone by since this one, oldest first, starting
+     * with the name given.
+     *
+     * A name can be replaced more than once while old links are still out
+     * there (A to B, then B to C). It can even come back round (A to B, then
+     * B to A), which is why callers should take the newest name in the chain
+     * that the catalogue still holds rather than blindly the last.
+     *
+     * @return non-empty-list<string>
+     */
+    public static function aliasChain(string $name): array
+    {
+        $chain = [$name];
 
         for ($hop = 0; $hop < self::MAX_RENAME_HOPS; $hop++) {
             $renamed = Cache::get(self::renamedKey($name));
 
-            if (! is_string($renamed) || $renamed === '' || isset($seen[$renamed])) {
+            if (! is_string($renamed) || $renamed === '' || in_array($renamed, $chain, true)) {
                 break;
             }
 
-            $seen[$renamed] = true;
+            $chain[] = $renamed;
             $name = $renamed;
         }
 
-        return $name;
+        return $chain;
     }
 
     /**

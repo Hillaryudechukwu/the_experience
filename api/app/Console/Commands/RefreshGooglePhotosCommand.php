@@ -10,6 +10,7 @@ use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
 use App\Domains\Places\Actions\RefreshGooglePhoto;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -24,9 +25,17 @@ class RefreshGooglePhotosCommand extends Command
 {
     protected $signature = 'experience:refresh-google-photos
                             {--limit=500 : Maximum distinct photo names to check}
-                            {--dry-run : Report which names are dead without replacing them}';
+                            {--dry-run : Report which names are dead without replacing them}
+                            {--recheck : Also check names found valid within the last day}';
 
     protected $description = 'Replace Google photo references that Google no longer recognises';
+
+    /**
+     * A name found valid is skipped for this long, so a catalogue larger than
+     * --limit is worked through over successive runs instead of every run
+     * re-checking the same first names and never reaching the rest.
+     */
+    private const VERIFIED_SECONDS = 86400;
 
     public function handle(GooglePlacesProvider $google, RefreshGooglePhoto $refresh): int
     {
@@ -38,13 +47,19 @@ class RefreshGooglePhotosCommand extends Command
 
         $prefix = GooglePlacesProvider::PHOTO_PREFIX;
 
-        $stored = collect()
+        $all = collect()
             ->merge(Experience::query()->where('image_url', 'like', $prefix.'%')->pluck('image_url'))
             ->merge(Neighbourhood::query()->where('image_url', 'like', $prefix.'%')->pluck('image_url'))
             ->merge(Destination::query()->where('hero_image_url', 'like', $prefix.'%')->pluck('hero_image_url'))
             ->unique()
-            ->take((int) $this->option('limit'))
+            ->sort()
             ->values();
+
+        $due = $this->option('recheck')
+            ? $all
+            : $all->reject(fn (string $value) => Cache::has(self::verifiedKey($value)))->values();
+
+        $stored = $due->take(max(0, (int) $this->option('limit')))->values();
 
         $dry = (bool) $this->option('dry-run');
         $tally = ['live' => 0, 'refreshed' => 0, 'no_photo' => 0, 'unreadable' => 0, 'failed' => 0];
@@ -55,6 +70,7 @@ class RefreshGooglePhotosCommand extends Command
 
                 if ($google->mediaUriFor($name) !== null) {
                     $tally['live']++;
+                    Cache::put(self::verifiedKey($value), true, self::VERIFIED_SECONDS);
 
                     continue;
                 }
@@ -80,10 +96,19 @@ class RefreshGooglePhotosCommand extends Command
         }
 
         $this->table(
-            ['Checked', 'Still valid', $dry ? 'Would refresh' : 'Refreshed', 'Place has no photo', 'Unreadable name', 'Failed'],
-            [[$stored->count(), $tally['live'], $tally['refreshed'], $tally['no_photo'], $tally['unreadable'], $tally['failed']]],
+            ['Names', 'Valid within a day, skipped', 'Checked', 'Left for next run', 'Still valid', $dry ? 'Would refresh' : 'Refreshed', 'No new photo', 'Unreadable name', 'Failed'],
+            [[
+                $all->count(), $all->count() - $due->count(), $stored->count(), $due->count() - $stored->count(),
+                $tally['live'], $tally['refreshed'], $tally['no_photo'], $tally['unreadable'], $tally['failed'],
+            ]],
         );
 
         return self::SUCCESS;
+    }
+
+    /** Photo names run past the cache table's 255-character key column, so the key is a digest. */
+    private static function verifiedKey(string $stored): string
+    {
+        return 'place-photo:verified:'.hash('sha256', $stored);
     }
 }

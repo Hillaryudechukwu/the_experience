@@ -36,8 +36,13 @@ class PlacePhotoController extends Controller
      */
     private const REFRESH_WINDOW_SECONDS = 600;
 
-    /** Longest a refresh may hold the lock: a place lookup plus the writes, with room for retries. */
-    private const REFRESH_LOCK_SECONDS = 30;
+    /**
+     * Longest a refresh may hold the lock. It must outlast the slowest
+     * refresh, a place lookup at OutboundHttp's 20-second timeout tried three
+     * times plus the writes, or a waiting request takes the lock mid-refresh
+     * and answers 404 for a photo about to work.
+     */
+    private const REFRESH_LOCK_SECONDS = 90;
 
     /** How long a request waits for another's refresh before giving up with a 404. */
     private const REFRESH_WAIT_SECONDS = 10;
@@ -49,9 +54,9 @@ class PlacePhotoController extends Controller
 
     public function show(string $name): RedirectResponse
     {
-        $name = RefreshGooglePhoto::currentName($name);
+        $name = $this->catalogueName($name);
 
-        abort_unless($this->isCataloguePhoto($name), 404);
+        abort_if($name === null, 404);
 
         try {
             $uri = $this->resolve($name);
@@ -93,9 +98,9 @@ class PlacePhotoController extends Controller
         }
 
         try {
-            $current = RefreshGooglePhoto::currentName($name);
+            $current = $this->catalogueName($name);
 
-            if ($current !== $name) {
+            if ($current !== null && $current !== $name) {
                 return $this->mediaUri($current);
             }
 
@@ -150,6 +155,24 @@ class PlacePhotoController extends Controller
         Cache::put($key, $uri ?? '', $uri === null ? self::REFRESH_WINDOW_SECONDS : self::CACHE_SECONDS);
 
         return $uri;
+    }
+
+    /**
+     * The newest name for this photo that the catalogue still holds, or null
+     * when it holds none of them.
+     *
+     * Following aliases only to names we store keeps this from becoming an
+     * open media proxy, and survives a name that has come back round.
+     */
+    private function catalogueName(string $name): ?string
+    {
+        foreach (array_reverse(RefreshGooglePhoto::aliasChain($name)) as $candidate) {
+            if ($this->isCataloguePhoto($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function isCataloguePhoto(string $name): bool

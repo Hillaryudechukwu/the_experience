@@ -6,8 +6,10 @@ namespace App\Domains\ExternalSources\Services;
 
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\RateLimiter;
 use RuntimeException;
+use Throwable;
 
 /**
  * Outbound HTTP with a conscience.
@@ -46,7 +48,22 @@ class OutboundHttp
                 'Accept' => $accept,
             ]))
             ->timeout($timeout)
-            ->retry(3, 800, throw: false);
+            ->retry(3, 800, self::isTransient(...), throw: false);
+    }
+
+    /**
+     * Retry only what another attempt can fix: a dropped connection, a server
+     * error, a timeout or a rate limit. Any other 4xx is an answer, and asking
+     * again only costs quota and time (a stale Google photo name took three
+     * calls and 1.6 seconds of sleeping before this).
+     */
+    private static function isTransient(Throwable $e): bool
+    {
+        if (! $e instanceof RequestException) {
+            return true;
+        }
+
+        return $e->response->serverError() || in_array($e->response->status(), [408, 429], true);
     }
 
     /** Blocks the call rather than queueing it: a refused sync beats a ban. */

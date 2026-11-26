@@ -117,6 +117,10 @@ class PlacePhotoTest extends TestCase
         $callsAfterFirstView = count(Http::recorded());
         $this->get('/api/place-photos/'.self::NAME)->assertNotFound();
 
+        // A 400 is an answer, not a blip: the media endpoint is asked once, not three times.
+        $mediaLookups = collect(Http::recorded())->filter(fn ($pair) => str_contains($pair[0]->url(), '/media'))->count();
+        $this->assertSame(1, $mediaLookups);
+
         // The second view costs Google nothing: the miss is remembered for the window.
         $this->assertCount($callsAfterFirstView, Http::recorded());
 
@@ -139,6 +143,7 @@ class PlacePhotoTest extends TestCase
                 'code' => 400,
                 'message' => 'API key not valid. Please pass a valid API key.',
                 'status' => 'INVALID_ARGUMENT',
+                'details' => [['@type' => 'type.googleapis.com/google.rpc.ErrorInfo', 'reason' => 'API_KEY_INVALID']],
             ]], 400),
         ]);
 
@@ -228,6 +233,90 @@ class PlacePhotoTest extends TestCase
 
         // No place is asked for a photo it cannot be matched to.
         Http::assertNotSent(fn ($request) => ! str_contains($request->url(), '/media'));
+    }
+
+    /** If Google rewords its message, a stale name must still be refreshed rather than become an outage. */
+    public function test_a_reworded_stale_name_error_is_still_refreshed(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+        $fresh = 'places/ChIJabc123/photos/AXfresh_789';
+
+        Http::fake([
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(['error' => [
+                'code' => 400, 'message' => 'Request contains an invalid argument.', 'status' => 'INVALID_ARGUMENT',
+            ]], 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => [['name' => $fresh]]]),
+            'places.googleapis.com/v1/'.$fresh.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/new']),
+        ]);
+
+        $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/new');
+    }
+
+    /** A name that comes back round (A to B, then B to A) is served as itself, not lost in the loop. */
+    public function test_a_name_that_comes_back_round_is_still_served(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+        $other = 'places/ChIJabc123/photos/AXother_1';
+
+        Http::fake([
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::sequence()
+                ->push(['photos' => [['name' => $other]]])
+                ->push(['photos' => [['name' => self::NAME]]]),
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/back']),
+        ]);
+
+        $refresh = app(RefreshGooglePhoto::class);
+        $this->assertSame('google-photo:'.$other, $refresh->refresh('google-photo:'.self::NAME));
+        $this->assertSame('google-photo:'.self::NAME, $refresh->refresh('google-photo:'.$other));
+
+        $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/back');
+    }
+
+    /** The place listing the very name Google rejected is no refresh, and is not reported as one. */
+    public function test_getting_the_same_name_back_is_not_a_refresh(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+
+        Http::fake([
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => [['name' => self::NAME]]]),
+        ]);
+
+        $this->assertNull(app(RefreshGooglePhoto::class)->refresh('google-photo:'.self::NAME));
+
+        $this->artisan('experience:refresh-google-photos')
+            ->expectsTable(
+                ['Names', 'Valid within a day, skipped', 'Checked', 'Left for next run', 'Still valid', 'Refreshed', 'No new photo', 'Unreadable name', 'Failed'],
+                [[1, 0, 1, 0, 0, 0, 1, 0, 0]],
+            )
+            ->assertSuccessful();
+    }
+
+    /** A catalogue larger than --limit is worked through across runs, not stuck on the same first names. */
+    public function test_the_bulk_refresh_reaches_names_past_the_limit_on_later_runs(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $live = 'places/ChIJabc123/photos/AAlive_1';
+        $dead = 'places/ChIJabc123/photos/ZZdead_2';
+        $fresh = 'places/ChIJabc123/photos/AXfresh_789';
+        [$first, $second] = Experience::query()->where('status', 'published')->take(2)->get()->all();
+        $first->forceFill(['image_url' => 'google-photo:'.$live])->save();
+        $second->forceFill(['image_url' => 'google-photo:'.$dead])->save();
+
+        Http::fake([
+            'places.googleapis.com/v1/'.$live.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/live']),
+            'places.googleapis.com/v1/'.$dead.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => [['name' => $fresh]]]),
+        ]);
+
+        $this->artisan('experience:refresh-google-photos', ['--limit' => 1])->assertSuccessful();
+        $this->assertSame('google-photo:'.$dead, $second->fresh()->image_url);
+
+        $this->artisan('experience:refresh-google-photos', ['--limit' => 1])->assertSuccessful();
+        $this->assertSame('google-photo:'.$fresh, $second->fresh()->image_url);
     }
 
     /** Names we do not store must not become a free Google media proxy. */
