@@ -41,7 +41,7 @@ class PlacePhotoController extends Controller
 
     public function show(string $name): RedirectResponse
     {
-        $name = Cache::get('place-photo:renamed:'.$name, $name);
+        $name = Cache::get(self::key('renamed', $name), $name);
 
         abort_unless($this->isCataloguePhoto($name), 404);
 
@@ -73,7 +73,7 @@ class PlacePhotoController extends Controller
             return $uri;
         }
 
-        $lock = 'place-photo:refresh:'.$name;
+        $lock = self::key('refresh', $name);
 
         if (! Cache::add($lock, true, self::REFRESH_WINDOW_SECONDS)) {
             return null;
@@ -93,14 +93,23 @@ class PlacePhotoController extends Controller
 
         $fresh = substr($stored, strlen(GooglePlacesProvider::PHOTO_PREFIX));
 
-        Cache::put('place-photo:renamed:'.$name, $fresh, self::RENAMED_SECONDS);
+        Cache::put(self::key('renamed', $name), $fresh, self::RENAMED_SECONDS);
 
         return $this->mediaUri($fresh);
     }
 
+    /**
+     * Photo names run to several hundred characters, past the cache table's
+     * 255-character key column, so keys carry a digest rather than the name.
+     */
+    private static function key(string $kind, string $name): string
+    {
+        return 'place-photo:'.$kind.':'.hash('sha256', $name);
+    }
+
     private function mediaUri(string $name): ?string
     {
-        return Cache::remember('place-photo:'.$name, self::CACHE_SECONDS, function () use ($name): ?string {
+        return Cache::remember(self::key('uri', $name), self::CACHE_SECONDS, function () use ($name): ?string {
             return $this->google->mediaUriFor($name);
         });
     }

@@ -79,6 +79,21 @@ class PlacePhotoTest extends TestCase
         $this->get('/api/place-photos/'.$fresh)->assertRedirect('https://lh3.googleusercontent.com/new');
     }
 
+    /** Google's current names run to ~400 characters, past the cache table's key column. */
+    public function test_a_very_long_photo_name_survives_a_database_cache(): void
+    {
+        config(['cache.default' => 'database']);
+        $this->seed(DatabaseSeeder::class);
+        $long = 'places/ChIJabc123/photos/'.str_repeat('A1_-', 100);
+        $this->storeCataloguePhoto($long);
+
+        Http::fake([
+            'places.googleapis.com/v1/'.$long.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/long']),
+        ]);
+
+        $this->get('/api/place-photos/'.$long)->assertRedirect('https://lh3.googleusercontent.com/long');
+    }
+
     public function test_a_dead_photo_costs_one_refresh_attempt_per_window(): void
     {
         $this->seed(DatabaseSeeder::class);
