@@ -47,7 +47,7 @@ class RefreshGooglePhotosCommand extends Command
             ->values();
 
         $dry = (bool) $this->option('dry-run');
-        $tally = ['live' => 0, 'refreshed' => 0, 'no_photo' => 0, 'failed' => 0];
+        $tally = ['live' => 0, 'refreshed' => 0, 'no_photo' => 0, 'unreadable' => 0, 'failed' => 0];
 
         foreach ($stored as $value) {
             try {
@@ -55,6 +55,13 @@ class RefreshGooglePhotosCommand extends Command
 
                 if ($google->mediaUriFor($name) !== null) {
                     $tally['live']++;
+
+                    continue;
+                }
+
+                if (! RefreshGooglePhoto::canRefresh($value)) {
+                    $tally['unreadable']++;
+                    $this->warn($value.': not a places/{placeId}/photos/{photoId} name, so no fresh photo can be fetched.');
 
                     continue;
                 }
@@ -73,8 +80,8 @@ class RefreshGooglePhotosCommand extends Command
         }
 
         $this->table(
-            ['Checked', 'Still valid', $dry ? 'Would refresh' : 'Refreshed', 'Place has no photo', 'Failed'],
-            [[$stored->count(), $tally['live'], $tally['refreshed'], $tally['no_photo'], $tally['failed']]],
+            ['Checked', 'Still valid', $dry ? 'Would refresh' : 'Refreshed', 'Place has no photo', 'Unreadable name', 'Failed'],
+            [[$stored->count(), $tally['live'], $tally['refreshed'], $tally['no_photo'], $tally['unreadable'], $tally['failed']]],
         );
 
         return self::SUCCESS;

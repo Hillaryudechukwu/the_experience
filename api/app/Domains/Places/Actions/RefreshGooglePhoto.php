@@ -9,6 +9,7 @@ use App\Domains\Destinations\Models\Neighbourhood;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Replaces a Google photo name that Google no longer recognises.
@@ -24,6 +25,9 @@ class RefreshGooglePhoto
     /** How long a replaced name keeps answering for feeds already on a phone. */
     public const RENAMED_SECONDS = 7 * 86400;
 
+    /** Enough hops for a name replaced several times within RENAMED_SECONDS, and a stop for a loop. */
+    private const MAX_RENAME_HOPS = 5;
+
     public function __construct(private readonly GooglePlacesProvider $google) {}
 
     /**
@@ -35,7 +39,7 @@ class RefreshGooglePhoto
      */
     public function refresh(string $stored): ?string
     {
-        $placeId = $this->placeIdOf($stored);
+        $placeId = self::placeIdOf($stored);
 
         if ($placeId === null || ! $this->google->isConfigured()) {
             return null;
@@ -54,17 +58,21 @@ class RefreshGooglePhoto
             'source_url' => $photo['creator_url'],
         ], fn ($value) => $value !== null);
 
-        foreach (Experience::query()->where('image_url', $stored)->get() as $experience) {
-            $experience->forceFill(['image_url' => $photo['url'], 'image_attribution' => $attribution])->save();
-        }
+        /* All or nothing: a half-applied rename would leave some cards on a
+           name Google rejects while the alias below points the rest away. */
+        DB::transaction(function () use ($stored, $photo, $attribution): void {
+            foreach (Experience::query()->where('image_url', $stored)->get() as $experience) {
+                $experience->forceFill(['image_url' => $photo['url'], 'image_attribution' => $attribution])->save();
+            }
 
-        foreach (Neighbourhood::query()->where('image_url', $stored)->get() as $area) {
-            $area->forceFill(['image_url' => $photo['url'], 'image_attribution' => $attribution])->save();
-        }
+            foreach (Neighbourhood::query()->where('image_url', $stored)->get() as $area) {
+                $area->forceFill(['image_url' => $photo['url'], 'image_attribution' => $attribution])->save();
+            }
 
-        foreach (Destination::query()->where('hero_image_url', $stored)->get() as $destination) {
-            $destination->forceFill(['hero_image_url' => $photo['url'], 'hero_image_attribution' => $attribution])->save();
-        }
+            foreach (Destination::query()->where('hero_image_url', $stored)->get() as $destination) {
+                $destination->forceFill(['hero_image_url' => $photo['url'], 'hero_image_attribution' => $attribution])->save();
+            }
+        });
 
         if ($photo['url'] !== $stored) {
             Cache::put(
@@ -86,9 +94,33 @@ class RefreshGooglePhoto
      */
     public static function currentName(string $name): string
     {
-        $renamed = Cache::get(self::renamedKey($name));
+        /* A name can be replaced more than once while old links are still
+           out there (A to B, then B to C), so follow the aliases to the end. */
+        $seen = [$name => true];
 
-        return is_string($renamed) && $renamed !== '' ? $renamed : $name;
+        for ($hop = 0; $hop < self::MAX_RENAME_HOPS; $hop++) {
+            $renamed = Cache::get(self::renamedKey($name));
+
+            if (! is_string($renamed) || $renamed === '' || isset($seen[$renamed])) {
+                break;
+            }
+
+            $seen[$renamed] = true;
+            $name = $renamed;
+        }
+
+        return $name;
+    }
+
+    /**
+     * Whether a stored value names a place this can ask for a fresh photo.
+     *
+     * The bulk command checks this first so an unreadable name is reported
+     * as one, not as a place that has run out of photos.
+     */
+    public static function canRefresh(string $stored): bool
+    {
+        return self::placeIdOf($stored) !== null;
     }
 
     /** Photo names run past the cache table's 255-character key column, so the key is a digest. */
@@ -102,7 +134,7 @@ class RefreshGooglePhoto
         return substr($stored, strlen(GooglePlacesProvider::PHOTO_PREFIX));
     }
 
-    private function placeIdOf(string $stored): ?string
+    private static function placeIdOf(string $stored): ?string
     {
         $pattern = '#^'.preg_quote(GooglePlacesProvider::PHOTO_PREFIX, '#').'places/([A-Za-z0-9_-]+)/photos/[A-Za-z0-9_-]+$#';
 

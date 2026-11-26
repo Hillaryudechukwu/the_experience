@@ -10,6 +10,7 @@ use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
 use App\Domains\Places\Actions\RefreshGooglePhoto;
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
@@ -34,6 +35,12 @@ class PlacePhotoController extends Controller
      * one Google call per window rather than one per view.
      */
     private const REFRESH_WINDOW_SECONDS = 600;
+
+    /** Longest a refresh may hold the lock: a place lookup plus the writes, with room for retries. */
+    private const REFRESH_LOCK_SECONDS = 30;
+
+    /** How long a request waits for another's refresh before giving up with a 404. */
+    private const REFRESH_WAIT_SECONDS = 10;
 
     public function __construct(
         private readonly GooglePlacesProvider $google,
@@ -74,18 +81,39 @@ class PlacePhotoController extends Controller
             return $uri;
         }
 
-        $lock = self::key('refresh', $name);
+        /* Misses for the same name queue here, so a request that arrives
+           while another is fetching a replacement waits for it and serves the
+           new photo, rather than answering 404 for a photo about to work. */
+        $mutex = Cache::lock(self::key('refreshing', $name), self::REFRESH_LOCK_SECONDS);
 
-        if (! Cache::add($lock, true, self::REFRESH_WINDOW_SECONDS)) {
+        try {
+            $mutex->block(self::REFRESH_WAIT_SECONDS);
+        } catch (LockTimeoutException) {
             return null;
         }
 
         try {
-            $stored = $this->refresh->refresh(GooglePlacesProvider::PHOTO_PREFIX.$name);
-        } catch (Throwable $e) {
-            Cache::forget($lock);
+            $current = RefreshGooglePhoto::currentName($name);
 
-            throw $e;
+            if ($current !== $name) {
+                return $this->mediaUri($current);
+            }
+
+            $window = self::key('refresh', $name);
+
+            if (! Cache::add($window, true, self::REFRESH_WINDOW_SECONDS)) {
+                return null;
+            }
+
+            try {
+                $stored = $this->refresh->refresh(GooglePlacesProvider::PHOTO_PREFIX.$name);
+            } catch (Throwable $e) {
+                Cache::forget($window);
+
+                throw $e;
+            }
+        } finally {
+            $mutex->release();
         }
 
         if ($stored === null) {

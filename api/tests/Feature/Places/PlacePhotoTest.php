@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Places;
 
+use App\Domains\Destinations\Models\Destination;
 use App\Domains\Experiences\Models\Experience;
+use App\Domains\Places\Actions\RefreshGooglePhoto;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -162,6 +165,69 @@ class PlacePhotoTest extends TestCase
 
         $this->assertTrue(Experience::query()->where('image_url', 'google-photo:'.$fresh)->exists());
         $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/new');
+    }
+
+    /** A name replaced twice while old feeds are still out: the oldest link follows both hops. */
+    public function test_an_old_link_follows_a_name_replaced_twice(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+        $second = 'places/ChIJabc123/photos/AXsecond_1';
+        $third = 'places/ChIJabc123/photos/AXthird_2';
+
+        Http::fake([
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
+            'places.googleapis.com/v1/'.$second.'/media*' => Http::response(self::STALE_NAME_ERROR, 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::sequence()
+                ->push(['photos' => [['name' => $second]]])
+                ->push(['photos' => [['name' => $third]]]),
+            'places.googleapis.com/v1/'.$third.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/third']),
+        ]);
+
+        $this->artisan('experience:refresh-google-photos')->assertSuccessful();
+        $this->artisan('experience:refresh-google-photos')->assertSuccessful();
+
+        $this->assertTrue(Experience::query()->where('image_url', 'google-photo:'.$third)->exists());
+        $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/third');
+    }
+
+    /** A rename that fails part way leaves every card on the old name, not some on each. */
+    public function test_a_failed_rename_changes_nothing(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+        Destination::query()->firstOrFail()->forceFill(['hero_image_url' => 'google-photo:'.self::NAME])->save();
+
+        Http::fake([
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => [['name' => 'places/ChIJabc123/photos/AXfresh_789']]]),
+        ]);
+        Destination::saving(fn () => throw new RuntimeException('database went away'));
+
+        try {
+            app(RefreshGooglePhoto::class)->refresh('google-photo:'.self::NAME);
+            $this->fail('The rename should have failed.');
+        } catch (RuntimeException) {
+        }
+
+        $this->assertTrue(Experience::query()->where('image_url', 'google-photo:'.self::NAME)->exists());
+        $this->assertSame(self::NAME, RefreshGooglePhoto::currentName(self::NAME));
+    }
+
+    public function test_the_bulk_refresh_reports_an_unreadable_name_as_such(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto('places/ChIJabc123/photos/not.a.photo.id');
+
+        Http::fake([
+            'places.googleapis.com/v1/places/ChIJabc123/photos/*' => Http::response(self::STALE_NAME_ERROR, 400),
+        ]);
+
+        $this->artisan('experience:refresh-google-photos')
+            ->expectsOutputToContain('not a places/{placeId}/photos/{photoId} name')
+            ->assertSuccessful();
+
+        // No place is asked for a photo it cannot be matched to.
+        Http::assertNotSent(fn ($request) => ! str_contains($request->url(), '/media'));
     }
 
     /** Names we do not store must not become a free Google media proxy. */
