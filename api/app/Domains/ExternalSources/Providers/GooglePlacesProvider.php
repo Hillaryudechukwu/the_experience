@@ -260,7 +260,11 @@ class GooglePlacesProvider implements PlaceDataProvider
                 'skipHttpRedirect' => 'true',
             ]);
 
-        if ($media->status() === 404) {
+        /* 404 is a photo that is gone. 400 is Google's answer to a resource
+           name it no longer recognises ("The photo resource in the request is
+           invalid"): names are not permanent, so the caller should fetch a
+           fresh one from the place rather than treat it as an outage. */
+        if (in_array($media->status(), [400, 404], true)) {
             return null;
         }
 

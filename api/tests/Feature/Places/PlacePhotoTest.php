@@ -54,6 +54,52 @@ class PlacePhotoTest extends TestCase
         $this->get('/api/place-photos/'.self::NAME)->assertNotFound();
     }
 
+    public function test_a_name_google_rejects_is_replaced_from_the_place_and_served(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+        $fresh = 'places/ChIJabc123/photos/AXfresh_789';
+
+        Http::fake([
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response(['error' => ['status' => 'INVALID_ARGUMENT']], 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response([
+                'photos' => [['name' => $fresh, 'authorAttributions' => [['displayName' => 'Ada', 'uri' => 'https://maps.google.com/ada']]]],
+            ]),
+            'places.googleapis.com/v1/'.$fresh.'/media*' => Http::response(['photoUri' => 'https://lh3.googleusercontent.com/new']),
+        ]);
+
+        $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/new');
+
+        $experience = Experience::query()->where('image_url', 'google-photo:'.$fresh)->firstOrFail();
+        $this->assertSame('Ada', $experience->image_attribution['creator']);
+
+        // The link a feed already on a phone holds keeps working.
+        $this->get('/api/place-photos/'.self::NAME)->assertRedirect('https://lh3.googleusercontent.com/new');
+        // And so does the new one.
+        $this->get('/api/place-photos/'.$fresh)->assertRedirect('https://lh3.googleusercontent.com/new');
+    }
+
+    public function test_a_dead_photo_costs_one_refresh_attempt_per_window(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->storeCataloguePhoto(self::NAME);
+
+        Http::fake([
+            'places.googleapis.com/v1/'.self::NAME.'/media*' => Http::response([], 400),
+            'places.googleapis.com/v1/places/ChIJabc123' => Http::response(['photos' => []]),
+        ]);
+
+        $this->get('/api/place-photos/'.self::NAME)->assertNotFound();
+        $this->get('/api/place-photos/'.self::NAME)->assertNotFound();
+
+        // The place is only asked for a new photo once, however often the dead one is requested.
+        $placeLookups = collect(Http::recorded())
+            ->filter(fn ($pair) => ! str_contains($pair[0]->url(), '/media'))
+            ->count();
+
+        $this->assertSame(1, $placeLookups);
+    }
+
     /** Names we do not store must not become a free Google media proxy. */
     public function test_an_unknown_photo_name_is_refused_without_calling_google(): void
     {

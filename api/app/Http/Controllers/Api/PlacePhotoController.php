@@ -8,6 +8,7 @@ use App\Domains\Destinations\Models\Destination;
 use App\Domains\Destinations\Models\Neighbourhood;
 use App\Domains\Experiences\Models\Experience;
 use App\Domains\ExternalSources\Providers\GooglePlacesProvider;
+use App\Domains\Places\Actions\RefreshGooglePhoto;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
@@ -27,18 +28,25 @@ class PlacePhotoController extends Controller
 {
     private const CACHE_SECONDS = 2700;
 
-    public function __construct(private readonly GooglePlacesProvider $google) {}
+    /** How long a replaced name keeps answering for feeds already on a phone. */
+    private const RENAMED_SECONDS = 7 * 86400;
+
+    /** One refresh attempt per name per window, so a dead photo costs one Google call, not one per view. */
+    private const REFRESH_WINDOW_SECONDS = 600;
+
+    public function __construct(
+        private readonly GooglePlacesProvider $google,
+        private readonly RefreshGooglePhoto $refresh,
+    ) {}
 
     public function show(string $name): RedirectResponse
     {
+        $name = Cache::get('place-photo:renamed:'.$name, $name);
+
         abort_unless($this->isCataloguePhoto($name), 404);
 
-        $cacheKey = 'place-photo:'.$name;
-
         try {
-            $uri = Cache::remember($cacheKey, self::CACHE_SECONDS, function () use ($name): ?string {
-                return $this->google->mediaUriFor($name);
-            });
+            $uri = $this->resolve($name);
         } catch (Throwable) {
             abort(502, 'The photo could not be fetched right now.');
         }
@@ -46,6 +54,55 @@ class PlacePhotoController extends Controller
         abort_if(! is_string($uri) || $uri === '', 404);
 
         return redirect()->away($uri)->header('Cache-Control', 'public, max-age='.self::CACHE_SECONDS);
+    }
+
+    /**
+     * A current link for the stored name, replacing the name itself when
+     * Google no longer recognises it.
+     *
+     * Google's photo names are not permanent. Left alone, a name that has gone
+     * stale answers 404 for ever and the card shows a placeholder; here the
+     * place is asked for a fresh photo and the catalogue is corrected, so the
+     * next request, and every other card using it, works.
+     */
+    private function resolve(string $name): ?string
+    {
+        $uri = $this->mediaUri($name);
+
+        if (is_string($uri) && $uri !== '') {
+            return $uri;
+        }
+
+        $lock = 'place-photo:refresh:'.$name;
+
+        if (! Cache::add($lock, true, self::REFRESH_WINDOW_SECONDS)) {
+            return null;
+        }
+
+        try {
+            $stored = $this->refresh->refresh(GooglePlacesProvider::PHOTO_PREFIX.$name);
+        } catch (Throwable $e) {
+            Cache::forget($lock);
+
+            throw $e;
+        }
+
+        if ($stored === null) {
+            return null;
+        }
+
+        $fresh = substr($stored, strlen(GooglePlacesProvider::PHOTO_PREFIX));
+
+        Cache::put('place-photo:renamed:'.$name, $fresh, self::RENAMED_SECONDS);
+
+        return $this->mediaUri($fresh);
+    }
+
+    private function mediaUri(string $name): ?string
+    {
+        return Cache::remember('place-photo:'.$name, self::CACHE_SECONDS, function () use ($name): ?string {
+            return $this->google->mediaUriFor($name);
+        });
     }
 
     private function isCataloguePhoto(string $name): bool
